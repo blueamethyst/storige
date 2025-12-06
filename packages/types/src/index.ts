@@ -297,3 +297,102 @@ export interface EditorResult {
     contentPdf?: string;
   };
 }
+
+// ============================================================================
+// Editor Design (사용자 디자인 저장)
+// ============================================================================
+
+export interface EditorDesign {
+  id: string;
+  userId: string;
+  name: string;
+  imageUrl?: string;
+  mediaUrl: string;
+  metadata: EditorDesignMetadata;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EditorDesignMetadata {
+  productId?: string;
+  sizeNo?: string;
+  totalPage: number;
+  settings: Record<string, any>;
+  isAdmin?: boolean;
+}
+
+export interface CreateEditorDesignInput {
+  name: string;
+  imageUrl?: string;
+  mediaUrl: string;
+  metadata: EditorDesignMetadata;
+}
+
+export interface UpdateEditorDesignInput {
+  name?: string;
+  imageUrl?: string;
+  mediaUrl?: string;
+  metadata?: Partial<EditorDesignMetadata>;
+}
+
+// ============================================================================
+// Editor Content (에디터 에셋: 템플릿, 프레임, 이미지, 배경, 요소)
+// ============================================================================
+
+export type EditorContentType = 'template' | 'frame' | 'image' | 'background' | 'element';
+
+export interface EditorContent {
+  id: string;
+  type: EditorContentType;
+  name: string;
+  imageUrl?: string;
+  designUrl?: string;
+  cutLineUrl?: string;
+  tags: string[];
+  metadata: Record<string, any>;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EditorContentFilter {
+  type?: EditorContentType;
+  tags?: string[];
+  isActive?: boolean;
+  search?: string;
+}
+
+export interface EditorContentSort {
+  field: 'name' | 'createdAt' | 'updatedAt';
+  order: 'asc' | 'desc';
+}
+
+// ============================================================================
+// Canvas Settings (캔버스 설정)
+// ============================================================================
+
+export type ColorMode = 'RGB' | 'CMYK';
+export type SizeUnit = 'mm' | 'px' | 'inch';
+
+export interface CanvasSettings {
+  unit: SizeUnit;
+  visibleUnit?: SizeUnit;
+  colorMode: ColorMode;
+  dpi: number;
+  size: {
+    width: number;
+    height: number;
+    cutSize: number;
+    safeSize?: number;
+    printSize?: { width: number; height: number };
+  };
+  showCutBorder: boolean;
+  showSafeBorder?: boolean;
+  editMode?: boolean;
+  page: {
+    count: number;
+    min: number;
+    max: number;
+    interval: number;
+  };
+}

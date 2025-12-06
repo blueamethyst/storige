@@ -1,0 +1,90 @@
+import {
+  Controller,
+  Get,
+  Put,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { EditorContentsService } from './editor-contents.service';
+import { QueryEditorContentDto } from './dto/query-editor-content.dto';
+import { UpdateEditorContentDto } from './dto/update-editor-content.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole, EditorContentType } from '@storige/types';
+
+@Controller('editor-contents')
+export class EditorContentsController {
+  constructor(private readonly editorContentsService: EditorContentsService) {}
+
+  @Get('templates')
+  async getTemplates(@Query() query: QueryEditorContentDto) {
+    const result = await this.editorContentsService.getTemplates(query);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('frames')
+  async getFrames(@Query() query: QueryEditorContentDto) {
+    const result = await this.editorContentsService.getFrames(query);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('images')
+  async getImages(@Query() query: QueryEditorContentDto) {
+    const result = await this.editorContentsService.getImages(query);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('backgrounds')
+  async getBackgrounds(@Query() query: QueryEditorContentDto) {
+    const result = await this.editorContentsService.getBackgrounds(query);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('elements')
+  async getElements(@Query() query: QueryEditorContentDto) {
+    const result = await this.editorContentsService.getElements(query);
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    const content = await this.editorContentsService.findOne(id);
+    return {
+      success: true,
+      data: content,
+    };
+  }
+
+  @Put(':type/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async update(
+    @Param('type') type: EditorContentType,
+    @Param('id') id: string,
+    @Body() dto: UpdateEditorContentDto,
+  ) {
+    const content = await this.editorContentsService.update(type, id, dto);
+    return {
+      success: true,
+      data: content,
+    };
+  }
+}

@@ -1,0 +1,260 @@
+import Editor, {
+  AccessoryPlugin,
+  AlignPlugin,
+  type CanvasSettings,
+  ControlsPlugin,
+  CopyPlugin,
+  DraggingPlugin,
+  EffectPlugin,
+  FilterPlugin,
+  FontPlugin,
+  GroupPlugin,
+  HistoryPlugin,
+  ImageProcessingPlugin,
+  ObjectPlugin,
+  PreviewPlugin,
+  RulerPlugin,
+  ServicePlugin,
+  SmartCodePlugin,
+  TemplatePlugin,
+  WorkspacePlugin,
+  createFabricCanvas,
+  configureFabricDefaults,
+} from '@storige/canvas-core'
+import { useAppStore } from '@/stores/useAppStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
+import { DEFAULT_FONT_FAMILY, getFontList, getFontUrl } from '@/utils/fontManager'
+import type { fabric } from 'fabric'
+
+/**
+ * 캔버스 생성 함수
+ * FabricJS 캔버스 인스턴스를 생성하고 플러그인을 초기화합니다.
+ * @param customSettings - 사용자 정의 캔버스 설정
+ * @param containerElement - 캔버스를 삽입할 컨테이너 요소
+ * @param initId - 초기화 세션 ID (React Strict Mode 대응용)
+ */
+export const createCanvas = async (
+  customSettings: Partial<CanvasSettings> = {},
+  containerElement?: HTMLElement,
+  initId?: string
+): Promise<fabric.Canvas> => {
+  const appStore = useAppStore.getState()
+  const settingsStore = useSettingsStore.getState()
+
+  // 사용자 설정이 제공되면 스토어 업데이트
+  if (Object.keys(customSettings).length > 0) {
+    settingsStore.updateSettings(customSettings)
+  }
+
+  // 현재 설정 가져오기
+  const settings = settingsStore.currentSettings
+
+  // 새 캔버스의 인덱스 계산
+  const { allCanvas } = appStore
+  const index =
+    allCanvas.length > 0
+      ? allCanvas.reduce((max, item) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const canvasIndex = (item as any).index ?? 0
+          return canvasIndex > max ? canvasIndex : max
+        }, -Infinity) + 1
+      : 0
+
+  const editor = new Editor()
+  const canvasId = 'canvas' + index
+
+  // 캔버스 컨테이너 요소
+  const canvasContainer = containerElement || document.getElementById('canvas-containers')
+
+  if (!canvasContainer) {
+    console.error('Canvas container element not found')
+    throw new Error('Canvas container element not found')
+  }
+
+  // 1. 캔버스 컨테이너 초기화 - 해당 인덱스에 관련된 모든 요소 제거
+  const existingContainers = canvasContainer.querySelectorAll(`.canvas-container`)
+  existingContainers.forEach((container) => {
+    if (container.querySelector(`#${canvasId}`)) {
+      container.remove()
+    }
+  })
+
+  // 2. 새로운 FabricJS 캔버스 생성을 위한 DOM 요소 설정
+  const canvasElement = document.createElement('canvas')
+  canvasElement.id = canvasId
+
+  // 사용자 정의 컨테이너 생성
+  const customContainer = document.createElement('div')
+  customContainer.className = 'canvas-container'
+  customContainer.style.width = '100%'
+  customContainer.style.height = '100%'
+  customContainer.style.position = 'relative'
+  customContainer.style.userSelect = 'none'
+  customContainer.style.display = index === 0 ? 'block' : 'none'
+
+  // 먼저 DOM 트리에 추가
+  customContainer.appendChild(canvasElement)
+  canvasContainer.appendChild(customContainer)
+
+  // 3. FabricJS 기본 설정 (1회만 실행됨)
+  configureFabricDefaults()
+
+  // 4. FabricJS 캔버스 인스턴스 생성 (core API 사용)
+  const canvas = await createFabricCanvas(canvasId, {
+    index: index,
+    unitOptions: {
+      unit: settings.unit,
+      dpi: settings.dpi,
+    },
+  })
+
+  // 5. FabricJS가 생성한 DOM 요소 구조 정리
+  const fabricWrapper = canvasElement.parentElement
+
+  if (fabricWrapper && fabricWrapper !== customContainer) {
+    canvasContainer.removeChild(customContainer)
+
+    const lowerCanvas = canvas.lowerCanvasEl
+    const upperCanvas = canvas.upperCanvasEl
+
+    customContainer.innerHTML = ''
+    customContainer.appendChild(lowerCanvas)
+    customContainer.appendChild(upperCanvas)
+
+    canvasContainer.appendChild(customContainer)
+    canvas.wrapperEl = customContainer
+  }
+
+  // 6. 플러그인 초기화
+  initPlugins(canvas, editor, settings, initId)
+
+  return canvas
+}
+
+/**
+ * 여러 캔버스 동시 생성 함수
+ */
+export const createMultipleCanvas = async (
+  count: number,
+  customSetting?: Partial<CanvasSettings>
+): Promise<fabric.Canvas[]> => {
+  const canvasArray: fabric.Canvas[] = []
+
+  const canvasContainer = document.getElementById('canvas-containers') as HTMLDivElement
+
+  if (canvasContainer) {
+    canvasContainer.innerHTML = ''
+  }
+
+  for (let i = 0; i < count; i++) {
+    const canvas = await createCanvas(customSetting, canvasContainer)
+    canvasArray.push(canvas)
+  }
+
+  if (canvasArray.length > 0) {
+    const appStore = useAppStore.getState()
+    appStore.setPage(0)
+  }
+
+  return canvasArray
+}
+
+/**
+ * 플러그인 초기화 함수
+ */
+function initPlugins(
+  canvas: fabric.Canvas,
+  editor: Editor,
+  settings: CanvasSettings,
+  initId?: string
+) {
+  const appStore = useAppStore.getState()
+  const settingsStore = useSettingsStore.getState()
+
+  // 플러그인 인스턴스 생성
+  const ruler = new RulerPlugin(canvas, editor, {
+    canvas,
+    ruleSize: 24,
+    fontSize: 10,
+    enabled: false, // 성능 테스트를 위해 비활성화
+    unit: settings.unit,
+    dpi: settings.dpi,
+  })
+
+  // renderType은 settings 스토어에서 계산된 값이나, 현재는 기본값 사용
+  // TODO: useSettingsStore에 renderType computed 구현 필요
+  const renderType = settingsStore.renderType || 'bounded'
+  const mergedOptions = {
+    ...settings,
+    renderType,
+  }
+
+  const workspace = new WorkspacePlugin(canvas, editor, mergedOptions)
+  const object = new ObjectPlugin(canvas, editor, mergedOptions)
+  const group = new GroupPlugin(canvas, editor)
+  const history = new HistoryPlugin(canvas, editor)
+  const copy = new CopyPlugin(canvas, editor, {})
+  const align = new AlignPlugin(canvas, editor)
+  const image = new ImageProcessingPlugin(canvas, editor)
+  const service = new ServicePlugin(canvas, editor, image, mergedOptions)
+  const material = new AccessoryPlugin(canvas, editor, {})
+  const drag = new DraggingPlugin(canvas, editor)
+
+  // FontPlugin에 전달하기 위해 fontList 변환
+  const fontListForPlugin = getFontList()
+    .map((font) => ({
+      name: font.name,
+      src: getFontUrl(font.file),
+    }))
+    .filter((font) => font.src !== undefined) as { name: string; src: string }[]
+
+  const font = new FontPlugin(canvas, editor, fontListForPlugin, DEFAULT_FONT_FAMILY)
+
+  const filter = new FilterPlugin(canvas, editor)
+  const effect = new EffectPlugin(canvas, editor)
+  const smartCode = new SmartCodePlugin(canvas, editor)
+  const controls = new ControlsPlugin(canvas, editor, settings.controls || {})
+  const template = new TemplatePlugin(canvas, editor, mergedOptions)
+  const preview = new PreviewPlugin(canvas, editor, mergedOptions)
+
+  // Editor 초기화
+  editor.init(canvas)
+
+  // 모든 플러그인 등록
+  editor.use(workspace)
+  editor.use(object)
+  editor.use(ruler)
+  editor.use(controls)
+  editor.use(group)
+  editor.use(history)
+  editor.use(copy)
+  editor.use(align)
+  editor.use(drag)
+  editor.use(font)
+  editor.use(filter)
+  editor.use(effect)
+  editor.use(smartCode)
+  editor.use(image)
+  editor.use(material)
+  editor.use(preview)
+  editor.use(template)
+  editor.use(service)
+
+  workspace.init()
+  ruler.enable()
+
+  // 앱 스토어에 등록 (initId 전달)
+  appStore.init(canvas, editor, initId)
+}
+
+/**
+ * 이전 버전과의 호환성을 위한 함수
+ */
+export const setupCanvas = async (options?: {
+  customSettings?: Partial<CanvasSettings>
+  page?: number
+}): Promise<fabric.Canvas[] | fabric.Canvas> => {
+  return !options?.page || options?.page === 1
+    ? createCanvas(options?.customSettings)
+    : createMultipleCanvas(options?.page || 1, options?.customSettings)
+}

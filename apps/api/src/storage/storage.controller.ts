@@ -115,4 +115,85 @@ export class StorageController {
     await this.storageService.deleteFileByUrl(url);
     return { message: 'File deleted successfully' };
   }
+
+  // ============================================================================
+  // Designs Storage Endpoints
+  // ============================================================================
+
+  @Post('upload/designs')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Upload a design file (JSON or image)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Design file uploaded successfully' })
+  async uploadDesignFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    const result = await this.storageService.saveFile(file, 'designs');
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('designs/:filename')
+  @ApiOperation({ summary: 'Get a design file' })
+  @ApiResponse({ status: 200, description: 'Design file retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Design file not found' })
+  async getDesignFile(
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const url = `/storage/designs/${filename}`;
+    const filePath = this.storageService.getFilePathFromUrl(url);
+
+    const exists = await this.storageService.fileExists(filePath);
+    if (!exists) {
+      throw new BadRequestException('Design file not found');
+    }
+
+    const file = fs.createReadStream(filePath);
+
+    // Set appropriate content type
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const contentTypes: Record<string, string> = {
+      json: 'application/json',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      svg: 'image/svg+xml',
+      pdf: 'application/pdf',
+    };
+
+    if (ext && contentTypes[ext]) {
+      res.set('Content-Type', contentTypes[ext]);
+    }
+
+    return new StreamableFile(file);
+  }
+
+  @Delete('designs/:filename')
+  @ApiOperation({ summary: 'Delete a design file' })
+  @ApiResponse({ status: 200, description: 'Design file deleted successfully' })
+  async deleteDesignFile(@Param('filename') filename: string) {
+    const url = `/storage/designs/${filename}`;
+    await this.storageService.deleteFileByUrl(url);
+    return {
+      success: true,
+      message: 'Design file deleted successfully',
+    };
+  }
 }

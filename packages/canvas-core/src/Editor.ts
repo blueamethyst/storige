@@ -1,217 +1,136 @@
-import { Canvas as FabricCanvas, util } from 'fabric';
-import type { CanvasData } from '@storige/types';
-import type { EditorOptions, EditorInstance } from './types';
-import { Plugin, PluginContext } from './core/Plugin';
-import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter } from 'events'
+import hotkeys from 'hotkeys-js'
+import { AsyncSeriesHook } from 'tapable'
+import { fabric } from 'fabric'
+import { Lifecycle, PluginBase } from './plugin'
+import CanvasHotkey from './models/CanvasHotkey'
+import ContextMenuItem from './models/ContextMenuItem'
+import ContextMenu from './contextMenu'
+import { isArray } from 'lodash-es'
 
-export class Editor implements EditorInstance {
-  public canvas: FabricCanvas;
-  private container: HTMLElement;
-  private plugins: Map<string, Plugin>;
-  private history: CanvasData[];
-  private historyIndex: number;
-  private maxHistorySize: number;
+class Editor extends EventEmitter {
+  [key: string]: any
 
-  constructor(options: EditorOptions) {
-    // Get container element
-    this.container = typeof options.container === 'string'
-      ? document.querySelector(options.container)!
-      : options.container;
+  public hooks: Map<keyof Lifecycle, AsyncSeriesHook<any, any>> = new Map()
 
-    if (!this.container) {
-      throw new Error('Container element not found');
-    }
+  private contextMenu: ContextMenu | undefined
 
-    // Create canvas element
-    const canvasElement = document.createElement('canvas');
-    this.container.appendChild(canvasElement);
+  private plugins: Map<string, PluginBase> = new Map()
 
-    // Initialize Fabric canvas
-    this.canvas = new FabricCanvas(canvasElement, {
-      width: options.width || 800,
-      height: options.height || 600,
-      backgroundColor: options.backgroundColor || '#ffffff',
-    });
+  private canvas: fabric.Canvas | null = null
+  private hooksInitialized: boolean = false
 
-    // Initialize plugins system
-    this.plugins = new Map();
-
-    // Initialize history
-    this.history = [];
-    this.historyIndex = -1;
-    this.maxHistorySize = options.maxHistorySize || 50;
-
-    // Save initial state
-    this.saveHistory();
-
-    // Setup event listeners for history
-    this.setupHistoryListeners();
+  constructor() {
+    super()
+    // 이벤트 이미터의 최대 리스너 수 증가
+    this.setMaxListeners(30)
   }
 
-  // ============================================================================
-  // Plugin System
-  // ============================================================================
-
-  use(plugin: Plugin): this {
-    if (this.plugins.has(plugin.name)) {
-      console.warn(`Plugin ${plugin.name} is already installed`);
-      return this;
-    }
-
-    plugin.install();
-    this.plugins.set(plugin.name, plugin);
-    return this;
+  get customLifeCycles(): (keyof Lifecycle)[] {
+    return ['mounted', 'destroyed', 'beforeLoad', 'afterLoad', 'beforeSave', 'afterSave']
   }
 
-  unuse(pluginName: string): this {
-    const plugin = this.plugins.get(pluginName);
-    if (!plugin) {
-      console.warn(`Plugin ${pluginName} is not installed`);
-      return this;
-    }
-
-    plugin.uninstall();
-    this.plugins.delete(pluginName);
-    return this;
-  }
-
-  getPlugin(name: string): Plugin | undefined {
-    return this.plugins.get(name);
-  }
-
-  getPluginContext(): PluginContext {
-    return {
-      canvas: this.canvas,
-      editor: this,
-    };
-  }
-
-  // ============================================================================
-  // History Management
-  // ============================================================================
-
-  private setupHistoryListeners(): void {
-    // Listen to object modifications
-    this.canvas.on('object:added', () => this.saveHistory());
-    this.canvas.on('object:modified', () => this.saveHistory());
-    this.canvas.on('object:removed', () => this.saveHistory());
-  }
-
-  private saveHistory(): void {
-    // Remove any states after current index (when undoing then making changes)
-    if (this.historyIndex < this.history.length - 1) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
-    }
-
-    // Add new state
-    this.history.push(this.exportJSON());
-    this.historyIndex++;
-
-    // Limit history size
-    if (this.history.length > this.maxHistorySize) {
-      this.history.shift();
-      this.historyIndex--;
+  getPlugin<T extends PluginBase>(pluginName: string): T | undefined {
+    if (this.plugins.has(pluginName)) {
+      return this.plugins.get(pluginName) as T
+    } else {
+      return undefined
     }
   }
 
-  undo(): boolean {
-    if (this.historyIndex <= 0) {
-      return false;
-    }
+  init(canvas: fabric.Canvas) {
+    this.canvas = canvas
+    this.initContextMenu(canvas)
+    this.initActionHooks()
 
-    this.historyIndex--;
-    const state = this.history[this.historyIndex];
-    this.loadTemplate(state, false); // false = don't save to history
-    return true;
+    this.once('ready', () => {})
   }
 
-  redo(): boolean {
-    if (this.historyIndex >= this.history.length - 1) {
-      return false;
-    }
+  use(plugin: PluginBase): void {
+    if (!this.plugins.has(plugin.name) && this.canvas) {
+      this.plugins.set(plugin.name, plugin)
 
-    this.historyIndex++;
-    const state = this.history[this.historyIndex];
-    this.loadTemplate(state, false); // false = don't save to history
-    return true;
-  }
+      this.bindingHooks(plugin)
+      this.bindingHotkeys(plugin)
+      this.bindingContextItems(plugin)
 
-  canUndo(): boolean {
-    return this.historyIndex > 0;
-  }
+      console.debug('plugin setup', plugin.name)
 
-  canRedo(): boolean {
-    return this.historyIndex < this.history.length - 1;
-  }
-
-  clearHistory(): void {
-    this.history = [this.exportJSON()];
-    this.historyIndex = 0;
-  }
-
-  // ============================================================================
-  // Template Management
-  // ============================================================================
-
-  /**
-   * Load template data into the canvas
-   */
-  loadTemplate(data: CanvasData, saveToHistory: boolean = true): void {
-    this.canvas.clear();
-
-    if (data.background) {
-      this.canvas.setBackgroundColor(data.background as string, () => {
-        this.canvas.renderAll();
-      });
-    }
-
-    // Load objects using Fabric's built-in method
-    if (data.objects && data.objects.length > 0) {
-      util.enlivenObjects(data.objects as any[], {}).then((enlivenedObjects: any[]) => {
-        enlivenedObjects.forEach((obj) => {
-          this.canvas.add(obj);
-        });
-        this.canvas.renderAll();
-
-        if (saveToHistory) {
-          this.saveHistory();
-        }
-      });
-    } else if (saveToHistory) {
-      this.saveHistory();
+      // noinspection JSIgnoredPromiseFromCall
+      plugin.mounted()
     }
   }
 
-  /**
-   * Export canvas data as JSON
-   */
-  exportJSON(): CanvasData {
-    const json = this.canvas.toJSON();
-
-    return {
-      version: '1.0.0',
-      width: this.canvas.width || 800,
-      height: this.canvas.height || 600,
-      objects: json.objects || [],
-      background: json.background,
-    };
-  }
-
-  /**
-   * Export canvas as PDF
-   * TODO: Implement PDF export using jsPDF or backend API
-   */
-  async exportPDF(): Promise<Blob> {
-    throw new Error('PDF export not yet implemented');
-  }
-
-  /**
-   * Clean up and destroy the editor
-   */
-  destroy(): void {
-    this.canvas.dispose();
-    if (this.container && this.container.firstChild) {
-      this.container.removeChild(this.container.firstChild);
+  dispose() {
+    for (const pluginName in this.pluginMap) {
+      const plugin = this.pluginMap[pluginName]
+      plugin.dispose && plugin.dispose()
     }
+
+    this.canvas = null
+    this.plugins.clear()
+    this.hooks.clear()
+    //document.removeEventListener('mousedown', (opt) => this.showContexxtMenu(opt, this.contextMenu!));
+
+    // 모든 이벤트 리스너 제거
+    this.removeAllListeners()
+  }
+
+  private bindingHooks(plugin: PluginBase) {
+    this.customLifeCycles.forEach((hookName) => {
+      const hook = plugin[hookName]
+
+      if (hook) {
+        this.hooks.get(hookName)?.tapPromise(plugin.name + hookName, (...args) => {
+          return hook.apply(plugin, args) as Promise<any>
+        })
+      }
+    })
+  }
+
+  private bindingHotkeys(plugin: PluginBase) {
+    plugin?.hotkeys?.forEach((hotkey: CanvasHotkey) => {
+      const inputArray = Array.isArray(hotkey.input) ? hotkey.input : [hotkey.input]
+      inputArray.forEach((input) => {
+        hotkeys(input, { keyup: true }, (e) => {
+          if (e.type === 'keydown') {
+            if (hotkey.onlyForActiveObject) {
+              const activeObject = this.canvas?.getActiveObject()
+              if (!activeObject) return
+            }
+
+            // Prevent default browser behavior for hotkeys
+            e.preventDefault()
+            hotkey.callback()
+          }
+        })
+      })
+    })
+  }
+
+  private bindingContextItems(plugin: PluginBase) {
+    plugin.hotkeys?.forEach((item: CanvasHotkey) => {
+      const menu: ContextMenuItem = {
+        ...item,
+        input: isArray(item.input) ? item.input[0] : item.input
+      }
+      this.contextMenu?.addMenu(menu)
+    })
+  }
+
+  private initContextMenu(canvas: fabric.Canvas) {
+    this.contextMenu = new ContextMenu(canvas, [])
+  }
+
+  private initActionHooks() {
+    // 이미 초기화되었는지 확인
+    if (this.hooksInitialized) return
+    this.customLifeCycles.forEach((hookName) => {
+      this.hooks.set(hookName, new AsyncSeriesHook(['arg']))
+    })
+
+    this.hooksInitialized = true
   }
 }
+
+export default Editor

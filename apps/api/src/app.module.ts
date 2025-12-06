@@ -8,6 +8,9 @@ import { LibraryModule } from './library/library.module';
 import { StorageModule } from './storage/storage.module';
 import { WorkerJobsModule } from './worker-jobs/worker-jobs.module';
 import { EditorModule } from './editor/editor.module';
+import { EditorDesignsModule } from './editor-designs/editor-designs.module';
+import { EditorContentsModule } from './editor-contents/editor-contents.module';
+import { ProductsModule } from './products/products.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -54,6 +57,9 @@ import { HealthModule } from './health/health.module';
     StorageModule,
     WorkerJobsModule,
     EditorModule,
+    EditorDesignsModule,
+    EditorContentsModule,
+    ProductsModule,
   ],
   controllers: [],
   providers: [],

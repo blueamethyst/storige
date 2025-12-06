@@ -40,12 +40,14 @@ export class StorageService {
       'font/woff2',
       'application/x-font-ttf',
       'application/x-font-otf',
+      // JSON (for design data)
+      'application/json',
     ];
   }
 
   async saveFile(
     file: Express.Multer.File,
-    category: 'templates' | 'library' | 'uploads' | 'temp' = 'uploads',
+    category: 'templates' | 'library' | 'uploads' | 'temp' | 'designs' = 'uploads',
   ): Promise<UploadedFile> {
     // Validate file
     this.validateFile(file);
