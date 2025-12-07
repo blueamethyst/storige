@@ -10,8 +10,9 @@ import {
   type EmptyEditorSetupConfig,
   type GeneralSetupConfig,
 } from '@/stores/useSettingsStore'
-import Editor, { ServicePlugin, SvgUtils, TemplatePlugin } from '@storige/canvas-core'
-import { contentsApi, storageApi } from '@/api'
+import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay } from '@storige/canvas-core'
+import { contentsApi, storageApi, templateSetsApi, templatesApi } from '@/api'
+import { createCanvas } from '@/utils/createCanvas'
 import type {
   EditorContent,
   EditorTemplate,
@@ -26,12 +27,18 @@ interface ExtendedFabricObject extends fabric.Object {
   editable?: boolean
 }
 
+// 템플릿셋 기반 에디터 설정 타입
+export interface TemplateSetBasedSetupConfig {
+  templateSetId: string
+}
+
 // 사용 케이스별 설정 타입 매핑
 export type UseCaseConfigMap = {
   'product-based': ProductBasedSetupConfig
   'content-edit': ContentEditSetupConfig
   'empty': EmptyEditorSetupConfig | undefined
   'general': GeneralSetupConfig | undefined
+  'template-set': TemplateSetBasedSetupConfig
 }
 
 // 메타데이터 안전 접근 유틸리티
@@ -107,6 +114,7 @@ export interface UseEditorContentsReturn {
   loadContentEditor: (config: ContentEditSetupConfig) => Promise<void>
   loadEmptyEditor: (config?: EmptyEditorSetupConfig) => Promise<void>
   loadGeneralEditor: (config?: GeneralSetupConfig) => Promise<void>
+  loadTemplateSetEditor: (config: TemplateSetBasedSetupConfig) => Promise<void>
 }
 
 /**
@@ -128,6 +136,7 @@ export function useEditorContents(): UseEditorContentsReturn {
     allEditors,
     clearAll,
     setPage,
+    addPage,
     getPlugin,
     updateObjects,
   } = useAppStore(
@@ -138,6 +147,7 @@ export function useEditorContents(): UseEditorContentsReturn {
       allEditors: state.allEditors,
       clearAll: state.clearAll,
       setPage: state.setPage,
+      addPage: state.addPage,
       getPlugin: state.getPlugin,
       updateObjects: state.updateObjects,
     }))
@@ -274,29 +284,55 @@ export function useEditorContents(): UseEditorContentsReturn {
    * 캔버스 데이터 로드
    */
   const loadCanvasData = useCallback(async (canvases: unknown[]): Promise<boolean> => {
-    editor?.emit('longTask:start', { message: '디자인을 적용하는 중...' })
+    // 스토어에서 직접 최신 상태 가져오기 (stale closure 방지)
+    const latestEditor = useAppStore.getState().editor
+    const latestAllEditors = useAppStore.getState().allEditors
+    const latestAllCanvas = useAppStore.getState().allCanvas
+    const latestSetPage = useAppStore.getState().setPage
+
+    latestEditor?.emit('longTask:start', { message: '디자인을 적용하는 중...' })
     try {
       console.log('캔버스 데이터 로드:', canvases)
-      clearAll()
 
-      const canvasContainer = document.getElementById('canvas-containers')
-      if (canvasContainer) {
-        canvasContainer.innerHTML = ''
+      // 캔버스가 유효한지 확인 - disposed 상태 체크 추가
+      if (latestAllCanvas.length === 0) {
+        console.warn('[loadCanvasData] No canvas available, skipping')
+        return false
       }
 
+      // 캔버스가 disposed 상태인지 확인
+      const firstCanvas = latestAllCanvas[0]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!firstCanvas || (firstCanvas as any).disposed) {
+        console.warn('[loadCanvasData] Canvas is disposed, skipping')
+        return false
+      }
+
+      // 기존 객체만 클리어 (캔버스 자체는 유지)
+      // NOTE: clearAll()이 캔버스 객체를 클리어하므로 여기서는 호출하지 않음
+      // loadJSON이 기존 객체를 대체함
+
+      // NOTE: 캔버스 컨테이너를 비우면 안 됨! 기존 캔버스에 데이터를 로드해야 함
       // setupCanvas({ page: canvases.length || 1 })
 
       if (canvases && canvases.length > 0) {
-        const loadPromises = allEditors.map((ed: Editor, index: number) => {
+        const loadPromises = latestAllEditors.map((ed: Editor, index: number) => {
           return new Promise<void>((resolve) => {
             if (index >= canvases.length) {
               resolve()
               return
             }
 
+            // 에디터가 유효한지 확인
+            const cvs = latestAllCanvas[index]
+            if (!cvs || !cvs.getContext()) {
+              console.warn(`[loadCanvasData] Canvas ${index} is disposed, skipping`)
+              resolve()
+              return
+            }
+
             const plugin = ed.getPlugin<ServicePlugin>('ServicePlugin')
             plugin?.loadJSON(canvases[index] as string | object, async () => {
-              const cvs = allCanvas[index]
               if (cvs) {
                 const targetObjects = (cvs.getObjects() as fabric.Object[]).filter((obj: fabric.Object) => {
                   const extObj = obj as ExtendedFabricObject
@@ -343,7 +379,7 @@ export function useEditorContents(): UseEditorContentsReturn {
         })
 
         await Promise.all(loadPromises)
-        setPage(0)
+        latestSetPage(0)
       }
 
       console.log('작업물을 불러왔습니다.')
@@ -352,9 +388,9 @@ export function useEditorContents(): UseEditorContentsReturn {
       console.error('캔버스 데이터 로드 오류:', error)
       throw error
     } finally {
-      editor?.emit('longTask:end')
+      latestEditor?.emit('longTask:end')
     }
-  }, [editor, clearAll, allEditors, allCanvas, setPage])
+  }, [clearAll])
 
   /**
    * S3 URL에서 다운로드 URL 생성
@@ -818,6 +854,302 @@ export function useEditorContents(): UseEditorContentsReturn {
   }, [editor, setupGeneralStore, initWorkspace])
 
   /**
+   * 템플릿셋 기반 에디터 로드
+   * templateSetId로 템플릿셋 정보를 조회하고 모든 템플릿의 canvasData를 각 페이지에 로드
+   */
+  const loadTemplateSetEditor = useCallback(async (config: TemplateSetBasedSetupConfig): Promise<void> => {
+    console.log('[EditorContents] Loading template set editor', config)
+
+    try {
+      editor?.emit('longTask:start', { message: '템플릿셋을 불러오는 중...' })
+
+      // 1. 템플릿셋과 템플릿 상세 정보 조회
+      const result = await templateSetsApi.getTemplateSetWithTemplates(config.templateSetId)
+      const { templateSet, templateDetails } = result
+
+      console.log('[EditorContents] Template set loaded:', templateSet.name)
+      console.log('[EditorContents] Template details count:', templateDetails.length)
+
+      // 2. 설정 스토어에 크기 정보 설정
+      await setupEmptyEditorStore({
+        name: templateSet.name,
+        size: {
+          width: templateSet.width,
+          height: templateSet.height,
+          cutSize: 0,
+          safeSize: 0,
+        },
+        unit: 'mm',
+      })
+
+      // 3. 템플릿 메타데이터를 설정 스토어에 저장 (페이지 이름 표시용)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const templateMetadata = templateDetails.map((t, index) => ({
+        id: t.id,
+        type: 'template',
+        name: t.name || `Page ${index + 1}`,
+        pageType: t.pageType,
+        order: t.order ?? index,
+      })) as any[]
+      setEditorTemplates(templateMetadata)
+
+      // 4. 모든 템플릿을 각 페이지에 로드
+      if (templateDetails.length > 0) {
+        // 첫 번째 페이지(이미 존재)에 첫 번째 템플릿 로드
+        const firstTemplate = templateDetails[0]
+        if (firstTemplate.canvasData) {
+          console.log('[EditorContents] Loading first template:', firstTemplate.name)
+          const canvasData = typeof firstTemplate.canvasData === 'string'
+            ? JSON.parse(firstTemplate.canvasData)
+            : firstTemplate.canvasData
+
+          // 첫 번째 템플릿의 canvasData에서 workspace 크기를 템플릿셋 크기로 수정
+          // (템플릿의 원본 크기가 템플릿셋 크기와 다를 수 있으므로)
+          const latestSettings = useSettingsStore.getState().currentSettings
+          const targetSize = latestSettings.size
+          const targetWidth = mmToPxDisplay(targetSize.width + targetSize.cutSize)
+          const targetHeight = mmToPxDisplay(targetSize.height + targetSize.cutSize)
+
+          // canvasData의 workspace 객체 크기 수정
+          const modifyWorkspaceInData = (data: any) => {
+            if (data && data.objects && Array.isArray(data.objects)) {
+              data.objects.forEach((obj: any) => {
+                if (obj.id === 'workspace') {
+                  console.log('[EditorContents] Modifying workspace in canvasData:', {
+                    original: { width: obj.width, height: obj.height },
+                    target: { width: targetWidth, height: targetHeight }
+                  })
+                  obj.width = targetWidth
+                  obj.height = targetHeight
+                  obj.scaleX = 1
+                  obj.scaleY = 1
+                }
+              })
+            }
+            // top-level width/height도 업데이트 (mm 단위)
+            data.width = targetSize.width + targetSize.cutSize
+            data.height = targetSize.height + targetSize.cutSize
+            return data
+          }
+
+          const canvases = Array.isArray(canvasData)
+            ? canvasData.map(modifyWorkspaceInData)
+            : [modifyWorkspaceInData(canvasData)]
+
+          await loadCanvasData(canvases)
+
+          // 첫 번째 페이지 workspace 크기 재조정 (setupEmptyEditorStore 후 크기가 변경되었으므로)
+          const firstCanvas = useAppStore.getState().allCanvas[0]
+          const firstEditor = useAppStore.getState().allEditors[0]
+          if (firstCanvas && firstEditor) {
+            const latestSettings = useSettingsStore.getState().currentSettings
+            const latestGetEffectiveValue = useSettingsStore.getState().getEffectiveValue
+            const size = latestSettings.size
+            const totalWidth = latestGetEffectiveValue(size.width + (size.cutSize || 0))
+            const totalHeight = latestGetEffectiveValue(size.height + (size.cutSize || 0))
+
+            console.log('[EditorContents] Resizing first page workspace to:', { width: totalWidth, height: totalHeight })
+
+            const targetObjects = (firstCanvas.getObjects() as fabric.Object[]).filter((obj: fabric.Object) => {
+              const extObj = obj as ExtendedFabricObject
+              return extObj.id === 'workspace' || extObj.id === 'template-background'
+            })
+
+            targetObjects.forEach((obj: fabric.Object) => {
+              const extObj = obj as ExtendedFabricObject
+              if (extObj.id === 'workspace') {
+                obj.set({
+                  width: totalWidth,
+                  height: totalHeight,
+                  scaleX: 1,
+                  scaleY: 1
+                })
+              } else if (extObj.id === 'template-background') {
+                if (!extObj.preventAutoResize) {
+                  obj.set({
+                    scaleX: totalWidth / obj.width!,
+                    scaleY: totalHeight / obj.height!
+                  })
+                }
+              }
+            })
+
+            ;(firstCanvas.getObjects() as fabric.Object[]).forEach((obj: fabric.Object) => {
+              obj.setCoords()
+              obj.dirty = true
+            })
+
+            // WorkspacePlugin의 내부 옵션 업데이트 및 workspace 객체 크기 조정
+            // reset()은 workspace를 새로 생성할 수 있어 기존 객체가 사라지므로 사용하지 않음
+            // setOptions는 template-background 등을 다시 변경하므로 사용하지 않음
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const workspacePlugin = firstEditor.getPlugin<any>('WorkspacePlugin')
+            if (workspacePlugin) {
+              // 플러그인 내부 옵션을 직접 업데이트
+              if (workspacePlugin._options) {
+                workspacePlugin._options.size = latestSettings.size
+              }
+              // workspace 객체 참조 업데이트 및 크기 조정
+              const workspaceObj = firstCanvas.getObjects().find((obj: fabric.Object) => (obj as ExtendedFabricObject).id === 'workspace')
+              if (workspaceObj) {
+                workspacePlugin.workspace = workspaceObj
+
+                // workspace 객체의 width/height를 올바른 크기로 업데이트
+                // cutSize를 포함한 전체 크기로 설정 (mm -> px 변환)
+                const canvasWidth = latestSettings.size.width + latestSettings.size.cutSize
+                const canvasHeight = latestSettings.size.height + latestSettings.size.cutSize
+                const effectiveWidth = mmToPxDisplay(canvasWidth)
+                const effectiveHeight = mmToPxDisplay(canvasHeight)
+
+                console.log('[EditorContents] Updating workspace size:', {
+                  mm: { width: canvasWidth, height: canvasHeight },
+                  px: { width: effectiveWidth, height: effectiveHeight }
+                })
+
+                workspaceObj.set({
+                  width: effectiveWidth,
+                  height: effectiveHeight,
+                  scaleX: 1,
+                  scaleY: 1
+                })
+                workspaceObj.setCoords()
+
+                console.log('[EditorContents] Workspace object after update:', {
+                  width: workspaceObj.width,
+                  height: workspaceObj.height,
+                  scaleX: workspaceObj.scaleX,
+                  scaleY: workspaceObj.scaleY
+                })
+              }
+
+              // requestRenderAll 먼저 호출하여 객체 상태 커밋
+              firstCanvas.requestRenderAll()
+
+              // setZoomAuto로 캔버스 중심 재조정 (reset 대신)
+              if (workspacePlugin.setZoomAuto) {
+                console.log('[EditorContents] Calling setZoomAuto')
+                workspacePlugin.setZoomAuto()
+              }
+            } else {
+              firstCanvas.requestRenderAll()
+            }
+          }
+        } else {
+          await initWorkspace()
+        }
+
+        // 나머지 템플릿들을 추가 페이지로 생성 및 로드
+        // createCanvas를 사용하여 모든 플러그인이 초기화된 상태로 생성
+        const canvasContainer = document.getElementById('canvas-containers')
+        const initId = useAppStore.getState().initializationId
+
+        for (let i = 1; i < templateDetails.length; i++) {
+          const template = templateDetails[i]
+          console.log(`[EditorContents] Creating page ${i + 1}/${templateDetails.length}:`, template.name)
+
+          // createCanvas를 사용하여 모든 플러그인이 포함된 새 캔버스 생성
+          if (canvasContainer) {
+            await createCanvas({}, canvasContainer, initId || undefined)
+          }
+
+          // 새로 추가된 페이지의 인덱스
+          const latestAllEditors = useAppStore.getState().allEditors
+          const latestAllCanvas = useAppStore.getState().allCanvas
+          const newPageIndex = latestAllCanvas.length - 1
+
+          console.log(`[EditorContents] Page created, loading canvasData to page ${newPageIndex}`)
+
+          if (template.canvasData && latestAllEditors[newPageIndex]) {
+            const canvasData = typeof template.canvasData === 'string'
+              ? JSON.parse(template.canvasData)
+              : template.canvasData
+
+            // 새 페이지에 canvasData 로드
+            const targetEditor = latestAllEditors[newPageIndex]
+            const servicePlugin = targetEditor.getPlugin<ServicePlugin>('ServicePlugin')
+            console.log(`[EditorContents] Loading canvasData to page ${newPageIndex}:`, {
+              hasServicePlugin: !!servicePlugin,
+              canvasDataType: typeof canvasData,
+              isArray: Array.isArray(canvasData),
+            })
+            if (servicePlugin) {
+              // canvasData가 배열인 경우 첫 번째 요소 사용, 아니면 그대로 사용
+              const dataToLoad = Array.isArray(canvasData) ? canvasData[0] : canvasData
+              await new Promise<void>((resolve) => {
+                servicePlugin.loadJSON(dataToLoad, () => {
+                  console.log(`[EditorContents] loadJSON completed for page ${newPageIndex}`)
+
+                  // loadJSON 후 workspace 크기 조정 (loadCanvasData와 동일한 로직)
+                  const cvs = latestAllCanvas[newPageIndex]
+                  if (cvs) {
+                    const latestSettings = useSettingsStore.getState().currentSettings
+                    const latestGetEffectiveValue = useSettingsStore.getState().getEffectiveValue
+                    const size = latestSettings.size
+                    const totalWidth = latestGetEffectiveValue(size.width + (size.cutSize || 0))
+                    const totalHeight = latestGetEffectiveValue(size.height + (size.cutSize || 0))
+
+                    const targetObjects = (cvs.getObjects() as fabric.Object[]).filter((obj: fabric.Object) => {
+                      const extObj = obj as ExtendedFabricObject
+                      return extObj.id === 'workspace' || extObj.id === 'template-background'
+                    })
+
+                    targetObjects.forEach((obj: fabric.Object) => {
+                      const extObj = obj as ExtendedFabricObject
+                      if (extObj.id === 'workspace') {
+                        obj.set({
+                          width: totalWidth,
+                          height: totalHeight,
+                          scaleX: 1,
+                          scaleY: 1
+                        })
+                      } else if (extObj.id === 'template-background') {
+                        if (!extObj.preventAutoResize) {
+                          obj.set({
+                            scaleX: totalWidth / obj.width!,
+                            scaleY: totalHeight / obj.height!
+                          })
+                        }
+                      }
+                    })
+
+                    ;(cvs.getObjects() as fabric.Object[]).forEach((obj: fabric.Object) => {
+                      obj.setCoords()
+                      obj.dirty = true
+                    })
+
+                    cvs.requestRenderAll()
+                  }
+
+                  resolve()
+                })
+              })
+            }
+          } else {
+            console.log(`[EditorContents] Skipping canvasData load for page ${newPageIndex}: hasCanvasData=${!!template.canvasData}, hasEditor=${!!latestAllEditors[newPageIndex]}`)
+          }
+        }
+
+        // 첫 번째 페이지로 돌아가기
+        const latestSetPage = useAppStore.getState().setPage
+        latestSetPage(0)
+
+        console.log(`[EditorContents] All ${templateDetails.length} templates loaded successfully`)
+      } else {
+        // 템플릿이 없으면 워크스페이스만 초기화
+        console.log('[EditorContents] No templates, initializing workspace only')
+        await initWorkspace()
+      }
+
+      console.log('[EditorContents] Template set editor loaded successfully')
+    } catch (error) {
+      console.error('[EditorContents] Template set editor load error:', error)
+      throw error
+    } finally {
+      editor?.emit('longTask:end')
+    }
+  }, [editor, setupEmptyEditorStore, setEditorTemplates, initWorkspace, loadCanvasData])
+
+  /**
    * 템플릿 콘텐츠 설정
    */
   const setupTemplateContent = useCallback(async (content: EditorTemplate): Promise<void> => {
@@ -886,6 +1218,7 @@ export function useEditorContents(): UseEditorContentsReturn {
     loadProductBasedEditor,
     loadContentEditor,
     loadEmptyEditor,
-    loadGeneralEditor
+    loadGeneralEditor,
+    loadTemplateSetEditor,
   }
 }

@@ -1,17 +1,33 @@
+import { lazy, Suspense } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+// Feature flag for image processing (OpenCV) features
+const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !== 'false'
 
 // Tool panels
 import AppText from '@/tools/AppText'
 import AppImage from '@/tools/AppImage'
 import AppElement from '@/tools/AppElement'
 import AppBackground from '@/tools/AppBackground'
-import AppClipping from '@/tools/AppClipping'
 import AppTemplate from '@/tools/AppTemplate'
 import AppFrame from '@/tools/AppFrame'
 import SmartCodes from '@/tools/SmartCodes'
-import AppEdit from '@/tools/AppEdit'
+
+// Conditionally import image processing tools (requires OpenCV)
+// Using lazy loading for proper ESM compatibility
+const AppClipping = ENABLE_IMAGE_PROCESSING
+  ? lazy(() => import('@/tools/AppClipping'))
+  : () => null
+const AppEdit = ENABLE_IMAGE_PROCESSING
+  ? lazy(() => import('@/tools/AppEdit'))
+  : () => null
+
+// Loading fallback for lazy loaded components
+const LazyLoading = () => (
+  <div className="p-4 text-editor-text-muted text-sm">로딩 중...</div>
+)
 
 interface FeatureSidebarProps {
   className?: string
@@ -57,11 +73,19 @@ export default function FeatureSidebar({ className }: FeatureSidebarProps) {
       case 'FRAME':
         return <AppFrame />
       case 'CLIPPING':
-        return <AppClipping />
+        return ENABLE_IMAGE_PROCESSING ? (
+          <Suspense fallback={<LazyLoading />}>
+            <AppClipping />
+          </Suspense>
+        ) : null
       case 'SMART_CODE':
         return <SmartCodes />
       case 'EDIT':
-        return <AppEdit />
+        return ENABLE_IMAGE_PROCESSING ? (
+          <Suspense fallback={<LazyLoading />}>
+            <AppEdit />
+          </Suspense>
+        ) : null
       default:
         return (
           <div className="p-4 text-editor-text-muted text-sm">
@@ -75,7 +99,7 @@ export default function FeatureSidebar({ className }: FeatureSidebarProps) {
     <div
       className={cn(
         'feature-sidebar bg-editor-panel border-r border-editor-border flex flex-col',
-        'w-[280px] min-w-[280px] max-w-[280px] h-full overflow-hidden z-[100]',
+        'w-[280px] min-w-[280px] max-w-[280px] h-full overflow-hidden z-[100] scrollbar-hide',
         className
       )}
     >

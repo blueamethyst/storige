@@ -21,8 +21,9 @@ export class User {
   passwordHash: string;
 
   @Column({
-    type: 'enum',
-    enum: UserRole,
+    type: 'varchar',
+    length: 20,
+    default: UserRole.CUSTOMER,
   })
   role: UserRole;
 

@@ -15,11 +15,22 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { StorageService } from './storage.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '@storige/types';
 import * as fs from 'fs';
+
+// Multer 메모리 스토리지 설정
+const multerOptions = {
+  storage: memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+  },
+};
 
 @ApiTags('Storage')
 @ApiBearerAuth()
@@ -28,9 +39,9 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', multerOptions))
   @ApiOperation({ summary: 'Upload a file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -62,6 +73,7 @@ export class StorageController {
   }
 
   @Get('files/:category/:filename')
+  @Public()
   @ApiOperation({ summary: 'Get a file' })
   @ApiResponse({ status: 200, description: 'File retrieved successfully' })
   @ApiResponse({ status: 404, description: 'File not found' })
@@ -121,7 +133,8 @@ export class StorageController {
   // ============================================================================
 
   @Post('upload/designs')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file', multerOptions))
   @ApiOperation({ summary: 'Upload a design file (JSON or image)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -141,14 +154,29 @@ export class StorageController {
       throw new BadRequestException('No file provided');
     }
 
-    const result = await this.storageService.saveFile(file, 'designs');
-    return {
-      success: true,
-      data: result,
-    };
+    console.log('[Storage] uploadDesignFile called', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      hasBuffer: !!file.buffer,
+      bufferLength: file.buffer?.length,
+    });
+
+    try {
+      const result = await this.storageService.saveFile(file, 'designs');
+      console.log('[Storage] File saved successfully:', result.url);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error) {
+      console.error('[Storage] Error saving file:', error);
+      throw error;
+    }
   }
 
   @Get('designs/:filename')
+  @Public()
   @ApiOperation({ summary: 'Get a design file' })
   @ApiResponse({ status: 200, description: 'Design file retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Design file not found' })

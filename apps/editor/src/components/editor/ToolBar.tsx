@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useImageStore } from '@/stores/useImageStore'
-import { ImageProcessingPlugin, SelectionType } from '@storige/canvas-core'
+import { SelectionType, ImageProcessingPlugin } from '@storige/canvas-core'
 import {
   Upload,
   LayoutTemplate,
@@ -18,17 +18,30 @@ import {
 import { cn } from '@/lib/utils'
 import type { AppMenu } from '@/types/menu'
 
-// Tool definitions
+// Feature flag for image processing (OpenCV) features
+const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !== 'false'
+// Feature flag for upload menu
+const ENABLE_UPLOAD_MENU = import.meta.env.VITE_ENABLE_UPLOAD_MENU !== 'false'
+// Feature flag for template menu
+const ENABLE_TEMPLATE_MENU = import.meta.env.VITE_ENABLE_TEMPLATE_MENU !== 'false'
+// Feature flag for frame menu
+const ENABLE_FRAME_MENU = import.meta.env.VITE_ENABLE_FRAME_MENU !== 'false'
+// Feature flag for smart code (QR/barcode) menu
+const ENABLE_SMART_CODE_MENU = import.meta.env.VITE_ENABLE_SMART_CODE_MENU !== 'false'
+
+// Tool definitions - CLIPPING requires ImageProcessingPlugin (OpenCV)
 const ALL_MENUS: AppMenu[] = [
-  { type: 'CLIPPING', label: '모양컷', icon: Scissors },
-  { type: 'TEMPLATE', label: '템플릿', icon: LayoutTemplate },
+  // CLIPPING menu is only shown when image processing is enabled
+  ...(ENABLE_IMAGE_PROCESSING ? [{ type: 'CLIPPING' as const, label: '모양컷', icon: Scissors }] : []),
+  ...(ENABLE_TEMPLATE_MENU ? [{ type: 'TEMPLATE' as const, label: '템플릿', icon: LayoutTemplate }] : []),
   { type: 'IMAGE', label: '이미지', icon: Image },
   { type: 'TEXT', label: '텍스트', icon: Type },
   { type: 'SHAPE', label: '요소', icon: Shapes },
   { type: 'BACKGROUND', label: '배경', icon: PaintBucket },
-  { type: 'FRAME', label: '프레임', icon: Frame },
-  { type: 'SMART_CODE', label: 'QR/바코드', icon: QrCode },
-  { type: 'EDIT', label: '편집도구', icon: Pencil },
+  ...(ENABLE_FRAME_MENU ? [{ type: 'FRAME' as const, label: '프레임', icon: Frame }] : []),
+  ...(ENABLE_SMART_CODE_MENU ? [{ type: 'SMART_CODE' as const, label: 'QR/바코드', icon: QrCode }] : []),
+  // EDIT menu uses ImageProcessingPlugin for some features
+  ...(ENABLE_IMAGE_PROCESSING ? [{ type: 'EDIT' as const, label: '편집도구', icon: Pencil }] : []),
 ]
 
 interface ToolBarProps {
@@ -48,6 +61,7 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
   const appMenu: string[] | undefined = undefined
 
   const upload = useImageStore((state) => state.upload)
+  const uploadSimple = useImageStore((state) => state.uploadSimple)
 
   // Build menu list based on editMode and appMenu settings
   const menus = useMemo(() => {
@@ -58,16 +72,25 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
       onTap: async () => {
         if (!ready || !canvas) return
 
-        const imagePlugin = getPlugin<ImageProcessingPlugin>('ImageProcessingPlugin')
-        if (!imagePlugin) return
-
         try {
-          await upload(
-            canvas,
-            imagePlugin,
-            SelectionType.image,
-            'image/*,.ai,.eps,.pdf,application/pdf,application/postscript,application/illustrator'
-          )
+          if (ENABLE_IMAGE_PROCESSING) {
+            // 이미지 처리 기능이 활성화된 경우 ImageProcessingPlugin 사용
+            const imagePlugin = getPlugin<ImageProcessingPlugin>('ImageProcessingPlugin')
+            if (!imagePlugin) {
+              console.warn('ImageProcessingPlugin not available, falling back to simple upload')
+              await uploadSimple(canvas, 'image/*')
+              return
+            }
+            await upload(
+              canvas,
+              imagePlugin,
+              SelectionType.image,
+              'image/*,.ai,.eps,.pdf,application/pdf,application/postscript,application/illustrator'
+            )
+          } else {
+            // 이미지 처리 기능 비활성화 - 간단한 업로드 사용
+            await uploadSimple(canvas, 'image/*')
+          }
         } catch (error) {
           console.error('Upload error:', error)
         }
@@ -82,8 +105,8 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
             ?.map((menuType) => ALL_MENUS.find((m) => m.type === menuType))
             .filter((m): m is AppMenu => m !== undefined) ?? ALL_MENUS
 
-    return [uploadMenu, ...availableMenus]
-  }, [editMode, appMenu, ready, canvas, getPlugin, upload])
+    return [...(ENABLE_UPLOAD_MENU ? [uploadMenu] : []), ...availableMenus]
+  }, [editMode, appMenu, ready, canvas, getPlugin, upload, uploadSimple])
 
   const handleMenuClick = (menu: AppMenu) => {
     if (menu.onTap) {

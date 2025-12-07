@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bundle Test</title>
+</head>
+<body>
+    <h1>Editor Bundle Test</h1>
+    <div id="status">Loading bundle...</div>
+
+    <script>
+        var startTime = Date.now();
+        console.log('Starting bundle load at', new Date().toISOString());
+    </script>
+
+    <script src="/assets/js/editor-bundle.iife.js" onload="onBundleLoad()" onerror="onBundleError(event)"></script>
+
+    <script>
+        function onBundleLoad() {
+            var elapsed = Date.now() - startTime;
+            document.getElementById('status').innerHTML =
+                '<p style="color:green">Bundle loaded successfully in ' + elapsed + 'ms</p>' +
+                '<p>StorigeEditor: ' + (typeof window.StorigeEditor) + '</p>' +
+                '<p>Version: ' + (window.StorigeEditor ? window.StorigeEditor.version : 'N/A') + '</p>';
+            console.log('Bundle loaded!', window.StorigeEditor);
+        }
+
+        function onBundleError(e) {
+            document.getElementById('status').innerHTML =
+                '<p style="color:red">Bundle load failed!</p>' +
+                '<p>Error: ' + e.message + '</p>';
+            console.error('Bundle load error:', e);
+        }
+    </script>
+</body>
+</html>

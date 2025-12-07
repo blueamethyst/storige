@@ -293,6 +293,82 @@ export namespace core {
     })
   }
 
+  /**
+   * Simple file to image conversion without ImageProcessingPlugin
+   * Use this when OpenCV features are disabled
+   */
+  export async function fileToImageSimple(
+    canvas: fabric.Canvas,
+    file: File
+  ): Promise<fabric.Image> {
+    const src = await fileToURL(file)
+
+    if (src === undefined) {
+      throw new Error('No image source')
+    }
+
+    const item = await createFabricImageSimple(canvas, src)
+
+    const workspace = canvas.getObjects().find((obj: fabric.Object) => obj.id === 'workspace')
+
+    if (workspace) {
+      const center = workspace.getCenterPoint()
+      item.set({
+        originX: 'center',
+        originY: 'center',
+        left: center.x,
+        top: center.y
+      })
+    } else {
+      item.set({
+        left: 0,
+        top: 0,
+        originX: 'center',
+        originY: 'center'
+      })
+    }
+
+    return item
+  }
+
+  /**
+   * Simple fabric image creation without ImageProcessingPlugin
+   * Skips alpha channel processing (no OpenCV required)
+   */
+  export function createFabricImageSimple(
+    canvas: fabric.Canvas,
+    src: string
+  ): Promise<fabric.Image> {
+    return new Promise((resolve, reject) => {
+      try {
+        const imgEl = document.createElement('img')
+        imgEl.crossOrigin = 'anonymous'
+        imgEl.src = src
+        imgEl.onload = () => {
+          const scale = getScale(canvas, imgEl)
+          const img = new fabric.Image(imgEl, {
+            top: canvas.getCenterPoint().y,
+            left: canvas.getCenterPoint().x,
+            originX: 'center',
+            originY: 'center',
+            scaleX: scale,
+            scaleY: scale,
+            id: uuid(),
+            crossOrigin: 'anonymous'
+          })
+          img.setCoords()
+          resolve(img)
+        }
+        imgEl.onerror = (e) => {
+          reject(new Error('Failed to load image'))
+        }
+      } catch (e) {
+        console.error(e)
+        reject(e)
+      }
+    })
+  }
+
   export function getScale(
     canvas: fabric.Canvas,
     imgEl: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement

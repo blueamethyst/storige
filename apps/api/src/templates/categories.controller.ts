@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoriesDto } from './dto/category.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '@storige/types';
@@ -76,5 +76,14 @@ export class CategoriesController {
   @ApiResponse({ status: 200, description: 'Category deleted successfully' })
   remove(@Param('id') id: string) {
     return this.categoriesService.remove(id);
+  }
+
+  @Post('reorder')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Reorder categories' })
+  @ApiResponse({ status: 200, description: 'Categories reordered successfully' })
+  reorder(@Body() reorderDto: ReorderCategoriesDto) {
+    return this.categoriesService.reorder(reorderDto);
   }
 }

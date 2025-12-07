@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max, IsIn, IsArray, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: '명함' })
@@ -45,4 +46,24 @@ export class UpdateCategoryDto {
   @IsNumber()
   @Min(0)
   sortOrder?: number;
+}
+
+export class ReorderCategoryItemDto {
+  @ApiProperty({ example: 'uuid-1234' })
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+
+  @ApiProperty({ example: 0 })
+  @IsNumber()
+  @Min(0)
+  sortOrder: number;
+}
+
+export class ReorderCategoriesDto {
+  @ApiProperty({ type: [ReorderCategoryItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReorderCategoryItemDto)
+  items: ReorderCategoryItemDto[];
 }

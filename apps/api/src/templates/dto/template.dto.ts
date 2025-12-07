@@ -1,6 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject, IsNumber, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { CanvasData } from '@storige/types';
+import type { CanvasData, TemplateType } from '@storige/types';
 
 export class CreateTemplateDto {
   @ApiProperty({ example: '명함 템플릿 1' })
@@ -8,10 +8,25 @@ export class CreateTemplateDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'category-id-123' })
+  @ApiPropertyOptional({ example: 'category-id-123' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  categoryId: string;
+  categoryId?: string;
+
+  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page'] })
+  @IsOptional()
+  @IsString()
+  type?: TemplateType;
+
+  @ApiPropertyOptional({ example: 210, description: 'Width in mm' })
+  @IsOptional()
+  @IsNumber()
+  width?: number;
+
+  @ApiPropertyOptional({ example: 297, description: 'Height in mm' })
+  @IsOptional()
+  @IsNumber()
+  height?: number;
 
   @ApiPropertyOptional({ example: 'EDIT001' })
   @IsOptional()
@@ -57,6 +72,21 @@ export class UpdateTemplateDto {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page'] })
+  @IsOptional()
+  @IsString()
+  type?: TemplateType;
+
+  @ApiPropertyOptional({ example: 210, description: 'Width in mm' })
+  @IsOptional()
+  @IsNumber()
+  width?: number;
+
+  @ApiPropertyOptional({ example: 297, description: 'Height in mm' })
+  @IsOptional()
+  @IsNumber()
+  height?: number;
 
   @ApiPropertyOptional({ example: 'EDIT001' })
   @IsOptional()

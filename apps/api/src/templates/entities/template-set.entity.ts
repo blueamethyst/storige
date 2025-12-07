@@ -8,12 +8,24 @@ import {
   OneToMany,
   JoinColumn,
   BeforeInsert,
+  Index,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Category } from './category.entity';
-import type { ProductSpecs } from '@storige/types';
+import { Template } from './template.entity';
+import type { ProductSpecs, TemplateSetType, TemplateRef } from '@storige/types';
+
+/**
+ * 템플릿셋 타입 enum (DB용)
+ */
+export enum TemplateSetTypeEnum {
+  BOOK = 'book',
+  LEAFLET = 'leaflet',
+}
 
 @Entity('template_sets')
+@Index('idx_template_set_type', ['type'])
+@Index('idx_template_set_deleted', ['isDeleted'])
 export class TemplateSet {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
@@ -21,11 +33,62 @@ export class TemplateSet {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
+  @Column({ name: 'thumbnail_url', type: 'varchar', length: 500, nullable: true })
+  thumbnailUrl: string | null;
+
+  /**
+   * 템플릿셋 타입: book(책자), leaflet(리플렛)
+   */
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: TemplateSetTypeEnum.BOOK,
+  })
+  type: TemplateSetType;
+
+  /**
+   * 판형 - 가로 (mm)
+   */
+  @Column({ type: 'float', default: 210 })
+  width: number;
+
+  /**
+   * 판형 - 세로 (mm)
+   */
+  @Column({ type: 'float', default: 297 })
+  height: number;
+
+  /**
+   * 내지 추가 가능 여부
+   */
+  @Column({ name: 'can_add_page', type: 'boolean', default: true })
+  canAddPage: boolean;
+
+  /**
+   * 내지 수량 범위 (예: [10, 20, 30, 40])
+   */
+  @Column({ name: 'page_count_range', type: 'json', default: '[]' })
+  pageCountRange: number[];
+
+  /**
+   * 템플릿 구성 (순서 포함)
+   * TemplateRef[] 형태로 저장
+   */
+  @Column({ type: 'json', default: '[]' })
+  templates: TemplateRef[];
+
+  /**
+   * 소프트 삭제 플래그
+   */
+  @Column({ name: 'is_deleted', type: 'boolean', default: false })
+  isDeleted: boolean;
+
+  // Legacy fields (하위 호환)
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ name: 'category_id', type: 'varchar', length: 36 })
-  categoryId: string;
+  @Column({ name: 'category_id', type: 'varchar', length: 36, nullable: true })
+  categoryId: string | null;
 
   @Column({ name: 'product_specs', type: 'json', nullable: true })
   productSpecs: ProductSpecs | null;
@@ -40,7 +103,7 @@ export class TemplateSet {
   updatedAt: Date;
 
   // Relations
-  @ManyToOne(() => Category)
+  @ManyToOne(() => Category, { nullable: true })
   @JoinColumn({ name: 'category_id' })
   category: Category;
 
@@ -69,10 +132,20 @@ export class TemplateSetItem {
   @Column({ name: 'sort_order', type: 'int', default: 0 })
   sortOrder: number;
 
+  /**
+   * 필수 페이지 여부
+   */
+  @Column({ type: 'boolean', default: false })
+  required: boolean;
+
   // Relations
   @ManyToOne(() => TemplateSet, (set) => set.items, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'template_set_id' })
   templateSet: TemplateSet;
+
+  @ManyToOne(() => Template, { nullable: true })
+  @JoinColumn({ name: 'template_id' })
+  template: Template;
 
   @BeforeInsert()
   generateId() {

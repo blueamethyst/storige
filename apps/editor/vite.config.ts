@@ -28,6 +28,11 @@ function colorRuntimeStubPlugin(): Plugin {
   }
 }
 
+// Check if building as library (embed mode)
+// Note: process.env is available in Node.js context (vite.config.ts runs in Node)
+const isLibraryBuild = process.env.BUILD_MODE === 'embed'
+console.log(`[vite.config] BUILD_MODE=${process.env.BUILD_MODE}, isLibraryBuild=${isLibraryBuild}`)
+
 export default defineConfig({
   plugins: [colorRuntimeStubPlugin(), react()],
   resolve: {
@@ -44,10 +49,31 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-  },
+  build: isLibraryBuild
+    ? {
+        // Library build for embedding in external pages (PHP, etc.)
+        outDir: 'dist-embed',
+        sourcemap: true,
+        lib: {
+          entry: path.resolve(__dirname, 'src/embed.tsx'),
+          name: 'StorigeEditor',
+          fileName: 'editor-bundle',
+          formats: ['iife'],
+        },
+        rollupOptions: {
+          output: {
+            // Include all dependencies in the bundle
+            inlineDynamicImports: true,
+          },
+        },
+        // Don't minify for easier debugging during development
+        minify: process.env.NODE_ENV === 'production' ? 'esbuild' : false,
+      }
+    : {
+        // Standard SPA build
+        outDir: 'dist',
+        sourcemap: true,
+      },
   optimizeDeps: {
     exclude: ['@pf/color-runtime'],
   },

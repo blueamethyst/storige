@@ -278,7 +278,7 @@ export default function ControlBar() {
           {selectionType !== SelectionType.background && <ObjectSize />}
 
           {/* Text attributes - for text only */}
-          {(selectionType === SelectionType.text || selectionType === 'text') && <TextAttributes />}
+          {selectionType === SelectionType.text && <TextAttributes />}
 
           {/* Fill control - for text, shapes, images */}
           {(selectionType === SelectionType.text ||

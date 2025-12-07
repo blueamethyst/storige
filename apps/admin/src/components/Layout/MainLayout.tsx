@@ -13,6 +13,9 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  AppstoreOutlined,
+  ShoppingOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 import { authApi } from '../../api/auth';
@@ -65,10 +68,28 @@ export const MainLayout = () => {
       onClick: () => navigate('/templates'),
     },
     {
+      key: '/template-sets',
+      icon: <AppstoreOutlined />,
+      label: '템플릿셋 관리',
+      onClick: () => navigate('/template-sets'),
+    },
+    {
       key: '/categories',
       icon: <FolderOutlined />,
       label: '카테고리 관리',
       onClick: () => navigate('/categories'),
+    },
+    {
+      key: '/products',
+      icon: <ShoppingOutlined />,
+      label: '상품 관리',
+      onClick: () => navigate('/products'),
+    },
+    {
+      key: '/reviews',
+      icon: <AuditOutlined />,
+      label: '편집 검토',
+      onClick: () => navigate('/reviews'),
     },
     {
       key: '/library',

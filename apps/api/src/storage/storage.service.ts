@@ -21,7 +21,11 @@ export class StorageService {
   private readonly allowedMimeTypes: string[];
 
   constructor(private configService: ConfigService) {
-    this.storagePath = this.configService.get<string>('STORAGE_PATH', './storage');
+    const configuredPath = this.configService.get<string>('STORAGE_PATH', './storage');
+    // Resolve relative paths from project root (monorepo root, 2 levels up from apps/api/dist)
+    this.storagePath = path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.resolve(process.cwd(), configuredPath);
     this.maxFileSize = this.configService.get<number>('STORAGE_MAX_FILE_SIZE', 52428800); // 50MB
     this.allowedMimeTypes = [
       // Images
@@ -49,8 +53,17 @@ export class StorageService {
     file: Express.Multer.File,
     category: 'templates' | 'library' | 'uploads' | 'temp' | 'designs' = 'uploads',
   ): Promise<UploadedFile> {
+    console.log('[StorageService] saveFile called', {
+      originalname: file?.originalname,
+      mimetype: file?.mimetype,
+      size: file?.size,
+      hasBuffer: !!file?.buffer,
+      bufferLength: file?.buffer?.length,
+    });
+
     // Validate file
     this.validateFile(file);
+    console.log('[StorageService] Validation passed');
 
     // Generate unique filename
     const fileId = uuidv4();

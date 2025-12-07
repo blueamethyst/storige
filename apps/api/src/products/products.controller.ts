@@ -84,4 +84,29 @@ export class ProductsController {
       message: 'Product deleted successfully',
     };
   }
+
+  @Put(':id/template-set')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  async linkTemplateSet(
+    @Param('id') id: string,
+    @Body('templateSetId') templateSetId: string,
+  ) {
+    const product = await this.productsService.linkTemplateSet(id, templateSetId);
+    return {
+      success: true,
+      data: product,
+    };
+  }
+
+  @Delete(':id/template-set')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  async unlinkTemplateSet(@Param('id') id: string) {
+    const product = await this.productsService.unlinkTemplateSet(id);
+    return {
+      success: true,
+      data: product,
+    };
+  }
 }

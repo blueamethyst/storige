@@ -1,9 +1,9 @@
 # 인쇄 쇼핑몰 워커 & 편집기 시스템 PRD
 ## Product Requirements Document
 
-**문서 버전:** 1.6
+**문서 버전:** 1.7
 **작성일:** 2025-12-03
-**최종 업데이트:** 2025-12-03
+**최종 업데이트:** 2025-12-07
 **변경 이력:**
 - v1.0: 초안 작성 (PDF 분석 기반)
 - v1.1: 회의록 반영 (셀프 편집 케이스, UI 연동, 토큰 관리 등)
@@ -12,6 +12,7 @@
 - v1.4: 시스템 명칭 정리 (클라이언트 관련 표기 제거)
 - v1.5: 템플릿 생성/관리 기능 상세화 (편집기 통한 생성, 3차 카테고리 뎁스)
 - v1.6: 주요 의사결정 사항 확정 (워커/편집기 독립성, 템플릿셋 변경 정책, 콜백 방식)
+- v1.7: 편집기 연동 데이터 구조 변경 (템플릿셋 ID 기반으로 규격 정보 로드)
 
 **프로젝트명:** 인쇄 쇼핑몰 워커 & 편집기 시스템
 **개발사:** (주)파파스컴퍼니
@@ -1045,24 +1046,92 @@ Storige (관리자)
 
 ### 9.2 편집기 오픈시 전달 데이터
 
-#### 9.2.1 옵션 연동 데이터
+#### 9.2.1 필수 연동 데이터
+
+| 옵션명 | 데이터 타입 | 필수 | 설명 | 예시 |
+|--------|-------------|------|------|------|
+| `templateSetId` | String | ✅ | 템플릿셋 ID | `"ts-book-a4-001"` |
+| `productId` | String | ✅ | 쇼핑몰 상품 ID | `"PROD-12345"` |
+| `sessionId` | String | ❌ | 기존 편집 세션 ID (재편집시) | `"sess-abc123"` |
+| `token` | String | ✅ | API 인증 토큰 | `"eyJhbGc..."` |
+
+#### 9.2.2 템플릿셋에서 자동 로드되는 정보
+
+템플릿셋 ID를 전달하면 다음 정보가 자동으로 로드됩니다:
+
+| 정보 | 템플릿셋 필드 | 설명 |
+|------|---------------|------|
+| 판형 사이즈 | `width`, `height` | 편집 캔버스 크기 (mm) |
+| 템플릿셋 타입 | `type` | book(책자) / leaflet(낱장) |
+| 페이지 추가 가능 | `canAddPage` | 내지 페이지 추가 허용 여부 |
+| 페이지수 범위 | `pageCountRange` | 허용되는 페이지수 배열 [10, 20, 30...] |
+| 템플릿 구성 | `templates` | 표지/내지 템플릿 목록 및 순서 |
+| 상품 스펙 | `productSpecs` | 블리드, 제본방식, 용지 정보 등 |
+
+#### 9.2.3 동적 옵션 데이터 (선택)
+
+쇼핑몰에서 고객이 선택한 옵션 중 템플릿셋에 포함되지 않은 동적 정보:
 
 | 옵션명 | 데이터 타입 | 설명 | 예시 |
 |--------|-------------|------|------|
-| `coverWing` | Object | 날개 정보 | `{front: 50, back: 50}` (mm) |
-| `size` | Object | 사이즈 | `{width: 210, height: 297}` (mm) |
-| `pages` | Number | 페이지수 | `100` |
-| `bleed` | Number | 블리드 | `3` (mm) |
-| `binding` | String | 제본방식 | `"perfect"` / `"saddle"` |
-| `paper` | Object | 용지 정보 | `{type: "모조지", weight: 80, thickness: 0.1}` |
-| `pageAddable` | Boolean | 페이지 추가 가능 여부 | `true` / `false` |
-| `pageRange` | Object | 페이지 구간 정보 | `{min: 20, max: 200, step: 4}` |
+| `pages` | Number | 고객이 선택한 페이지수 | `100` |
+| `coverWing` | Object | 날개 옵션 (해당시) | `{front: 50, back: 50}` (mm) |
+| `paper` | Object | 선택한 용지 (옵션) | `{type: "모조지", weight: 80}` |
 
-#### 9.2.2 저장 코드 (편집 코드)
+#### 9.2.4 전체 초기화 데이터 예시
+
+```javascript
+// 쇼핑몰에서 편집기 호출시
+window.openEditor({
+  // 필수 데이터
+  templateSetId: "ts-book-a4-001",    // 템플릿셋 ID
+  productId: "PROD-12345",            // 쇼핑몰 상품 ID
+  token: "eyJhbGc...",                // API 인증 토큰
+
+  // 선택 데이터 (기존 편집 재개시)
+  sessionId: "sess-abc123",           // 기존 세션 ID
+
+  // 동적 옵션 (고객 선택에 따라)
+  options: {
+    pages: 100,                       // 고객이 선택한 페이지수
+    coverWing: { front: 50, back: 50 } // 날개 옵션 선택시
+  },
+
+  // 콜백 함수
+  onComplete: function(result) { ... },
+  onCancel: function() { ... }
+});
+```
+
+#### 9.2.5 편집기 초기화 흐름
+
+```
+1. 쇼핑몰에서 openEditor() 호출
+   ↓
+2. 편집기: templateSetId로 API 조회
+   GET /api/template-sets/:id
+   ↓
+3. 템플릿셋 정보 로드
+   - 판형 (width, height)
+   - 템플릿 목록 (templates)
+   - 페이지 설정 (canAddPage, pageCountRange)
+   - 상품 스펙 (productSpecs)
+   ↓
+4. 편집 세션 생성 또는 로드
+   - sessionId 없으면: POST /api/editor/sessions
+   - sessionId 있으면: GET /api/editor/sessions/:id
+   ↓
+5. 캔버스 초기화 및 편집 시작
+```
+
+#### 9.2.6 저장 코드 (편집 코드) - 레거시 호환
+
+기존 시스템과의 호환을 위해 편집 코드도 지원:
+
 ```javascript
 {
-  editCode: "EDIT-20251203-001",
-  orderCode: "ORDER-20251203-001"
+  editCode: "EDIT-20251203-001",   // 편집 세션 식별자 (sessionId와 매핑)
+  orderCode: "ORDER-20251203-001"  // 주문 코드
 }
 ```
 

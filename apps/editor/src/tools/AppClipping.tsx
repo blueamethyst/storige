@@ -401,7 +401,7 @@ export default function AppClipping() {
           disabled={isLoading}
         >
           <Upload className="h-4 w-4 mr-2" />
-          {isLoading ? '처리 중...' : '디바이스에서 업로드'}
+          {isLoading ? '처리 중...' : '업로드'}
         </Button>
       </div>
 

@@ -6,8 +6,11 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
-import { TemplateList } from './pages/Templates';
+import { TemplateList, TemplateEditor } from './pages/Templates';
+import { TemplateSetList, TemplateSetForm } from './pages/TemplateSets';
 import { CategoryManagement } from './pages/Categories';
+import { ProductList } from './pages/Products';
+import { ReviewList, ReviewDetail } from './pages/Reviews';
 import { FontList } from './pages/Library';
 import { BackgroundList } from './pages/Library/BackgroundList';
 import { ClipartList } from './pages/Library/ClipartList';
@@ -30,6 +33,16 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
 
+            {/* 템플릿 에디터 - 전체화면, MainLayout 외부 */}
+            <Route
+              path="/templates/editor"
+              element={
+                <ProtectedRoute>
+                  <TemplateEditor />
+                </ProtectedRoute>
+              }
+            />
+
             <Route
               path="/"
               element={
@@ -40,7 +53,13 @@ function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="templates" element={<TemplateList />} />
+              <Route path="template-sets" element={<TemplateSetList />} />
+              <Route path="template-sets/new" element={<TemplateSetForm />} />
+              <Route path="template-sets/:id" element={<TemplateSetForm />} />
               <Route path="categories" element={<CategoryManagement />} />
+              <Route path="products" element={<ProductList />} />
+              <Route path="reviews" element={<ReviewList />} />
+              <Route path="reviews/:id" element={<ReviewDetail />} />
               <Route path="library/fonts" element={<FontList />} />
               <Route path="library/backgrounds" element={<BackgroundList />} />
               <Route path="library/cliparts" element={<ClipartList />} />

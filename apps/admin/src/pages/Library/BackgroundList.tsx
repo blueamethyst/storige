@@ -13,26 +13,17 @@ import {
   Popconfirm,
   Image,
 } from 'antd';
-import type { ColumnsType, UploadFile } from 'antd/es';
-import type { RcFile } from 'antd/es/upload';
+import type { ColumnsType } from 'antd/es/table';
+import type { UploadFile, RcFile } from 'antd/es/upload';
 import {
   PlusOutlined,
   DeleteOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import { LibraryBackground } from '@storige/types';
 import { libraryApi } from '../../api/library';
 
 const { Title } = Typography;
-
-interface Background {
-  id: string;
-  name: string;
-  fileUrl: string;
-  thumbnailUrl: string | null;
-  category: string | null;
-  isActive: boolean;
-  createdAt: string;
-}
 
 export const BackgroundList = () => {
   const queryClient = useQueryClient();
@@ -43,7 +34,7 @@ export const BackgroundList = () => {
   // Fetch backgrounds
   const { data: backgrounds, isLoading } = useQuery({
     queryKey: ['backgrounds'],
-    queryFn: libraryApi.getBackgrounds,
+    queryFn: () => libraryApi.getBackgrounds(),
   });
 
   // Delete mutation
@@ -103,7 +94,7 @@ export const BackgroundList = () => {
     deleteMutation.mutate(id);
   };
 
-  const columns: ColumnsType<Background> = [
+  const columns: ColumnsType<LibraryBackground> = [
     {
       title: '미리보기',
       dataIndex: 'thumbnailUrl',

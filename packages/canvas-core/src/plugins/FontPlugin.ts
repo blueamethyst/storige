@@ -142,12 +142,9 @@ class FontPlugin extends PluginBase {
 
     this.fontLoadingStatus.set(serverFontName, 'loading')
 
-    console.log(`🔄 폰트 로딩 시도: ${serverFontName}`)
-
     // 브라우저 네이티브 CSS Font Loading API 사용
     return this.loadFontNative(serverFontName)
       .then(() => {
-        console.log(`✅ 폰트 로딩 성공: ${serverFontName}`)
         this.fontLoadingStatus.set(serverFontName, 'loaded')
         this.processLoadingQueue(serverFontName, true)
       })
@@ -197,8 +194,6 @@ class FontPlugin extends PluginBase {
       if (!finalCheck) {
         throw new Error(`폰트 최종 검증 실패: ${fontName}`)
       }
-
-      console.log(`✅ 폰트 메트릭 준비 완료: ${fontName}`)
 
     } catch (error) {
       console.error(`네이티브 폰트 로딩 실패: ${fontName}`, error)
@@ -429,7 +424,6 @@ class FontPlugin extends PluginBase {
 
   // 필수 폰트들을 미리 로드하는 함수
   private async preloadEssentialFonts(fontList: FontSource[], defaultFont: string): Promise<void> {
-    console.log(`🔄 필수 폰트 로딩 시작: ${defaultFont}`)
 
     try {
       // 기본 폰트를 fontList에서 찾기 (정확한 매칭)
@@ -442,10 +436,8 @@ class FontPlugin extends PluginBase {
       if (defaultFontInfo) {
         // 기본 폰트를 실제로 로드
         await this.loadFont(defaultFontInfo)
-        console.log(`✅ 기본 폰트 로딩 완료: ${defaultFont}`)
       } else {
         console.warn(`❌ 기본 폰트를 fontList에서 찾을 수 없음: ${defaultFont}`)
-        console.log('사용 가능한 폰트 목록:', fontList.map((f) => f.name).slice(0, 10))
       }
     } catch (err) {
       console.error('필수 폰트 로딩 중 오류:', err)
@@ -453,7 +445,6 @@ class FontPlugin extends PluginBase {
   }
 
   private applyFallbackFont(object: fabric.Object): void {
-    console.log('폴백 폰트 적용:', object.id)
     object.set('fontFamily', 'Arial, sans-serif')
     object.setCoords()
     this._canvas.requestRenderAll()
@@ -505,7 +496,6 @@ class FontPlugin extends PluginBase {
         // 1. 네이티브 API로 폰트 리소스 로딩
         await this.loadFontNative(name)
 
-        console.log(`✅ 폰트 로딩 성공: ${name}`)
         this.fontLoadingStatus.set(name, 'loaded')
 
         // 2. 객체가 있으면 폰트 적용 (선택적)

@@ -524,6 +524,9 @@ class WorkspacePlugin extends PluginBase {
 
         console.log('workspace after load', workspace)
 
+        // 로드된 워크스페이스를 this.workspace에 할당하고 clipPath 업데이트
+        this.workspace = workspace
+
         const templateBackground = this._canvas.getObjects().find((obj) => obj.id === 'template-background')
         if (templateBackground && templateBackground.preventAutoResize && this._options.renderType !== 'mockup') {
           // 봉투 타입의 경우 template-background를 clipPath로 유지
@@ -532,6 +535,15 @@ class WorkspacePlugin extends PluginBase {
           } else {
             this._canvas.clipPath = null
           }
+        } else if (this._options.renderType !== 'noBounded' && this._options.renderType !== 'mockup') {
+          // 일반 모드에서는 로드된 workspace를 clipPath로 설정
+          this._canvas.clipPath = workspace
+          console.log('[WorkspacePlugin] Updated clipPath to loaded workspace:', {
+            width: workspace.width,
+            height: workspace.height,
+            scaleX: workspace.scaleX,
+            scaleY: workspace.scaleY
+          })
         }
 
         this.createOrUpdateCutBorder()

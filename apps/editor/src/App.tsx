@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react'
 
 // Lazy load views
 const EditorView = lazy(() => import('./views/EditorView'))
+const TemplateEditorView = lazy(() => import('./views/TemplateEditorView'))
 const BrowseContentsView = lazy(() => import('./views/BrowseContentsView'))
 const UnauthorizedView = lazy(() => import('./views/UnauthorizedView'))
 
@@ -20,6 +21,7 @@ function App() {
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
         <Route path="/" element={<EditorView />} />
+        <Route path="/template" element={<TemplateEditorView />} />
         <Route path="/browse" element={<BrowseContentsView />} />
         <Route path="/unauthorized" element={<UnauthorizedView />} />
         <Route path="*" element={<Navigate to="/" replace />} />

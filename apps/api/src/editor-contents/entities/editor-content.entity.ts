@@ -15,8 +15,8 @@ export class EditorContent {
   id: string;
 
   @Column({
-    type: 'enum',
-    enum: ['template', 'frame', 'image', 'background', 'element'],
+    type: 'varchar',
+    length: 20,
   })
   type: EditorContentType;
 

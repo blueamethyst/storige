@@ -1,0 +1,428 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { TemplateSet, TemplateSetItem } from './entities/template-set.entity';
+import { Template } from './entities/template.entity';
+import { Product } from '../products/entities/product.entity';
+import {
+  CreateTemplateSetDto,
+  UpdateTemplateSetDto,
+  TemplateSetQueryDto,
+  AddTemplateDto,
+  ReorderTemplatesDto,
+} from './dto/template-set.dto';
+import type { TemplateRef, PaginatedResponse } from '@storige/types';
+
+@Injectable()
+export class TemplateSetsService {
+  constructor(
+    @InjectRepository(TemplateSet)
+    private templateSetRepository: Repository<TemplateSet>,
+    @InjectRepository(TemplateSetItem)
+    private templateSetItemRepository: Repository<TemplateSetItem>,
+    @InjectRepository(Template)
+    private templateRepository: Repository<Template>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+  ) {}
+
+  /**
+   * 템플릿셋 생성
+   */
+  async create(dto: CreateTemplateSetDto): Promise<TemplateSet> {
+    // 템플릿 유효성 검사
+    if (dto.templates && dto.templates.length > 0) {
+      await this.validateTemplates(dto.templates, dto.width, dto.height);
+    }
+
+    // 썸네일 URL이 없으면 첫 번째 템플릿의 썸네일 사용
+    let thumbnailUrl = dto.thumbnailUrl || null;
+    if (!thumbnailUrl && dto.templates && dto.templates.length > 0) {
+      thumbnailUrl = await this.getFirstTemplateThumbnail(dto.templates);
+    }
+
+    const templateSet = this.templateSetRepository.create({
+      name: dto.name,
+      thumbnailUrl,
+      type: dto.type,
+      width: dto.width,
+      height: dto.height,
+      canAddPage: dto.canAddPage ?? true,
+      pageCountRange: dto.pageCountRange || [],
+      templates: dto.templates || [],
+      categoryId: dto.categoryId || null,
+      isDeleted: false,
+      isActive: true,
+    });
+
+    return this.templateSetRepository.save(templateSet);
+  }
+
+  /**
+   * 템플릿셋 목록 조회
+   */
+  async findAll(query: TemplateSetQueryDto): Promise<PaginatedResponse<TemplateSet>> {
+    const {
+      type,
+      width,
+      height,
+      categoryId,
+      isActive,
+      includeDeleted = false,
+      page = 1,
+      pageSize = 20,
+    } = query;
+
+    const qb = this.templateSetRepository.createQueryBuilder('ts');
+
+    // 소프트 삭제 필터
+    if (!includeDeleted) {
+      qb.andWhere('ts.isDeleted = :isDeleted', { isDeleted: false });
+    }
+
+    // 타입 필터
+    if (type) {
+      qb.andWhere('ts.type = :type', { type });
+    }
+
+    // 판형 필터
+    if (width) {
+      qb.andWhere('ts.width = :width', { width });
+    }
+    if (height) {
+      qb.andWhere('ts.height = :height', { height });
+    }
+
+    // 카테고리 필터
+    if (categoryId) {
+      qb.andWhere('ts.categoryId = :categoryId', { categoryId });
+    }
+
+    // 활성 상태 필터
+    if (isActive !== undefined) {
+      qb.andWhere('ts.isActive = :isActive', { isActive });
+    }
+
+    // 정렬
+    qb.orderBy('ts.createdAt', 'DESC');
+
+    // 페이지네이션
+    const skip = (page - 1) * pageSize;
+    qb.skip(skip).take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * 템플릿셋 상세 조회
+   */
+  async findOne(id: string): Promise<TemplateSet> {
+    const templateSet = await this.templateSetRepository.findOne({
+      where: { id, isDeleted: false },
+      relations: ['category'],
+    });
+
+    if (!templateSet) {
+      throw new NotFoundException(`템플릿셋을 찾을 수 없습니다: ${id}`);
+    }
+
+    return templateSet;
+  }
+
+  /**
+   * 템플릿셋과 템플릿 상세 정보 조회
+   */
+  async findOneWithTemplates(id: string): Promise<{
+    templateSet: TemplateSet;
+    templateDetails: Template[];
+  }> {
+    const templateSet = await this.findOne(id);
+
+    // 템플릿 상세 정보 조회
+    const templateIds = templateSet.templates.map((t) => t.templateId);
+    const templateDetails = templateIds.length > 0
+      ? await this.templateRepository.findByIds(templateIds)
+      : [];
+
+    // 순서대로 정렬
+    const orderedTemplates = templateIds.map((id) =>
+      templateDetails.find((t) => t.id === id),
+    ).filter(Boolean) as Template[];
+
+    return {
+      templateSet,
+      templateDetails: orderedTemplates,
+    };
+  }
+
+  /**
+   * 템플릿셋 수정
+   */
+  async update(id: string, dto: UpdateTemplateSetDto): Promise<TemplateSet> {
+    const templateSet = await this.findOne(id);
+
+    // 템플릿 유효성 검사
+    if (dto.templates) {
+      const width = dto.width ?? templateSet.width;
+      const height = dto.height ?? templateSet.height;
+      await this.validateTemplates(dto.templates, width, height);
+    }
+
+    // 템플릿 목록이 변경되었고 썸네일이 없으면 첫 번째 템플릿의 썸네일 사용
+    let thumbnailUrl = dto.thumbnailUrl ?? templateSet.thumbnailUrl;
+    const templates = dto.templates ?? templateSet.templates;
+    if (!thumbnailUrl && templates && templates.length > 0) {
+      thumbnailUrl = await this.getFirstTemplateThumbnail(templates);
+    }
+
+    // 업데이트
+    Object.assign(templateSet, {
+      ...dto,
+      thumbnailUrl,
+    });
+
+    return this.templateSetRepository.save(templateSet);
+  }
+
+  /**
+   * 템플릿셋 삭제 (소프트 삭제)
+   */
+  async remove(id: string): Promise<{ affected: number; usedByProducts: string[] }> {
+    const templateSet = await this.findOne(id);
+
+    // TODO: 상품에서 사용 중인지 확인
+    const usedByProducts: string[] = [];
+
+    templateSet.isDeleted = true;
+    templateSet.isActive = false;
+    await this.templateSetRepository.save(templateSet);
+
+    return { affected: 1, usedByProducts };
+  }
+
+  /**
+   * 템플릿셋 복제
+   */
+  async copy(id: string): Promise<TemplateSet> {
+    const original = await this.findOne(id);
+
+    const copy = this.templateSetRepository.create({
+      name: `${original.name} (복사본)`,
+      thumbnailUrl: original.thumbnailUrl,
+      type: original.type,
+      width: original.width,
+      height: original.height,
+      canAddPage: original.canAddPage,
+      pageCountRange: original.pageCountRange,
+      templates: original.templates,
+      categoryId: original.categoryId,
+      isDeleted: false,
+      isActive: true,
+    });
+
+    return this.templateSetRepository.save(copy);
+  }
+
+  /**
+   * 연결된 상품 목록 조회
+   */
+  async getProducts(id: string): Promise<Product[]> {
+    await this.findOne(id); // 존재 확인
+
+    return this.productRepository.find({
+      where: { templateSetId: id },
+      select: ['id', 'title', 'productId', 'isActive', 'createdAt'],
+      order: { title: 'ASC' },
+    });
+  }
+
+  /**
+   * 템플릿셋에 템플릿 추가
+   */
+  async addTemplate(id: string, dto: AddTemplateDto): Promise<TemplateSet> {
+    const templateSet = await this.findOne(id);
+
+    // 템플릿 존재 확인
+    const template = await this.templateRepository.findOne({
+      where: { id: dto.templateId, isDeleted: false },
+    });
+
+    if (!template) {
+      throw new NotFoundException(`템플릿을 찾을 수 없습니다: ${dto.templateId}`);
+    }
+
+    // 판형 검사 (cover, page 타입만)
+    if (['cover', 'page'].includes(template.type)) {
+      if (template.width !== templateSet.width || template.height !== templateSet.height) {
+        throw new BadRequestException(
+          `템플릿 판형이 템플릿셋과 일치하지 않습니다. ` +
+          `템플릿: ${template.width}x${template.height}, 템플릿셋: ${templateSet.width}x${templateSet.height}`,
+        );
+      }
+    }
+
+    // 템플릿 추가
+    const newRef: TemplateRef = {
+      templateId: dto.templateId,
+      required: dto.required ?? false,
+    };
+
+    const templates = [...templateSet.templates];
+    const position = dto.position ?? templates.length;
+    templates.splice(position, 0, newRef);
+
+    templateSet.templates = templates;
+    return this.templateSetRepository.save(templateSet);
+  }
+
+  /**
+   * 템플릿셋에서 템플릿 제거
+   */
+  async removeTemplate(id: string, templateId: string): Promise<TemplateSet> {
+    const templateSet = await this.findOne(id);
+
+    templateSet.templates = templateSet.templates.filter(
+      (t) => t.templateId !== templateId,
+    );
+
+    return this.templateSetRepository.save(templateSet);
+  }
+
+  /**
+   * 템플릿 순서 변경
+   */
+  async reorderTemplates(id: string, dto: ReorderTemplatesDto): Promise<TemplateSet> {
+    const templateSet = await this.findOne(id);
+
+    // 모든 템플릿 ID가 유효한지 확인
+    const existingIds = new Set(templateSet.templates.map((t) => t.templateId));
+    const newIds = new Set(dto.templates.map((t) => t.templateId));
+
+    // 동일한 템플릿들인지 확인
+    if (existingIds.size !== newIds.size) {
+      throw new BadRequestException('템플릿 목록이 일치하지 않습니다.');
+    }
+
+    for (const id of existingIds) {
+      if (!newIds.has(id)) {
+        throw new BadRequestException(`누락된 템플릿: ${id}`);
+      }
+    }
+
+    templateSet.templates = dto.templates;
+    return this.templateSetRepository.save(templateSet);
+  }
+
+  /**
+   * 같은 판형의 템플릿셋 조회 (템플릿셋 교체용)
+   */
+  async findCompatible(
+    width: number,
+    height: number,
+    type?: string,
+  ): Promise<TemplateSet[]> {
+    const qb = this.templateSetRepository.createQueryBuilder('ts');
+
+    qb.where('ts.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('ts.isActive = :isActive', { isActive: true })
+      .andWhere('ts.width = :width', { width })
+      .andWhere('ts.height = :height', { height });
+
+    if (type) {
+      qb.andWhere('ts.type = :type', { type });
+    }
+
+    qb.orderBy('ts.name', 'ASC');
+
+    return qb.getMany();
+  }
+
+  /**
+   * 템플릿 유효성 검사
+   */
+  private async validateTemplates(
+    templates: TemplateRef[],
+    width: number,
+    height: number,
+  ): Promise<void> {
+    for (const ref of templates) {
+      const template = await this.templateRepository.findOne({
+        where: { id: ref.templateId, isDeleted: false },
+      });
+
+      if (!template) {
+        throw new NotFoundException(`템플릿을 찾을 수 없습니다: ${ref.templateId}`);
+      }
+
+      // cover, page 타입만 판형 검사
+      if (['cover', 'page'].includes(template.type)) {
+        if (template.width !== width || template.height !== height) {
+          throw new BadRequestException(
+            `템플릿 "${template.name}" 판형이 일치하지 않습니다. ` +
+            `템플릿: ${template.width}x${template.height}, 템플릿셋: ${width}x${height}`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * 첫 번째 템플릿의 썸네일 URL 가져오기
+   */
+  private async getFirstTemplateThumbnail(
+    templates: TemplateRef[],
+  ): Promise<string | null> {
+    if (!templates || templates.length === 0) {
+      return null;
+    }
+
+    const firstTemplateId = templates[0].templateId;
+    const template = await this.templateRepository.findOne({
+      where: { id: firstTemplateId, isDeleted: false },
+      select: ['thumbnailUrl'],
+    });
+
+    return template?.thumbnailUrl || null;
+  }
+
+  /**
+   * 모든 템플릿셋의 썸네일 URL 일괄 업데이트
+   * 썸네일이 없는 템플릿셋에 대해 첫 번째 템플릿의 썸네일을 설정
+   */
+  async updateAllThumbnails(): Promise<{ updated: number; total: number }> {
+    // 모든 템플릿셋 조회 (삭제되지 않은 것만)
+    const templateSets = await this.templateSetRepository.find({
+      where: { isDeleted: false },
+    });
+
+    let updatedCount = 0;
+
+    for (const templateSet of templateSets) {
+      // 썸네일이 없고 템플릿이 있는 경우에만 업데이트
+      if (!templateSet.thumbnailUrl && templateSet.templates && templateSet.templates.length > 0) {
+        const thumbnailUrl = await this.getFirstTemplateThumbnail(templateSet.templates);
+        if (thumbnailUrl) {
+          templateSet.thumbnailUrl = thumbnailUrl;
+          await this.templateSetRepository.save(templateSet);
+          updatedCount++;
+        }
+      }
+    }
+
+    return {
+      updated: updatedCount,
+      total: templateSets.length,
+    };
+  }
+}

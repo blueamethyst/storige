@@ -12,13 +12,17 @@ import { EditorDesignsModule } from './editor-designs/editor-designs.module';
 import { EditorContentsModule } from './editor-contents/editor-contents.module';
 import { ProductsModule } from './products/products.module';
 import { HealthModule } from './health/health.module';
+import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
   imports: [
-    // Configuration
+    // Configuration - loads environment-specific file based on NODE_ENV
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env',
+      ],
     }),
 
     // Database (MariaDB)
@@ -60,6 +64,9 @@ import { HealthModule } from './health/health.module';
     EditorDesignsModule,
     EditorContentsModule,
     ProductsModule,
+
+    // Database seeding
+    SeedModule,
   ],
   controllers: [],
   providers: [],

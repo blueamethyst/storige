@@ -1,9 +1,12 @@
 import { axiosInstance } from '../lib/axios';
-import { Template, CanvasData } from '@storige/types';
+import { Template, CanvasData, TemplateType } from '@storige/types';
 
 export interface CreateTemplateDto {
   name: string;
-  categoryId: string;
+  categoryId?: string;
+  type?: TemplateType;
+  width?: number;
+  height?: number;
   editCode?: string;
   templateCode?: string;
   thumbnailUrl?: string;
@@ -14,6 +17,9 @@ export interface CreateTemplateDto {
 export interface UpdateTemplateDto {
   name?: string;
   categoryId?: string;
+  type?: TemplateType;
+  width?: number;
+  height?: number;
   editCode?: string;
   templateCode?: string;
   thumbnailUrl?: string;
@@ -42,8 +48,16 @@ export const templatesApi = {
   },
 
   update: async (id: string, data: UpdateTemplateDto): Promise<Template> => {
-    const response = await axiosInstance.put<Template>(`/templates/${id}`, data);
+    const response = await axiosInstance.patch<Template>(`/templates/${id}`, data);
     return response.data;
+  },
+
+  checkEditCode: async (editCode: string, excludeId?: string): Promise<boolean> => {
+    const params = excludeId ? `?excludeId=${excludeId}` : '';
+    const response = await axiosInstance.get<{ exists: boolean }>(
+      `/templates/check-edit-code/${encodeURIComponent(editCode)}${params}`
+    );
+    return response.data.exists;
   },
 
   delete: async (id: string): Promise<void> => {

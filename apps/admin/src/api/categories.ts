@@ -15,9 +15,18 @@ export interface UpdateCategoryDto {
   sortOrder?: number;
 }
 
+export interface ReorderCategoryItem {
+  id: string;
+  sortOrder: number;
+}
+
+export interface ReorderCategoriesDto {
+  items: ReorderCategoryItem[];
+}
+
 export const categoriesApi = {
   getTree: async (): Promise<Category[]> => {
-    const response = await axiosInstance.get<Category[]>('/categories');
+    const response = await axiosInstance.get<Category[]>('/categories/tree');
     return response.data;
   },
 
@@ -38,5 +47,9 @@ export const categoriesApi = {
 
   delete: async (id: string): Promise<void> => {
     await axiosInstance.delete(`/categories/${id}`);
+  },
+
+  reorder: async (data: ReorderCategoriesDto): Promise<void> => {
+    await axiosInstance.post('/categories/reorder', data);
   },
 };

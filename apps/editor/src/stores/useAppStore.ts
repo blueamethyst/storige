@@ -366,7 +366,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
   // 새 페이지 추가
   addPage: async () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { allCanvas, allEditors: _allEditors, init, setPage, updateObjects, takeCanvasScreenshot } = get()
+    const { allCanvas, allEditors: _allEditors, init, setPage, updateObjects, takeCanvasScreenshot, initializationId } = get()
 
     try {
       // 현재 설정 사용 (settingsStore 연동은 나중에 추가)
@@ -436,8 +436,8 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
         workspacePlugin.initWorkspace()
       }
 
-      // 스토어에 등록
-      init(newCanvas, newEditor)
+      // 스토어에 등록 (initializationId 전달하여 등록 허용)
+      init(newCanvas, newEditor, initializationId || undefined)
 
       // 새 페이지로 전환
       const nextIndex = allCanvas.length // init 후에는 allCanvas가 업데이트됨

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Table,
@@ -10,14 +11,20 @@ import {
   message,
   Input,
   Select,
+  Tooltip,
+  Switch,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { InputRef } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   CopyOutlined,
   SearchOutlined,
+  FileImageOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { Template } from '@storige/types';
 import { templatesApi } from '../../api/templates';
@@ -25,7 +32,200 @@ import { categoriesApi } from '../../api/categories';
 
 const { Title } = Typography;
 
+// API 서버 URL (storage URL 변환용)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+
+// 썸네일 URL을 전체 URL로 변환
+const getFullThumbnailUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  // 이미 전체 URL인 경우
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // 상대 경로 (/storage/...) 인 경우 API base URL과 결합
+  // /storage/designs/xxx.png -> http://localhost:4000/api/storage/designs/xxx.png
+  return `${API_BASE_URL}${url}`;
+};
+
+// 썸네일 이미지 컴포넌트
+const ThumbnailImage = ({ url }: { url: string | null | undefined }) => {
+  const [hasError, setHasError] = useState(false);
+  const fullUrl = getFullThumbnailUrl(url);
+
+  const handleError = useCallback(() => {
+    setHasError(true);
+  }, []);
+
+  // URL이 없거나 로딩 실패 시 placeholder 표시
+  if (!fullUrl || hasError) {
+    return (
+      <div
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: 4,
+          backgroundColor: '#f5f5f5',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px solid #e8e8e8',
+        }}
+      >
+        <FileImageOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={fullUrl}
+      alt="thumbnail"
+      style={{
+        width: 60,
+        height: 60,
+        objectFit: 'cover',
+        borderRadius: 4,
+        backgroundColor: '#f5f5f5',
+      }}
+      onError={handleError}
+    />
+  );
+};
+
+// 편집 가능한 editCode 컴포넌트
+interface EditableEditCodeProps {
+  templateId: string;
+  value: string | null;
+  onSave: (id: string, editCode: string) => Promise<void>;
+}
+
+const EditableEditCode = ({ templateId, value, onSave }: EditableEditCodeProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || '');
+  const [isChecking, setIsChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<InputRef>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  const handleStartEdit = () => {
+    setEditValue(value || '');
+    setError(null);
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditValue(value || '');
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    const trimmedValue = editValue.trim();
+
+    if (!trimmedValue) {
+      setError('편집 코드를 입력해주세요.');
+      return;
+    }
+
+    if (trimmedValue === value) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsChecking(true);
+    setError(null);
+
+    try {
+      // 중복 검사
+      const exists = await templatesApi.checkEditCode(trimmedValue, templateId);
+      if (exists) {
+        setError('이미 사용 중인 편집 코드입니다.');
+        setIsChecking(false);
+        return;
+      }
+
+      // 저장
+      await onSave(templateId, trimmedValue);
+      setIsEditing(false);
+    } catch (err) {
+      setError('저장에 실패했습니다.');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <Space.Compact size="small" style={{ width: '100%' }}>
+        <Tooltip title={error} open={!!error} color="red">
+          <Input
+            ref={inputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            status={error ? 'error' : undefined}
+            style={{ width: 100 }}
+            disabled={isChecking}
+          />
+        </Tooltip>
+        <Button
+          type="primary"
+          size="small"
+          icon={<CheckOutlined />}
+          onClick={handleSave}
+          loading={isChecking}
+        />
+        <Button
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={handleCancel}
+          disabled={isChecking}
+        />
+      </Space.Compact>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        cursor: 'pointer',
+        padding: '4px 8px',
+        borderRadius: 4,
+        minHeight: 24,
+        display: 'flex',
+        alignItems: 'center',
+      }}
+      onClick={handleStartEdit}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = '#f5f5f5';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
+    >
+      <span style={{ color: value ? 'inherit' : '#bfbfbf' }}>
+        {value || '클릭하여 입력'}
+      </span>
+      <EditOutlined style={{ marginLeft: 8, fontSize: 12, color: '#bfbfbf' }} />
+    </div>
+  );
+};
+
 export const TemplateList = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
@@ -34,12 +234,16 @@ export const TemplateList = () => {
   const { data: templates, isLoading } = useQuery({
     queryKey: ['templates', selectedCategory],
     queryFn: () => templatesApi.getAll(selectedCategory),
+    staleTime: 30 * 1000, // 30초 동안 데이터를 fresh 상태로 유지
+    refetchOnWindowFocus: false, // 창 포커스 시 자동 refetch 비활성화
   });
 
   // Fetch categories for filter
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: categoriesApi.getTree,
+    staleTime: 60 * 1000, // 1분 동안 데이터를 fresh 상태로 유지
+    refetchOnWindowFocus: false,
   });
 
   // Delete mutation
@@ -66,6 +270,53 @@ export const TemplateList = () => {
     },
   });
 
+  // Update editCode mutation
+  const updateEditCodeMutation = useMutation({
+    mutationFn: ({ id, editCode }: { id: string; editCode: string }) =>
+      templatesApi.update(id, { editCode }),
+    onSuccess: () => {
+      message.success('편집 코드가 수정되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: () => {
+      message.error('편집 코드 수정에 실패했습니다.');
+    },
+  });
+
+  const handleSaveEditCode = async (id: string, editCode: string) => {
+    await updateEditCodeMutation.mutateAsync({ id, editCode });
+  };
+
+  // Update isActive mutation
+  const updateIsActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      templatesApi.update(id, { isActive }),
+    onSuccess: (_, variables) => {
+      message.success(variables.isActive ? '템플릿이 활성화되었습니다.' : '템플릿이 비활성화되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: () => {
+      message.error('상태 변경에 실패했습니다.');
+    },
+  });
+
+  // Update name mutation
+  const updateNameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      templatesApi.update(id, { name }),
+    onSuccess: () => {
+      message.success('템플릿명이 수정되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    },
+    onError: () => {
+      message.error('템플릿명 수정에 실패했습니다.');
+    },
+  });
+
+  const handleToggleActive = (id: string, isActive: boolean) => {
+    updateIsActiveMutation.mutate({ id, isActive });
+  };
+
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
   };
@@ -80,25 +331,43 @@ export const TemplateList = () => {
       dataIndex: 'thumbnailUrl',
       key: 'thumbnailUrl',
       width: 100,
-      render: (url: string) => (
-        <img
-          src={url || '/placeholder.png'}
-          alt="thumbnail"
-          style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }}
-        />
-      ),
+      render: (url: string | null | undefined) => <ThumbnailImage url={url} />,
     },
     {
       title: '템플릿명',
       dataIndex: 'name',
       key: 'name',
       sorter: (a, b) => a.name.localeCompare(b.name),
+      render: (name: string, record: Template) => (
+        <Space>
+          <span>{name}</span>
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              const newName = prompt('템플릿명 수정', name);
+              if (newName && newName !== name) {
+                updateNameMutation.mutate({ id: record.id, name: newName });
+              }
+            }}
+          />
+        </Space>
+      ),
     },
     {
       title: '편집 코드',
       dataIndex: 'editCode',
       key: 'editCode',
-      width: 150,
+      width: 180,
+      render: (editCode: string | null, record: Template) => (
+        <EditableEditCode
+          templateId={record.id}
+          value={editCode}
+          onSave={handleSaveEditCode}
+        />
+      ),
     },
     {
       title: '템플릿 코드',
@@ -107,15 +376,47 @@ export const TemplateList = () => {
       width: 150,
     },
     {
+      title: '타입',
+      dataIndex: 'type',
+      key: 'type',
+      width: 100,
+      render: (type: string) => {
+        const typeLabels: Record<string, { label: string; color: string }> = {
+          page: { label: '내지', color: 'blue' },
+          cover: { label: '표지', color: 'green' },
+          spine: { label: '책등', color: 'orange' },
+          wing: { label: '날개', color: 'purple' },
+        };
+        const typeInfo = typeLabels[type] || { label: type, color: 'default' };
+        return <Tag color={typeInfo.color}>{typeInfo.label}</Tag>;
+      },
+      filters: [
+        { text: '내지', value: 'page' },
+        { text: '표지', value: 'cover' },
+        { text: '책등', value: 'spine' },
+        { text: '날개', value: 'wing' },
+      ],
+      onFilter: (value, record) => record.type === value,
+    },
+    {
       title: '상태',
       dataIndex: 'isActive',
       key: 'isActive',
       width: 100,
-      render: (isActive: boolean) => (
-        <Tag color={isActive ? 'green' : 'default'}>
-          {isActive ? '활성' : '비활성'}
-        </Tag>
+      render: (isActive: boolean, record: Template) => (
+        <Switch
+          checked={isActive}
+          onChange={(checked) => handleToggleActive(record.id, checked)}
+          checkedChildren="활성"
+          unCheckedChildren="비활성"
+          loading={updateIsActiveMutation.isPending && updateIsActiveMutation.variables?.id === record.id}
+        />
       ),
+      filters: [
+        { text: '활성', value: true },
+        { text: '비활성', value: false },
+      ],
+      onFilter: (value, record) => record.isActive === value,
     },
     {
       title: '생성일',
@@ -134,7 +435,7 @@ export const TemplateList = () => {
           <Button
             type="link"
             icon={<EditOutlined />}
-            onClick={() => message.info('편집 기능은 구현 예정입니다.')}
+            onClick={() => navigate(`/templates/editor?id=${record.id}`)}
           >
             편집
           </Button>
@@ -195,7 +496,7 @@ export const TemplateList = () => {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => message.info('템플릿 생성 기능은 구현 예정입니다.')}
+          onClick={() => navigate('/templates/editor')}
         >
           템플릿 생성
         </Button>

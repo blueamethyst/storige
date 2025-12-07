@@ -14,6 +14,24 @@ class ApiClient {
       },
     });
 
+    this.setupInterceptors();
+  }
+
+  /**
+   * Set the base URL for API requests (used for embedded editor)
+   */
+  setBaseUrl(baseUrl: string) {
+    this.client.defaults.baseURL = baseUrl;
+  }
+
+  /**
+   * Get the current base URL
+   */
+  getBaseUrl(): string {
+    return this.client.defaults.baseURL || API_BASE_URL;
+  }
+
+  private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {

@@ -5,6 +5,9 @@ import { useAppStore } from '@/stores/useAppStore'
 import { storageApi } from '@/api'
 import { CUTTING_LINE_CONFIG } from '@/constants/cutting'
 
+// Feature flag for image processing (OpenCV) features
+const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !== 'false'
+
 // Fabric.js 타입 (실제 fabric 타입은 런타임에 로드됨)
 // canvas-core API를 통해 fabric 객체를 다루므로 타입만 정의
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +29,7 @@ interface ImageState {
 }
 
 interface ImageActions {
-  // 파일 업로드
+  // 파일 업로드 (ImageProcessingPlugin 필요)
   upload: (
     canvas: FabricCanvas,
     imagePlugin: ImageProcessingPlugin,
@@ -34,6 +37,12 @@ interface ImageActions {
     accept?: string,
     onVectorStart?: () => void,
     onVectorEnd?: (success: boolean) => void
+  ) => Promise<FabricObject | undefined>
+
+  // 간단한 파일 업로드 (ImageProcessingPlugin 불필요, OpenCV 미사용)
+  uploadSimple: (
+    canvas: FabricCanvas,
+    accept?: string
   ) => Promise<FabricObject | undefined>
 
   // 이미지 채우기
@@ -120,7 +129,98 @@ export const useImageStore = create<ImageState & ImageActions>()((set, get) => (
     return item
   },
 
-  // 파일 업로드
+  // 간단한 파일 업로드 (ImageProcessingPlugin 불필요)
+  uploadSimple: async (
+    canvas: FabricCanvas,
+    accept: string = 'image/*'
+  ): Promise<FabricObject | undefined> => {
+    const { uploading, uploaded } = get()
+
+    if (uploading) {
+      console.log('Already uploading, please wait')
+      return undefined
+    }
+
+    try {
+      set({ uploading: true })
+
+      const workspace = canvas.getObjects().find((obj: FabricObject) => obj.id === 'workspace')
+
+      if (!workspace) {
+        alert('workspace를 등록해 주세요')
+        return undefined
+      }
+
+      const files = await selectFiles({
+        accept: accept,
+        multiple: false
+      })
+
+      if (!files || files.length === 0) {
+        console.log('No file selected')
+        return undefined
+      }
+
+      const file = files[0]
+
+      // 벡터 파일은 지원하지 않음 (ImageProcessingPlugin 필요)
+      const fileExtension = file.name.split('.').pop()?.toLowerCase()
+      const isVectorFile = ['ai', 'eps', 'pdf'].includes(fileExtension || '')
+
+      if (isVectorFile) {
+        alert('벡터 파일 업로드는 이미지 처리 기능이 활성화된 경우에만 사용할 수 있습니다.')
+        return undefined
+      }
+
+      // 간단한 이미지 로드 (OpenCV 미사용)
+      const item = await core.fileToImageSimple(canvas, file)
+
+      if (item) {
+        // workspace 크기 계산
+        const workspaceWidth = workspace.width! * workspace.scaleX!
+        const workspaceHeight = workspace.height! * workspace.scaleY!
+        const workspaceCenter = workspace.getCenterPoint()
+
+        // canvas setting이 mm인 경우 스케일 보정
+        const scale = canvas.unitOptions?.unit === 'mm' ? (canvas.unitOptions.dpi || 150) / 72 : 1
+
+        // 일반 이미지
+        item.set({
+          originX: 'center',
+          originY: 'center',
+          left: workspaceCenter.x,
+          top: workspaceCenter.y
+        })
+
+        const actualItemWidth = item.width! * scale
+        const actualItemHeight = item.height! * scale
+
+        if (actualItemWidth > workspaceWidth || actualItemHeight > workspaceHeight) {
+          const scaleX = workspaceWidth / actualItemWidth
+          const scaleY = workspaceHeight / actualItemHeight
+          const itemScale = Math.min(scaleX, scaleY)
+          item.scale(itemScale * scale)
+        } else {
+          item.scale(scale)
+        }
+
+        canvas.add(item)
+        canvas.setActiveObject(item)
+
+        set({ uploaded: [...uploaded, item] })
+        return item
+      }
+
+      return undefined
+    } catch (e) {
+      console.log(e)
+      throw e
+    } finally {
+      set({ uploading: false })
+    }
+  },
+
+  // 파일 업로드 (ImageProcessingPlugin 필요)
   upload: async (
     canvas: FabricCanvas,
     imagePlugin: ImageProcessingPlugin,

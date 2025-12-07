@@ -21,6 +21,11 @@ import Editor, {
   createFabricCanvas,
   configureFabricDefaults,
 } from '@storige/canvas-core'
+
+// Feature flag for image processing (OpenCV) features
+const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !== 'false'
+// Feature flag for ruler
+const ENABLE_RULER = import.meta.env.VITE_ENABLE_RULER !== 'false'
 import { useAppStore } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { DEFAULT_FONT_FAMILY, getFontList, getFontUrl } from '@/utils/fontManager'
@@ -172,14 +177,17 @@ function initPlugins(
   const settingsStore = useSettingsStore.getState()
 
   // 플러그인 인스턴스 생성
-  const ruler = new RulerPlugin(canvas, editor, {
-    canvas,
-    ruleSize: 24,
-    fontSize: 10,
-    enabled: false, // 성능 테스트를 위해 비활성화
-    unit: settings.unit,
-    dpi: settings.dpi,
-  })
+  // RulerPlugin은 VITE_ENABLE_RULER 환경변수로 제어
+  const ruler = ENABLE_RULER
+    ? new RulerPlugin(canvas, editor, {
+        canvas,
+        ruleSize: 24,
+        fontSize: 10,
+        enabled: false, // 성능 테스트를 위해 비활성화
+        unit: settings.unit,
+        dpi: settings.dpi,
+      })
+    : null
 
   // renderType은 settings 스토어에서 계산된 값이나, 현재는 기본값 사용
   // TODO: useSettingsStore에 renderType computed 구현 필요
@@ -195,7 +203,8 @@ function initPlugins(
   const history = new HistoryPlugin(canvas, editor)
   const copy = new CopyPlugin(canvas, editor, {})
   const align = new AlignPlugin(canvas, editor)
-  const image = new ImageProcessingPlugin(canvas, editor)
+  // ImageProcessingPlugin은 이미지 처리 기능이 활성화된 경우에만 생성
+  const image = ENABLE_IMAGE_PROCESSING ? new ImageProcessingPlugin(canvas, editor) : null
   const service = new ServicePlugin(canvas, editor, image, mergedOptions)
   const material = new AccessoryPlugin(canvas, editor, {})
   const drag = new DraggingPlugin(canvas, editor)
@@ -223,7 +232,10 @@ function initPlugins(
   // 모든 플러그인 등록
   editor.use(workspace)
   editor.use(object)
-  editor.use(ruler)
+  // RulerPlugin은 VITE_ENABLE_RULER 환경변수로 제어
+  if (ruler) {
+    editor.use(ruler)
+  }
   editor.use(controls)
   editor.use(group)
   editor.use(history)
@@ -234,14 +246,20 @@ function initPlugins(
   editor.use(filter)
   editor.use(effect)
   editor.use(smartCode)
-  editor.use(image)
+  // ImageProcessingPlugin은 이미지 처리 기능이 활성화된 경우에만 등록
+  if (image) {
+    editor.use(image)
+  }
   editor.use(material)
   editor.use(preview)
   editor.use(template)
   editor.use(service)
 
   workspace.init()
-  ruler.enable()
+  // RulerPlugin은 VITE_ENABLE_RULER 환경변수로 제어
+  if (ruler) {
+    ruler.enable()
+  }
 
   // 앱 스토어에 등록 (initId 전달)
   appStore.init(canvas, editor, initId)

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
-import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoriesDto } from './dto/category.dto';
 
 @Injectable()
 export class CategoriesService {
@@ -39,8 +39,30 @@ export class CategoriesService {
       }
     }
 
+    // Auto-assign sortOrder if not provided (add to end)
+    if (createCategoryDto.sortOrder === undefined || createCategoryDto.sortOrder === null) {
+      const maxSortOrder = await this.getMaxSortOrder(createCategoryDto.parentId || null);
+      createCategoryDto.sortOrder = maxSortOrder + 1;
+    }
+
     const category = this.categoryRepository.create(createCategoryDto);
     return await this.categoryRepository.save(category);
+  }
+
+  private async getMaxSortOrder(parentId: string | null): Promise<number> {
+    const queryBuilder = this.categoryRepository.createQueryBuilder('category');
+
+    if (parentId) {
+      queryBuilder.where('category.parentId = :parentId', { parentId });
+    } else {
+      queryBuilder.where('category.parentId IS NULL');
+    }
+
+    const result = await queryBuilder
+      .select('MAX(category.sortOrder)', 'maxSortOrder')
+      .getRawOne();
+
+    return result?.maxSortOrder ?? -1;
   }
 
   async findAll(): Promise<Category[]> {
@@ -124,5 +146,16 @@ export class CategoriesService {
     }
 
     await this.categoryRepository.remove(category);
+  }
+
+  async reorder(reorderDto: ReorderCategoriesDto): Promise<void> {
+    const { items } = reorderDto;
+
+    // Update all categories in a transaction
+    await this.categoryRepository.manager.transaction(async (manager) => {
+      for (const item of items) {
+        await manager.update(Category, item.id, { sortOrder: item.sortOrder });
+      }
+    });
   }
 }

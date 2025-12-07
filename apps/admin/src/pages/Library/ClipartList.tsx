@@ -14,27 +14,17 @@ import {
   Image,
   Tag,
 } from 'antd';
-import type { ColumnsType, UploadFile } from 'antd/es';
-import type { RcFile } from 'antd/es/upload';
+import type { ColumnsType } from 'antd/es/table';
+import type { UploadFile, RcFile } from 'antd/es/upload';
 import {
   PlusOutlined,
   DeleteOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import { LibraryClipart } from '@storige/types';
 import { libraryApi } from '../../api/library';
 
 const { Title } = Typography;
-
-interface Clipart {
-  id: string;
-  name: string;
-  fileUrl: string;
-  thumbnailUrl: string | null;
-  category: string | null;
-  tags: string[];
-  isActive: boolean;
-  createdAt: string;
-}
 
 export const ClipartList = () => {
   const queryClient = useQueryClient();
@@ -45,7 +35,7 @@ export const ClipartList = () => {
   // Fetch cliparts
   const { data: cliparts, isLoading } = useQuery({
     queryKey: ['cliparts'],
-    queryFn: libraryApi.getCliparts,
+    queryFn: () => libraryApi.getCliparts(),
   });
 
   // Delete mutation
@@ -106,7 +96,7 @@ export const ClipartList = () => {
     deleteMutation.mutate(id);
   };
 
-  const columns: ColumnsType<Clipart> = [
+  const columns: ColumnsType<LibraryClipart> = [
     {
       title: '미리보기',
       dataIndex: 'thumbnailUrl',

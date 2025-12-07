@@ -22,6 +22,7 @@ interface QueryParams {
   contentType: string | null
   editMode: string | null
   size: string | null
+  templateSetId: string | null
 }
 
 const MOBILE_BREAKPOINT = 768
@@ -51,6 +52,7 @@ export default function EditorView() {
   const editMode = searchParams.get('editMode')
   const token = searchParams.get('token')
   const size = searchParams.get('size')
+  const templateSetId = searchParams.get('templateSetId')
 
   // Stores
   const { setToken, initializeFromStorage } = useAuthStore()
@@ -72,6 +74,7 @@ export default function EditorView() {
     loadContentEditor,
     loadProductBasedEditor,
     loadGeneralEditor,
+    loadTemplateSetEditor,
   } = useEditorContents()
 
   // Product API function ref
@@ -90,12 +93,29 @@ export default function EditorView() {
 
   // 매 렌더링마다 최신 함수를 ref에 저장
   loadContentRef.current = async (params: QueryParams) => {
-    const { productId, contentId, contentType, editMode, size } = params
+    const { productId, contentId, contentType, editMode, size, templateSetId } = params
 
     // 캔버스 유효성 검사
     const currentCanvas = useAppStore.getState().canvas
     if (!currentCanvas || !currentCanvas.getContext()) {
       console.warn('[EditorView] Canvas is not available, skipping content load')
+      return
+    }
+
+    // templateSetId가 있으면 template-set 모드로 처리
+    if (templateSetId) {
+      console.log('[EditorView] Handling template set editor')
+      setIsLoading(true)
+      setLoadingMessage('템플릿셋을 불러오는 중...')
+
+      try {
+        await loadTemplateSetEditor({ templateSetId })
+      } catch (error) {
+        console.error('[EditorView] Template set load error:', error)
+      } finally {
+        setIsLoading(false)
+        setLoadingMessage('')
+      }
       return
     }
 
@@ -291,6 +311,7 @@ export default function EditorView() {
           contentType,
           editMode,
           size,
+          templateSetId,
         }
 
         await loadContentRef.current?.(params)
@@ -386,11 +407,12 @@ export default function EditorView() {
       contentType,
       editMode,
       size,
+      templateSetId,
     }
 
     // ref를 통해 최신 함수 호출
     loadContentRef.current?.(params)
-  }, [productId, contentId, contentType, editMode, size, ready])
+  }, [productId, contentId, contentType, editMode, size, templateSetId, ready])
 
   // Toggle side panel
   const toggleSidePanel = () => {
@@ -413,36 +435,39 @@ export default function EditorView() {
       />
 
       {/* Main Layout */}
-      <div className="flex-1 flex relative overflow-hidden">
-        {/* Tool Sidebar */}
+      <div className={`flex-1 flex relative overflow-hidden ${screenMode !== 'desktop' ? 'flex-col' : 'flex-row'}`}>
+        {/* Tool Sidebar - horizontal in tablet/mobile mode */}
         <ToolBar horizontal={screenMode !== 'desktop'} />
 
-        {/* Feature Sidebar or Control Bar - mutually exclusive */}
-        <FeatureSidebar />
-        {ready && <ControlBar />}
+        {/* Content area - always flex-row for sidebar + canvas */}
+        <div className="flex-1 flex flex-row relative overflow-hidden">
+          {/* Feature Sidebar or Control Bar - mutually exclusive */}
+          <FeatureSidebar />
+          {ready && <ControlBar />}
 
-        {/* Canvas Area */}
-        <main className="flex-1 relative overflow-hidden bg-editor-workspace">
-          {/* Canvas Container */}
-          <div
-            id="canvas-wrapper"
-            className="h-full w-full overflow-hidden relative"
-          >
-            {/* Workspace background - id="workspace"는 WorkspacePlugin에서 사용 */}
-            <div id="workspace" className="workspace absolute inset-0 flex items-center justify-center">
-              <div className="inside-shadow absolute inset-0 shadow-inner pointer-events-none" />
-              <div
-                ref={canvasContainerRef}
-                id="canvas-containers"
-                className="relative"
-                style={{ width: '100%', height: '100%' }}
-              />
+          {/* Canvas Area */}
+          <main className="flex-1 relative overflow-hidden bg-editor-workspace">
+            {/* Canvas Container */}
+            <div
+              id="canvas-wrapper"
+              className="h-full w-full overflow-hidden relative"
+            >
+              {/* Workspace background - id="workspace"는 WorkspacePlugin에서 사용 */}
+              <div id="workspace" className="workspace absolute inset-0 flex items-center justify-center">
+                <div className="inside-shadow absolute inset-0 shadow-inner pointer-events-none" />
+                <div
+                  ref={canvasContainerRef}
+                  id="canvas-containers"
+                  className="relative"
+                  style={{ width: '100%', height: '100%' }}
+                />
+              </div>
             </div>
-          </div>
-        </main>
+          </main>
 
-        {/* Side Panel */}
-        <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />
+          {/* Side Panel */}
+          <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />
+        </div>
       </div>
 
       {/* Loading Overlay */}

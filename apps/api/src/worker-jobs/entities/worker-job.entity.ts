@@ -15,14 +15,14 @@ export class WorkerJob {
 
   @Column({
     name: 'job_type',
-    type: 'enum',
-    enum: WorkerJobType,
+    type: 'varchar',
+    length: 30,
   })
   jobType: WorkerJobType;
 
   @Column({
-    type: 'enum',
-    enum: WorkerJobStatus,
+    type: 'varchar',
+    length: 20,
   })
   status: WorkerJobStatus;
 

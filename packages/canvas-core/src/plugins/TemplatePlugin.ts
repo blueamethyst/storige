@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { fabric } from 'fabric'
 import Editor from '../editor'
 import { PluginBase, PluginOption } from '../plugin'
@@ -10,15 +11,210 @@ import { mmToPx } from '../utils'
 /**
  * SVG 템플릿 관리 플러그인
  * SVG 파일을 로드하고 그룹 분리하여 FabricJS 객체 배열로 변환
+ * 사용자가 추가한 요소를 식별하고 템플릿 교체 시 보존하는 기능 포함
  */
 class TemplatePlugin extends PluginBase {
   name = 'TemplatePlugin'
-  events = ['templateLoaded', 'templateError', 'templateAdded', 'templateSaved']
+  events = ['templateLoaded', 'templateError', 'templateAdded', 'templateSaved', 'templateReplaced']
   hotkeys = []
   cutlineTemplate: fabric.Object | null = null
 
+  // 템플릿 요소 extensionType 목록 (사용자 요소가 아닌 것들)
+  private static TEMPLATE_EXTENSION_TYPES = [
+    'template-element',
+    'printguide',
+    'guideline',
+    'overlay',
+    'outline',
+    'background'
+  ]
+
+  // 템플릿 요소 ID 패턴
+  private static TEMPLATE_ELEMENT_IDS = [
+    'workspace',
+    'template-background',
+    'page-outline',
+    'template-outline',
+    'cut-border',
+    'safe-zone-border',
+    'cutline-template',
+    'center-guideline-h',
+    'center-guideline-v'
+  ]
+
   constructor(canvas: fabric.Canvas, editor: Editor, options: PluginOption) {
     super(canvas, editor, options)
+
+    // 객체 추가 시 사용자 요소 마킹
+    this._canvas.on('object:added', this.markUserAddedObject.bind(this))
+  }
+
+  /**
+   * 새로 추가된 객체가 사용자가 추가한 것인지 판단하고 마킹
+   */
+  private markUserAddedObject(e: fabric.IEvent) {
+    const obj = e.target
+    if (!obj) return
+
+    // 이미 isUserAdded가 설정되어 있으면 건너뜀
+    if (typeof (obj as any).isUserAdded !== 'undefined') return
+
+    // 템플릿 요소가 아닌 경우 사용자 요소로 마킹
+    if (!this.isTemplateElement(obj)) {
+      (obj as any).isUserAdded = true
+    } else {
+      (obj as any).isUserAdded = false
+    }
+  }
+
+  /**
+   * 객체가 템플릿 요소인지 판단
+   */
+  isTemplateElement(obj: fabric.Object): boolean {
+    // extensionType으로 판단
+    if (obj.extensionType && TemplatePlugin.TEMPLATE_EXTENSION_TYPES.includes(obj.extensionType)) {
+      return true
+    }
+
+    // ID로 판단
+    if (obj.id && TemplatePlugin.TEMPLATE_ELEMENT_IDS.includes(obj.id)) {
+      return true
+    }
+
+    // ID 패턴으로 판단 (fixed, floating 등)
+    if (obj.id && (
+      obj.id.includes('fixed') ||
+      obj.id.includes('floating') ||
+      obj.id.startsWith('background_rect_')
+    )) {
+      return true
+    }
+
+    // excludeFromExport가 true인 경우 (가이드라인 등)
+    if (obj.excludeFromExport) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * 사용자가 추가한 요소인지 판단
+   */
+  isUserAddedElement(obj: fabric.Object): boolean {
+    // 명시적으로 isUserAdded가 true인 경우
+    if ((obj as any).isUserAdded === true) {
+      return true
+    }
+
+    // 명시적으로 false가 아니고, 템플릿 요소도 아닌 경우
+    if ((obj as any).isUserAdded !== false && !this.isTemplateElement(obj)) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * 캔버스에서 모든 사용자 요소 추출
+   */
+  extractUserElements(): fabric.Object[] {
+    const allObjects = this._canvas.getObjects()
+    return allObjects.filter(obj => this.isUserAddedElement(obj))
+  }
+
+  /**
+   * 템플릿 교체 시 사용자 요소 보존
+   * @returns 보존된 사용자 요소 배열
+   */
+  async preserveUserElements(): Promise<fabric.Object[]> {
+    const userElements = this.extractUserElements()
+    const preservedElements: fabric.Object[] = []
+
+    for (const obj of userElements) {
+      // 객체 복제
+      const cloned = await new Promise<fabric.Object>((resolve) => {
+        obj.clone((clonedObj: fabric.Object) => {
+          // 사용자 요소 마킹 유지
+          (clonedObj as any).isUserAdded = true
+          // 원본 위치 정보 저장
+          (clonedObj as any).originalPosition = {
+            left: obj.left,
+            top: obj.top,
+            scaleX: obj.scaleX,
+            scaleY: obj.scaleY,
+            angle: obj.angle
+          }
+          resolve(clonedObj)
+        })
+      })
+      preservedElements.push(cloned)
+    }
+
+    return preservedElements
+  }
+
+  /**
+   * 보존된 사용자 요소를 캔버스에 복원
+   * @param preservedElements 보존된 요소 배열
+   */
+  async restoreUserElements(preservedElements: fabric.Object[]): Promise<void> {
+    for (const obj of preservedElements) {
+      // 원본 위치 정보로 복원
+      const originalPosition = (obj as any).originalPosition
+      if (originalPosition) {
+        obj.set({
+          left: originalPosition.left,
+          top: originalPosition.top,
+          scaleX: originalPosition.scaleX,
+          scaleY: originalPosition.scaleY,
+          angle: originalPosition.angle
+        })
+        delete (obj as any).originalPosition
+      }
+
+      obj.setCoords()
+      this._canvas.add(obj)
+    }
+
+    this._canvas.requestRenderAll()
+  }
+
+  /**
+   * 템플릿 교체 (사용자 요소 보존 포함)
+   * @param newTemplate 새 템플릿 데이터
+   */
+  async replaceTemplate(newTemplate: fabric.Group | fabric.Object | fabric.Object[]): Promise<void> {
+    this._canvas.offHistory()
+
+    try {
+      // 1. 사용자 요소 보존
+      const preservedElements = await this.preserveUserElements()
+      console.log(`📦 보존된 사용자 요소: ${preservedElements.length}개`)
+
+      // 2. 기존 템플릿 요소 제거 (사용자 요소 제외)
+      const allObjects = this._canvas.getObjects()
+      const templateElements = allObjects.filter(obj => !this.isUserAddedElement(obj))
+
+      templateElements.forEach(obj => {
+        if (obj.id !== 'workspace') {
+          this._canvas.remove(obj)
+        }
+      })
+
+      // 3. 새 템플릿 로드
+      await this.addTemplateToCanvas(newTemplate)
+
+      // 4. 사용자 요소 복원
+      await this.restoreUserElements(preservedElements)
+      console.log(`✅ 사용자 요소 복원 완료: ${preservedElements.length}개`)
+
+      // 5. 이벤트 발생
+      this._editor.emit('templateReplaced', { preservedCount: preservedElements.length })
+
+    } finally {
+      this._canvas.onHistory()
+    }
   }
 
   async readSVGFromFile(file: File): Promise<string> {

@@ -29,8 +29,8 @@ export class TemplatesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new template' })
   @ApiResponse({ status: 201, description: 'Template created successfully' })
-  create(@Body() createTemplateDto: CreateTemplateDto, @CurrentUser() user: User) {
-    return this.templatesService.create(createTemplateDto, user.id);
+  create(@Body() createTemplateDto: CreateTemplateDto, @CurrentUser() user?: User) {
+    return this.templatesService.create(createTemplateDto, user?.id);
   }
 
   @Get()
@@ -61,6 +61,18 @@ export class TemplatesController {
     return this.templatesService.findByCode(editCode);
   }
 
+  @Get('check-edit-code/:editCode')
+  @ApiOperation({ summary: 'Check if edit code is already in use' })
+  @ApiQuery({ name: 'excludeId', required: false, description: 'Template ID to exclude from check' })
+  @ApiResponse({ status: 200, description: 'Returns whether the edit code exists' })
+  async checkEditCode(
+    @Param('editCode') editCode: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    const exists = await this.templatesService.checkEditCodeExists(editCode, excludeId);
+    return { exists };
+  }
+
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
@@ -70,13 +82,39 @@ export class TemplatesController {
     return this.templatesService.update(id, updateTemplateDto);
   }
 
+  @Get(':id/template-sets')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Get template sets using this template' })
+  @ApiResponse({ status: 200, description: 'List of template sets using this template' })
+  @ApiResponse({ status: 404, description: 'Template not found' })
+  getTemplateSetsUsingTemplate(@Param('id') id: string) {
+    return this.templatesService.getTemplateSetsUsingTemplate(id);
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Delete template' })
-  @ApiResponse({ status: 200, description: 'Template deleted successfully' })
-  remove(@Param('id') id: string) {
-    return this.templatesService.remove(id);
+  @ApiOperation({ summary: 'Delete template (soft delete)' })
+  @ApiQuery({ name: 'force', required: false, type: Boolean, description: 'Force delete even if used in template sets' })
+  @ApiResponse({
+    status: 200,
+    description: 'Template deleted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        affected: { type: 'number' },
+        usedByTemplateSets: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Template is being used in template sets' })
+  @ApiResponse({ status: 404, description: 'Template not found' })
+  remove(
+    @Param('id') id: string,
+    @Query('force') force?: string,
+  ) {
+    return this.templatesService.remove(id, force === 'true');
   }
 
   @Post(':id/copy')
@@ -84,7 +122,7 @@ export class TemplatesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Copy template' })
   @ApiResponse({ status: 201, description: 'Template copied successfully' })
-  copy(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.templatesService.copy(id, user.id);
+  copy(@Param('id') id: string, @CurrentUser() user?: User) {
+    return this.templatesService.copy(id, user?.id);
   }
 }

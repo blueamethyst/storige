@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  php-test:
+    image: php:8.2-fpm
+    container_name: storige-php-test
+    volumes:
+      - ./php:/var/www/html
+    networks:
+      - storige-test
+
+  nginx-test:
+    image: nginx:alpine
+    container_name: storige-nginx-test
+    ports:
+      - "8080:80"
+    volumes:
+      - ./php:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php-test
+    networks:
+      - storige-test
+
+networks:
+  storige-test:
+    driver: bridge

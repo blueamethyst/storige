@@ -124,4 +124,17 @@ export class ProductsService {
     }
     await this.productSizeRepository.remove(size);
   }
+
+  // Template set linking
+  async linkTemplateSet(productId: string, templateSetId: string): Promise<Product> {
+    const product = await this.findOne(productId);
+    product.templateSetId = templateSetId;
+    return this.productRepository.save(product);
+  }
+
+  async unlinkTemplateSet(productId: string): Promise<Product> {
+    const product = await this.findOne(productId);
+    product.templateSetId = null;
+    return this.productRepository.save(product);
+  }
 }
