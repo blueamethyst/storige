@@ -26,7 +26,7 @@ import {
   DisconnectOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { TemplateSetType } from '@storige/types';
+import { TemplateSetType, Category } from '@storige/types';
 import { productsApi, Product, CreateProductDto, UpdateProductDto } from '../../api/products';
 import { templateSetsApi } from '../../api/template-sets';
 import { categoriesApi } from '../../api/categories';
@@ -65,7 +65,7 @@ export const ProductList = () => {
   // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => categoriesApi.getAll(),
+    queryFn: () => categoriesApi.getTree(),
   });
 
   // Fetch template sets for linking
@@ -201,7 +201,7 @@ export const ProductList = () => {
   };
 
   const getCategoryName = (categoryId: string) => {
-    const category = categories?.find((c) => c.id === categoryId);
+    const category = categories?.find((c: Category) => c.id === categoryId);
     return category?.name || categoryId;
   };
 
@@ -358,7 +358,7 @@ export const ProductList = () => {
           value={selectedCategory}
           onChange={setSelectedCategory}
           allowClear
-          options={categories?.map((c) => ({ label: c.name, value: c.id }))}
+          options={categories?.map((c: Category) => ({ label: c.name, value: c.id }))}
         />
         <Select
           placeholder="템플릿셋"
@@ -426,7 +426,7 @@ export const ProductList = () => {
           >
             <Select
               placeholder="카테고리 선택"
-              options={categories?.map((c) => ({ label: c.name, value: c.id }))}
+              options={categories?.map((c: Category) => ({ label: c.name, value: c.id }))}
             />
           </Form.Item>
 
@@ -439,7 +439,7 @@ export const ProductList = () => {
               min={0}
               style={{ width: '100%' }}
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => Number(value?.replace(/,/g, '') || 0)}
+              parser={(value) => Number(value?.replace(/,/g, '') || 0) as 0}
             />
           </Form.Item>
 

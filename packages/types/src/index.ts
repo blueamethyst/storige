@@ -264,6 +264,7 @@ export interface EditSession {
   userId?: string;
   orderId?: string;
   templateSetId: string;
+  templateSet?: TemplateSet;  // 조인된 템플릿셋 정보 (optional)
   pages: EditPage[];          // 페이지별 캔버스 데이터
   status: EditStatus;
   // 동시 편집 방지

@@ -33,7 +33,11 @@ pnpm install
 # 2. Build shared packages first
 # ===========================================
 echo -e "\n${GREEN}[2/5] Building shared packages...${NC}"
+echo "  - Building types..."
 pnpm --filter @storige/types build
+
+echo "  - Building canvas-core..."
+pnpm --filter @storige/canvas-core build
 
 # ===========================================
 # 3. Build all applications

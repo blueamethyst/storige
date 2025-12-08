@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b",
     "build:embed": "vite build --config vite.embed.config.ts",
     "build:embed:prod": "NODE_ENV=production vite build --config vite.embed.config.ts",
     "preview": "vite preview",

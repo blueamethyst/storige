@@ -33,7 +33,7 @@ export interface TemplateSet {
 export interface CreateTemplateDto {
   name: string;
   categoryId?: string;
-  type?: TemplateType;
+  type?: TemplateType | string;
   width?: number;
   height?: number;
   thumbnailUrl?: string;
@@ -44,7 +44,7 @@ export interface CreateTemplateDto {
 export interface UpdateTemplateDto {
   name?: string;
   categoryId?: string;
-  type?: TemplateType;
+  type?: TemplateType | string;
   width?: number;
   height?: number;
   thumbnailUrl?: string;

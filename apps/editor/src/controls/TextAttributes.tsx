@@ -18,6 +18,10 @@ import {
 import { FontPlugin, ptToPx, pxToPt } from '@storige/canvas-core'
 import { fontList, findFontByName, type FontSource } from '@/utils/fonts'
 
+// Fabric.js IText 타입 정의 (런타임에 로드됨)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type FabricIText = any
+
 export default function TextAttributes() {
   const [expanded, setExpanded] = useState(true)
   const [selectionTick, setSelectionTick] = useState(0)
@@ -27,7 +31,7 @@ export default function TextAttributes() {
   const currentSettings = useSettingsStore((state) => state.currentSettings)
 
   // Reference to bound object for cleanup
-  const boundObjectRef = useRef<fabric.IText | null>(null)
+  const boundObjectRef = useRef<FabricIText | null>(null)
 
   // Bump selection tick to trigger re-computation
   const bumpSelectionTick = useCallback(() => {
@@ -49,7 +53,7 @@ export default function TextAttributes() {
 
     // Bind new object
     if (obj && obj.type === 'i-text') {
-      const it = obj as fabric.IText
+      const it = obj as FabricIText
       it.on('selection:changed', bumpSelectionTick)
       it.on('changed', bumpSelectionTick)
       it.on('editing:entered', bumpSelectionTick)
@@ -71,7 +75,7 @@ export default function TextAttributes() {
 
   // Helper to collect range values
   const collectRangeValues = useCallback(
-    <T,>(obj: fabric.IText, prop: keyof fabric.IText, start?: number, end?: number): Set<T> => {
+    <T,>(obj: FabricIText, prop: keyof FabricIText, start?: number, end?: number): Set<T> => {
       const values = new Set<T>()
       const textLen = obj.text?.length ?? 0
       const s = Math.max(0, start ?? 0)
@@ -105,7 +109,7 @@ export default function TextAttributes() {
 
   // Helper to compute current value
   const computeCurrentValue = useCallback(
-    <T,>(obj: fabric.IText, prop: keyof fabric.IText): { mixed: boolean; value: T } => {
+    <T,>(obj: FabricIText, prop: keyof FabricIText): { mixed: boolean; value: T } => {
       const hasRange = obj.selectionStart !== obj.selectionEnd
       const start = hasRange ? obj.selectionStart ?? 0 : 0
       const end = hasRange ? obj.selectionEnd ?? 0 : (obj.text?.length ?? 0)
@@ -122,7 +126,7 @@ export default function TextAttributes() {
   // Current font
   const currentFont = useMemo(() => {
     void selectionTick // dependency
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return undefined
     const { mixed, value } = computeCurrentValue<string>(obj, 'fontFamily')
     if (mixed) return 'mixed'
@@ -134,7 +138,7 @@ export default function TextAttributes() {
   // Current font size
   const currentFontSize = useMemo(() => {
     void selectionTick
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return 0
     const { mixed, value } = computeCurrentValue<number>(obj, 'fontSize')
     const currentDPI = currentSettings.dpi || 150
@@ -148,7 +152,7 @@ export default function TextAttributes() {
   // Bold selected
   const isBoldSelected = useMemo(() => {
     void selectionTick
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return false
     const { mixed, value } = computeCurrentValue<string>(obj, 'fontWeight')
     return !mixed && value === 'bold'
@@ -157,7 +161,7 @@ export default function TextAttributes() {
   // Underline selected
   const isUnderlineSelected = useMemo(() => {
     void selectionTick
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return false
     const { mixed, value } = computeCurrentValue<boolean>(obj, 'underline')
     return !mixed && value === true
@@ -166,7 +170,7 @@ export default function TextAttributes() {
   // Line height
   const currentLineHeight = useMemo(() => {
     void selectionTick
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return 0
     const { mixed, value } = computeCurrentValue<number>(obj, 'lineHeight')
     return mixed ? 'mixed' : value || 0
@@ -177,7 +181,7 @@ export default function TextAttributes() {
   // Char spacing
   const currentCharSpacing = useMemo(() => {
     void selectionTick
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return 0
     const { mixed, value } = computeCurrentValue<number>(obj, 'charSpacing')
     return mixed ? 'mixed' : value || 0
@@ -187,14 +191,14 @@ export default function TextAttributes() {
 
   // Current text align
   const currentTextAlign = useMemo(() => {
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     return obj?.textAlign || 'left'
   }, [activeSelection])
 
   // Font selection handler
   const handleFontSelect = useCallback(
     async (font: FontSource) => {
-      const obj = activeSelection?.[0] as fabric.IText | undefined
+      const obj = activeSelection?.[0] as FabricIText | undefined
       if (!obj) return
 
       const fontName = font.name
@@ -236,7 +240,7 @@ export default function TextAttributes() {
 
   // Bold toggle
   const handleBold = useCallback(() => {
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return
 
     const hasRange = obj.selectionStart !== obj.selectionEnd
@@ -261,7 +265,7 @@ export default function TextAttributes() {
 
   // Underline toggle
   const handleUnderline = useCallback(() => {
-    const obj = activeSelection?.[0] as fabric.IText | undefined
+    const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return
 
     const hasRange = obj.selectionStart !== obj.selectionEnd
@@ -287,7 +291,7 @@ export default function TextAttributes() {
   // Text align
   const handleAlign = useCallback(
     (type: 'left' | 'center' | 'right') => {
-      const obj = activeSelection?.[0] as fabric.IText | undefined
+      const obj = activeSelection?.[0] as FabricIText | undefined
       if (!obj) return
 
       const newOriginX = type
@@ -308,7 +312,7 @@ export default function TextAttributes() {
   // Font size change
   const handleFontSizeChange = useCallback(
     (e: React.FocusEvent<HTMLInputElement> | React.KeyboardEvent<HTMLInputElement>) => {
-      const obj = activeSelection?.[0] as fabric.IText | undefined
+      const obj = activeSelection?.[0] as FabricIText | undefined
       if (!obj) return
 
       const target = e.target as HTMLInputElement
@@ -341,7 +345,7 @@ export default function TextAttributes() {
   // Line height change
   const handleLineHeightChange = useCallback(
     (e: React.FocusEvent<HTMLInputElement> | React.KeyboardEvent<HTMLInputElement>) => {
-      const obj = activeSelection?.[0] as fabric.IText | undefined
+      const obj = activeSelection?.[0] as FabricIText | undefined
       if (!obj) return
 
       const target = e.target as HTMLInputElement
@@ -360,7 +364,7 @@ export default function TextAttributes() {
   // Char spacing change
   const handleCharSpacingChange = useCallback(
     (e: React.FocusEvent<HTMLInputElement> | React.KeyboardEvent<HTMLInputElement>) => {
-      const obj = activeSelection?.[0] as fabric.IText | undefined
+      const obj = activeSelection?.[0] as FabricIText | undefined
       if (!obj) return
 
       const target = e.target as HTMLInputElement

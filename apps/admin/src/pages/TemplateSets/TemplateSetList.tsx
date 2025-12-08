@@ -210,7 +210,7 @@ export const TemplateSetList = () => {
       width: 100,
       render: (_, record) => {
         // 템플릿셋 자체 썸네일 우선, 없으면 첫 번째 템플릿 썸네일 사용
-        let url = record.thumbnailUrl;
+        let url: string | null | undefined = record.thumbnailUrl ?? undefined;
         if (!url && record.templates && record.templates.length > 0) {
           url = getTemplateThumbnail(record.templates[0].templateId);
         }
