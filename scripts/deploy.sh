@@ -26,25 +26,26 @@ echo -e "${YELLOW}Project root: $PROJECT_ROOT${NC}"
 # ===========================================
 # 1. Clean previous builds
 # ===========================================
-echo -e "\n${GREEN}[1/6] Cleaning previous builds...${NC}"
+echo -e "\n${GREEN}[1/7] Cleaning previous builds...${NC}"
 rm -rf packages/types/dist
 rm -rf packages/canvas-core/dist
 rm -rf apps/api/dist
 rm -rf apps/worker/dist
 rm -rf apps/editor/dist
 rm -rf apps/admin/dist
-echo "  - Cleaned all dist directories"
+rm -rf node_modules/.cache
+echo "  - Cleaned all dist directories and cache"
 
 # ===========================================
 # 2. Install dependencies
 # ===========================================
-echo -e "\n${GREEN}[2/6] Installing dependencies...${NC}"
+echo -e "\n${GREEN}[2/7] Installing dependencies...${NC}"
 pnpm install
 
 # ===========================================
 # 3. Build shared packages first
 # ===========================================
-echo -e "\n${GREEN}[3/6] Building shared packages...${NC}"
+echo -e "\n${GREEN}[3/7] Building shared packages...${NC}"
 echo "  - Building types..."
 pnpm --filter @storige/types build
 
@@ -54,7 +55,7 @@ pnpm --filter @storige/canvas-core build
 # ===========================================
 # 4. Build all applications
 # ===========================================
-echo -e "\n${GREEN}[4/6] Building applications...${NC}"
+echo -e "\n${GREEN}[4/7] Building applications...${NC}"
 
 echo "  - Building API..."
 pnpm --filter @storige/api build
@@ -69,16 +70,33 @@ echo "  - Building Admin..."
 pnpm --filter @storige/admin build
 
 # ===========================================
-# 5. Create logs directory
+# 5. Verify builds
 # ===========================================
-echo -e "\n${GREEN}[5/6] Setting up directories...${NC}"
+echo -e "\n${GREEN}[5/7] Verifying builds...${NC}"
+MISSING_BUILDS=0
+[ ! -d "packages/types/dist" ] && echo "  - ERROR: types dist missing" && MISSING_BUILDS=1
+[ ! -d "packages/canvas-core/dist" ] && echo "  - ERROR: canvas-core dist missing" && MISSING_BUILDS=1
+[ ! -d "apps/api/dist" ] && echo "  - ERROR: api dist missing" && MISSING_BUILDS=1
+[ ! -d "apps/worker/dist" ] && echo "  - ERROR: worker dist missing" && MISSING_BUILDS=1
+[ ! -d "apps/editor/dist" ] && echo "  - ERROR: editor dist missing" && MISSING_BUILDS=1
+[ ! -d "apps/admin/dist" ] && echo "  - ERROR: admin dist missing" && MISSING_BUILDS=1
+if [ $MISSING_BUILDS -eq 1 ]; then
+    echo -e "${RED}  Build verification failed. Aborting deployment.${NC}"
+    exit 1
+fi
+echo "  - All builds verified successfully"
+
+# ===========================================
+# 6. Create logs directory
+# ===========================================
+echo -e "\n${GREEN}[6/7] Setting up directories...${NC}"
 mkdir -p logs
 mkdir -p apps/api/storage
 
 # ===========================================
-# 6. Start/Restart PM2 processes
+# 7. Start/Restart PM2 processes
 # ===========================================
-echo -e "\n${GREEN}[6/6] Starting PM2 processes...${NC}"
+echo -e "\n${GREEN}[7/7] Starting PM2 processes...${NC}"
 
 # Install serve globally if not exists
 if ! command -v serve &> /dev/null; then
