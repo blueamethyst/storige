@@ -24,15 +24,27 @@ cd "$PROJECT_ROOT"
 echo -e "${YELLOW}Project root: $PROJECT_ROOT${NC}"
 
 # ===========================================
-# 1. Install dependencies
+# 1. Clean previous builds
 # ===========================================
-echo -e "\n${GREEN}[1/5] Installing dependencies...${NC}"
+echo -e "\n${GREEN}[1/6] Cleaning previous builds...${NC}"
+rm -rf packages/types/dist
+rm -rf packages/canvas-core/dist
+rm -rf apps/api/dist
+rm -rf apps/worker/dist
+rm -rf apps/editor/dist
+rm -rf apps/admin/dist
+echo "  - Cleaned all dist directories"
+
+# ===========================================
+# 2. Install dependencies
+# ===========================================
+echo -e "\n${GREEN}[2/6] Installing dependencies...${NC}"
 pnpm install
 
 # ===========================================
-# 2. Build shared packages first
+# 3. Build shared packages first
 # ===========================================
-echo -e "\n${GREEN}[2/5] Building shared packages...${NC}"
+echo -e "\n${GREEN}[3/6] Building shared packages...${NC}"
 echo "  - Building types..."
 pnpm --filter @storige/types build
 
@@ -40,9 +52,9 @@ echo "  - Building canvas-core..."
 pnpm --filter @storige/canvas-core build
 
 # ===========================================
-# 3. Build all applications
+# 4. Build all applications
 # ===========================================
-echo -e "\n${GREEN}[3/5] Building applications...${NC}"
+echo -e "\n${GREEN}[4/6] Building applications...${NC}"
 
 echo "  - Building API..."
 pnpm --filter @storige/api build
@@ -57,16 +69,16 @@ echo "  - Building Admin..."
 pnpm --filter @storige/admin build
 
 # ===========================================
-# 4. Create logs directory
+# 5. Create logs directory
 # ===========================================
-echo -e "\n${GREEN}[4/5] Setting up directories...${NC}"
+echo -e "\n${GREEN}[5/6] Setting up directories...${NC}"
 mkdir -p logs
 mkdir -p apps/api/storage
 
 # ===========================================
-# 5. Start/Restart PM2 processes
+# 6. Start/Restart PM2 processes
 # ===========================================
-echo -e "\n${GREEN}[5/5] Starting PM2 processes...${NC}"
+echo -e "\n${GREEN}[6/6] Starting PM2 processes...${NC}"
 
 # Install serve globally if not exists
 if ! command -v serve &> /dev/null; then
