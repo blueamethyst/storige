@@ -5,17 +5,17 @@
   "description": "Canvas editor core based on Fabric.js",
   "main": "dist/index.js",
   "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.mts"
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc -w",
-    "watch": "tsc -w",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "watch": "tsup --watch",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -53,6 +53,7 @@
     "@types/lodash-es": "^4.17.7",
     "@types/node": "^22.10.2",
     "@types/uuid": "^10.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.2",
     "uuid": "^10.0.0",
     "vitest": "^2.1.8"
