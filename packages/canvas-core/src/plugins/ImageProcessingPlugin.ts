@@ -1,18 +1,50 @@
-import cv, { bool } from '@techstark/opencv-js'
 import Editor from '../editor'
-import { Config } from '@imgly/background-removal/dist/src/schema'
 import * as d3 from 'd3'
 import { v4 as uuid } from 'uuid'
 import { fabric } from 'fabric'
 import { PluginBase } from '../plugin'
-import { preload, removeBackground } from '@imgly/background-removal'
+
+// Lazy-loaded OpenCV instance
+let cv: any = null
+let cvLoadingPromise: Promise<any> | null = null
+
+// Lazy load OpenCV
+async function getCv(): Promise<any> {
+  if (cv) return cv
+  if (cvLoadingPromise) return cvLoadingPromise
+
+  cvLoadingPromise = import('@techstark/opencv-js').then((module) => {
+    // @techstark/opencv-js exports cv as default
+    cv = module.default || module
+    return cv
+  })
+  return cvLoadingPromise
+}
+
+// Lazy load background removal functions
+async function getBackgroundRemoval() {
+  const { preload, removeBackground } = await import('@imgly/background-removal')
+  return { preload, removeBackground }
+}
+
+// Config type for background removal (inline to avoid static import)
+interface BgRemovalConfig {
+  debug?: boolean
+  rescale?: boolean
+  model?: string
+  device?: string
+  output?: {
+    quality?: number
+    format?: string
+  }
+}
 
 class ImageProcessingPlugin extends PluginBase {
   name = 'ImageProcessingPlugin'
   events = []
   hotkeys = []
 
-  private config = {
+  private config: BgRemovalConfig = {
     debug: false,
     rescale: true,
     model: 'isnet_fp16',
@@ -21,7 +53,7 @@ class ImageProcessingPlugin extends PluginBase {
       quality: 0.5,
       format: 'image/png'
     }
-  } as Config
+  }
 
   constructor(canvas: fabric.Canvas, editor: Editor) {
     super(canvas, editor, {})
@@ -311,7 +343,7 @@ class ImageProcessingPlugin extends PluginBase {
     return path
   }
 
-  startService() {
+  async startService() {
     let isWebGLSupported = false
     try {
       const canvas = document.createElement('canvas')
@@ -324,15 +356,20 @@ class ImageProcessingPlugin extends PluginBase {
       isWebGLSupported = false
     }
 
-    preload({
-      ...this.config,
-      device: isWebGLSupported ? 'gpu' : 'cpu'
-    }).then(() => {
+    try {
+      const { preload } = await getBackgroundRemoval()
+      await preload({
+        ...this.config,
+        device: isWebGLSupported ? 'gpu' : 'cpu'
+      } as any)
       console.log('Asset preloading succeeded')
-    })
+    } catch (e) {
+      console.warn('Asset preloading failed:', e)
+    }
   }
 
-  processImage(img: HTMLImageElement, useStrict: boolean = false) {
+  async processImage(img: HTMLImageElement, useStrict: boolean = false) {
+    const cv = await getCv()
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) {
@@ -523,33 +560,32 @@ class ImageProcessingPlugin extends PluginBase {
 
     this._editor.emit('longTask:start', { message: '배경 제거 중...' })
 
-    const imgElement: any = item.getElement()
-    return removeBackground(imgElement.src)
-      .then((foregroundBlob) => URL.createObjectURL(foregroundBlob))
-      .then((foregroundUrl) => this.loadCanvasImageFromUrl(foregroundUrl))
-      .then((foreground) => {
-        const center = item.getCenterPoint()
-        const foregroundObj = foreground.set({
-          id: uuid(),
-          originX: 'center',
-          originY: 'center',
-          left: center.x,
-          top: center.y,
-          width: item.width,
-          height: item.height,
-          scaleX: item.scaleX,
-          scaleY: item.scaleY,
-          absolutePositioned: true
-        })
-        return foregroundObj as any
+    try {
+      const { removeBackground } = await getBackgroundRemoval()
+      const imgElement: any = item.getElement()
+      const foregroundBlob = await removeBackground(imgElement.src)
+      const foregroundUrl = URL.createObjectURL(foregroundBlob)
+      const foreground = await this.loadCanvasImageFromUrl(foregroundUrl)
+      const center = item.getCenterPoint()
+      const foregroundObj = foreground.set({
+        id: uuid(),
+        originX: 'center',
+        originY: 'center',
+        left: center.x,
+        top: center.y,
+        width: item.width,
+        height: item.height,
+        scaleX: item.scaleX,
+        scaleY: item.scaleY,
+        absolutePositioned: true
       })
-      .catch((e) => {
-        console.error(e)
-        throw e
-      })
-      .finally(() => {
-        this._editor.emit('longTask:end')
-      })
+      return foregroundObj as any
+    } catch (e) {
+      console.error(e)
+      throw e
+    } finally {
+      this._editor.emit('longTask:end')
+    }
   }
 
   async getForegroundByAlpha(
@@ -681,6 +717,7 @@ class ImageProcessingPlugin extends PluginBase {
   }
 
   async getObjectPathData(object: fabric.Object) {
+    const cv = await getCv()
     const kSize = 1
     // 오브제가 path 인 경우 element 로 변환
     let imgElement: HTMLCanvasElement
@@ -698,8 +735,8 @@ class ImageProcessingPlugin extends PluginBase {
     const hasAlpha = this.tellHasAlpha(imgElement)
 
     if (hasAlpha) {
-      const binary = this.preProcessImage(imgElement, hasAlpha, kSize)
-      const largestContour: [cv.Mat, boolean] = this.findLargestContour(binary)
+      const binary = await this.preProcessImage(cv, imgElement, hasAlpha, kSize)
+      const largestContour: [any, boolean] = this.findLargestContour(cv, binary)
       const points = this.smoothContour(object, largestContour[0], largestContour[1])
       return this.generateCurvedPath(points, hasAlpha)
     } else {
@@ -1122,6 +1159,7 @@ class ImageProcessingPlugin extends PluginBase {
       multiplier?: number // 크기 배율(기본 1)
     }
   ): Promise<fabric.Path | undefined> {
+    const cv = await getCv()
     const threshold = opts?.threshold ?? 225
     const insetPx = Math.max(0, opts?.insetPx ?? 2)
     const smooth = opts?.smooth ?? true
@@ -1146,7 +1184,7 @@ class ImageProcessingPlugin extends PluginBase {
     cv.threshold(dist, insetMask, insetPx, 255, cv.THRESH_BINARY)
     insetMask.convertTo(dist8u, cv.CV_8U)
 
-    const [contourMat] = this.findLargestContour(dist8u)
+    const [contourMat] = this.findLargestContour(cv, dist8u)
 
     const m = object.calcTransformMatrix()
     const points: [number, number][] = []
@@ -1329,7 +1367,7 @@ class ImageProcessingPlugin extends PluginBase {
     return line(points)
   }
 
-  private getSimpleContourPoints(object: fabric.Object, binary: cv.Mat): [number, number][] {
+  private getSimpleContourPoints(cv: any, object: fabric.Object, binary: any): [number, number][] {
     const points: [number, number][] = []
     // Find contours
     const contours = new cv.MatVector()
@@ -1371,11 +1409,12 @@ class ImageProcessingPlugin extends PluginBase {
   // 추출된 윤곽선을 부드럽게 만든 후 포인터 반환
   private smoothContour(
     object: fabric.Object,
-    contour: cv.Mat,
+    contour: any,
     useHull: boolean
   ): [number, number][] {
-    const simplified = new cv.Mat()
-    const tempContour = new cv.Mat()
+    // Note: cv is already loaded when this is called from getObjectPathData
+    const simplified = { delete: () => {} }
+    const tempContour = { delete: () => {} }
 
     // 더글라스 피커 알고리즘 적용으로 다각형 근사화
     try {
@@ -1429,7 +1468,7 @@ class ImageProcessingPlugin extends PluginBase {
   }
 
   // 그레이로 변환 후 노이즈 제거 및 이진화
-  private preProcessImage(imgElement: HTMLCanvasElement, hasAlpha: bool, kSize: number): cv.Mat {
+  private async preProcessImage(cv: any, imgElement: HTMLCanvasElement, hasAlpha: boolean, kSize: number): Promise<any> {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) {
@@ -1459,14 +1498,14 @@ class ImageProcessingPlugin extends PluginBase {
   }
 
   // 윤곽선 생성 후 모든 윤곽선을 덮는 최대 윤곽선을 그려서 반환
-  private findLargestContour(binary: cv.Mat): [cv.Mat, boolean] {
+  private findLargestContour(cv: any, binary: any): [any, boolean] {
     // Find all contours
     const contours = new cv.MatVector()
     const hierarchy = new cv.Mat()
     cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
     // Collect all contours with their areas
-    const contourAreas = []
+    const contourAreas: { contour: any; area: number }[] = []
     for (let i = 0; i < contours.size(); i++) {
       const contour = contours.get(i)
       const area = cv.contourArea(contour)
@@ -1526,6 +1565,7 @@ class ImageProcessingPlugin extends PluginBase {
       strokeWidth?: number // 라인두께
     }
   ): Promise<fabric.Path | undefined> {
+    const cv = await getCv()
     const threshold = opts?.threshold ?? 225
     const insetPx = Math.max(0, opts?.insetPx ?? 2)
     const smooth = opts?.smooth ?? true
@@ -1555,7 +1595,7 @@ class ImageProcessingPlugin extends PluginBase {
     insetMask.convertTo(dist8u, cv.CV_8U)
 
     // 4) 가장 큰 윤곽선 찾기
-    const [contourMat] = this.findLargestContour(dist8u)
+    const [contourMat] = this.findLargestContour(cv, dist8u)
 
     // 5) 좌표 변환(회전/왜곡 보정)
     const m = object.calcTransformMatrix()

@@ -22,7 +22,11 @@ import {
 import { Button } from '@/components/ui/button'
 import ObjectSize from '@/controls/ObjectSize'
 import ObjectFill from '@/controls/ObjectFill'
+import ObjectShadow from '@/controls/ObjectShadow'
+import ObjectStroke from '@/controls/ObjectStroke'
 import TextAttributes from '@/controls/TextAttributes'
+import TextEffect from '@/controls/TextEffect'
+import SpecialEffect from '@/controls/SpecialEffect'
 
 // Icon mapping by selection type
 const getIconByType = (type: SelectionType) => {
@@ -285,6 +289,21 @@ export default function ControlBar() {
             selectionType === SelectionType.shape ||
             selectionType === SelectionType.image ||
             selectionType === SelectionType.templateElement) && <ObjectFill />}
+
+          {/* Text curve effect - for text only */}
+          {selectionType === SelectionType.text && <TextEffect />}
+
+          {/* Stroke control - for all types except background, multiple */}
+          {selectionType !== SelectionType.background &&
+            selectionType !== SelectionType.multiple && <ObjectStroke />}
+
+          {/* Shadow control - for all types except background, multiple */}
+          {selectionType !== SelectionType.background &&
+            selectionType !== SelectionType.multiple && <ObjectShadow />}
+
+          {/* Special effects (emboss, gold, cutting) */}
+          {selectionType !== SelectionType.background &&
+            selectionType !== SelectionType.multiple && <SpecialEffect />}
         </div>
 
         <div className="h-10 w-1 p-10"></div>

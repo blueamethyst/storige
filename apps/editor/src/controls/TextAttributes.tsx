@@ -3,14 +3,8 @@ import { useAppStore, useActiveSelection } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import AppSection from '@/components/AppSection'
 import ControlInput from '@/components/ControlInput'
+import FontPreviewDropdown from '@/components/FontPreviewDropdown'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Bold,
   Underline,
@@ -22,7 +16,7 @@ import {
   MoveHorizontal,
 } from 'lucide-react'
 import { FontPlugin, ptToPx, pxToPt } from '@storige/canvas-core'
-import { fontList, findFontByName } from '@/utils/fonts'
+import { fontList, findFontByName, type FontSource } from '@/utils/fonts'
 
 export default function TextAttributes() {
   const [expanded, setExpanded] = useState(true)
@@ -199,9 +193,11 @@ export default function TextAttributes() {
 
   // Font selection handler
   const handleFontSelect = useCallback(
-    async (fontName: string) => {
+    async (font: FontSource) => {
       const obj = activeSelection?.[0] as fabric.IText | undefined
       if (!obj) return
+
+      const fontName = font.name
 
       try {
         const fontPlugin = getPlugin<FontPlugin>('FontPlugin')
@@ -395,18 +391,14 @@ export default function TextAttributes() {
       {expanded && (
         <div className="grid grid-cols-2 gap-2 px-4">
           {/* Font selector */}
-          <Select value={currentFont || ''} onValueChange={handleFontSelect}>
-            <SelectTrigger className="col-span-2 h-10 bg-editor-surface-lowest">
-              <SelectValue placeholder="폰트 선택" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {fontList.map((font) => (
-                <SelectItem key={font.name} value={font.name}>
-                  {font.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="col-span-2">
+            <FontPreviewDropdown
+              value={currentFont === 'mixed' ? undefined : currentFont}
+              options={fontList}
+              placeholder={currentFont === 'mixed' ? '혼합' : '폰트 선택'}
+              onSelect={handleFontSelect}
+            />
+          </div>
 
           {/* Font size */}
           <ControlInput

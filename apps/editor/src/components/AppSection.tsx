@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ArrowRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface AppSectionProps {
@@ -8,6 +8,7 @@ interface AppSectionProps {
   expanded?: boolean
   onExpand?: () => void
   onDetail?: () => void
+  onDelete?: () => void
   children?: ReactNode
   searchSlot?: ReactNode
 }
@@ -18,6 +19,7 @@ export default function AppSection({
   expanded: externalExpanded,
   onExpand,
   onDetail,
+  onDelete,
   children,
   searchSlot,
 }: AppSectionProps) {
@@ -48,20 +50,35 @@ export default function AppSection({
           )}
           <span className="text-sm font-medium text-editor-text">{title}</span>
         </div>
-        {onDetail && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs text-editor-text-muted hover:text-editor-text"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDetail()
-            }}
-          >
-            더보기
-            <ArrowRight className="h-3 w-3 ml-1" />
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          {onDetail && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-editor-text-muted hover:text-editor-text"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDetail()
+              }}
+            >
+              더보기
+              <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-editor-text-muted hover:text-red-500"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search slot */}

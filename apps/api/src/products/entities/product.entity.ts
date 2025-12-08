@@ -51,21 +51,6 @@ export class Product {
   };
 
   @Column({ type: 'json', nullable: true })
-  wowPressProduct: {
-    prodname?: string;
-    dlvygrpname?: string;
-    sizeinfo?: Array<{ sizelist: Array<{
-      sizeno?: number;
-      width?: number;
-      height?: number;
-      non_standard?: boolean;
-      req_width?: { min: number; max: number };
-      req_height?: { min: number; max: number };
-    }> }>;
-    colorinfo?: Array<{ pagelist: unknown[] }>;
-  };
-
-  @Column({ type: 'json', nullable: true })
   editorTemplates: Array<{
     id: string;
     name: string;

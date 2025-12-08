@@ -53,6 +53,20 @@ import { templatesApi } from '../../api/templates';
 
 const { Title, Text } = Typography;
 
+// API 서버 URL (storage URL 변환용)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+
+// 썸네일 URL을 전체 URL로 변환
+const getFullThumbnailUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  // 이미 전체 URL인 경우
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // 상대 경로 (/storage/...) 인 경우 API base URL과 결합
+  return `${API_BASE_URL}${url}`;
+};
+
 const templateTypeLabels: Record<TemplateType, string> = {
   [TemplateType.WING]: '날개',
   [TemplateType.COVER]: '표지',
@@ -527,7 +541,7 @@ export const TemplateSetForm = () => {
                     <List.Item.Meta
                       avatar={
                         <img
-                          src={template.thumbnailUrl || '/placeholder.png'}
+                          src={getFullThumbnailUrl(template.thumbnailUrl) || '/placeholder.png'}
                           alt={template.name}
                           style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }}
                         />

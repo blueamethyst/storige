@@ -101,7 +101,7 @@ const templateSetTypeColors: Record<TemplateSetType, string> = {
 };
 
 // 에디터 URL
-const EDITOR_BASE_URL = import.meta.env.VITE_EDITOR_URL || 'http://localhost:3002';
+const EDITOR_BASE_URL = import.meta.env.VITE_EDITOR_URL || 'http://localhost:3000';
 
 export const TemplateSetList = () => {
   const navigate = useNavigate();

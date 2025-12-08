@@ -39,5 +39,6 @@ export * from './utils/colors'
 export * as SvgUtils from './utils/svg'
 
 export * from './utils/eyeDrop'
+export * from './utils/logger'
 
 export default Editor
