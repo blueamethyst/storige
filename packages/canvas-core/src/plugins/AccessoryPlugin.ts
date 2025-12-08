@@ -1,4 +1,4 @@
-import Editor from '../editor'
+import Editor from '../Editor'
 import { fabric } from 'fabric'
 import { PluginBase, PluginOption } from '../plugin'
 import { v4 as uuid } from 'uuid'

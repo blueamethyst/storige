@@ -1,5 +1,5 @@
 import { debounce } from 'lodash-es'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { IEvent } from 'fabric/fabric-impl'
 import { PluginBase, PluginOption } from '../plugin'
 import { fabric } from 'fabric'

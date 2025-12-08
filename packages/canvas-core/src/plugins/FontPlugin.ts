@@ -1,5 +1,5 @@
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 import FontFaceObserver from 'fontfaceobserver'
 import { PluginBase } from '../plugin'
 import { parseColorValue } from '../utils'

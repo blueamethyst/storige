@@ -1,6 +1,6 @@
 import { fabric } from 'fabric'
 import CanvasRuler, { RulerOptions } from '../ruler/ruler'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { PluginBase } from '../plugin'
 import { setupGuideLine } from '../ruler/guideline'
 

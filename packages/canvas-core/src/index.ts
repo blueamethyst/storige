@@ -1,4 +1,4 @@
-import Editor from './editor'
+import Editor from './Editor'
 
 export { default as RulerPlugin } from './plugins/RulerPlugin'
 export { default as WorkspacePlugin } from './plugins/WorkspacePlugin'

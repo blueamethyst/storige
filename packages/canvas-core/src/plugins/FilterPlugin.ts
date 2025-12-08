@@ -1,5 +1,5 @@
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { ImageFilters, ImageFiltersWithParams, ImageFilterType } from '../models'
 import { PluginBase } from '../plugin'
 

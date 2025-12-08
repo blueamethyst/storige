@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { PluginBase, PluginOption } from '../plugin'
 import { v4 as uuid } from 'uuid'
 import { UNIT_CONVERSIONS } from '../ruler/constants'

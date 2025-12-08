@@ -1,4 +1,4 @@
-import Editor from '../editor'
+import Editor from '../Editor'
 import * as d3 from 'd3'
 import { v4 as uuid } from 'uuid'
 import { fabric } from 'fabric'

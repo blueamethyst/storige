@@ -1,4 +1,4 @@
-import Editor from './editor'
+import Editor from './Editor'
 import CanvasHotkey from './models/CanvasHotkey'
 
 export type Exposed<T> = { [K in keyof T]: T[K] }

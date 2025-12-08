@@ -1,4 +1,4 @@
-import Editor from '../editor'
+import Editor from '../Editor'
 import '../utils/history'
 import CanvasHotkey from '../models/CanvasHotkey'
 import { fabric } from 'fabric'

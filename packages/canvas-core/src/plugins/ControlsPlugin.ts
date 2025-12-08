@@ -1,6 +1,6 @@
 import { ControlsPluginOption, PluginBase } from '../plugin'
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 
 class ControlsPlugin extends PluginBase {
   name = 'ControlsPlugin'

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { fabric } from 'fabric'
 import CanvasHotkey from '../models/CanvasHotkey'
 import { PluginBase } from '../plugin'

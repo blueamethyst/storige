@@ -1,5 +1,5 @@
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { PluginBase, PluginOption } from '../plugin'
 import CanvasHotkey from '../models/CanvasHotkey'
 

@@ -1,5 +1,5 @@
 import { fabric } from 'fabric'
-import Editor from '../editor'
+import Editor from '../Editor'
 import { v4 as uuid } from 'uuid'
 import { PluginBase } from '../plugin'
 
