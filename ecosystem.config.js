@@ -13,8 +13,8 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
+        CORS_ORIGIN: 'http://bookmoa.noriter.co.kr:3000,http://bookmoa.noriter.co.kr:3001',
       },
-      env_file: './apps/api/.env.production',
       error_file: './logs/api-error.log',
       out_file: './logs/api-out.log',
       merge_logs: true,
