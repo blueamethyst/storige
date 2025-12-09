@@ -9,6 +9,9 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
+  splitting: true,
+  bundle: true,
+  treeshake: true,
   external: [
     'fabric',
     'fabric-history',
