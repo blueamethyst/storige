@@ -1,3 +1,9 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load environment variables before anything else
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -12,8 +18,31 @@ async function bootstrap() {
 
   // Enable CORS
   const corsOrigin = process.env.CORS_ORIGIN;
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:8080',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8080',
+  ];
+  const allowedOrigins = corsOrigin
+    ? corsOrigin.split(',').map(o => o.trim())
+    : defaultOrigins;
+
   app.enableCors({
-    origin: corsOrigin ? corsOrigin.split(',').map(o => o.trim()) : true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, etc.)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowedOrigins.includes(origin)) {
+        callback(null, origin);
+      } else {
+        console.log(`CORS blocked for origin: ${origin}`);
+        callback(null, false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-API-Key'],

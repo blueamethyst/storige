@@ -29,12 +29,12 @@ export class WorkerJob {
   })
   status: WorkerJobStatus;
 
-  @Column({ name: 'edit_session_id', type: 'varchar', length: 36, nullable: true })
-  editSessionId: string | null;
-
   @ManyToOne(() => EditSessionEntity, { nullable: true })
   @JoinColumn({ name: 'edit_session_id' })
   editSession: EditSessionEntity | null;
+
+  @Column({ name: 'edit_session_id', type: 'varchar', nullable: true, insert: false, update: false })
+  editSessionId: string | null;
 
   @Column({ name: 'file_id', type: 'varchar', length: 36, nullable: true })
   fileId: string | null;

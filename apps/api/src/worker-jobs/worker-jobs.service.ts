@@ -251,6 +251,11 @@ export class WorkerJobsService {
     job: WorkerJob,
     updateDto: UpdateJobStatusDto,
   ): Promise<void> {
+    if (!job.editSessionId) {
+      this.logger.warn(`Job ${job.id} has no editSessionId, skipping session update`);
+      return;
+    }
+
     const session = await this.editSessionRepository.findOne({
       where: { id: job.editSessionId },
     });
@@ -317,11 +322,13 @@ export class WorkerJobsService {
     }
 
     try {
+      const event = workerStatus === WorkerStatus.VALIDATED ? 'session.validated' : 'session.failed';
+      const status = workerStatus === WorkerStatus.VALIDATED ? 'validated' : 'failed';
       const payload = {
-        event: workerStatus === WorkerStatus.VALIDATED ? 'session.validated' : 'session.failed',
+        event: event as 'session.validated' | 'session.failed',
         sessionId: session.id,
         orderSeqno: Number(session.orderSeqno),
-        status: workerStatus === WorkerStatus.VALIDATED ? 'validated' : 'failed',
+        status: status as 'validated' | 'failed',
         fileType: job.options?.fileType as 'cover' | 'content' | undefined,
         errorMessage: session.workerError || undefined,
         result: job.result,
