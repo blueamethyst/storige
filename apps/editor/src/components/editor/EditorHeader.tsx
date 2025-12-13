@@ -19,6 +19,7 @@ import {
   Monitor,
   Check,
 } from 'lucide-react'
+import { AutoSaveIndicator } from './AutoSaveIndicator'
 
 interface EditorHeaderProps {
   screenMode?: 'mobile' | 'tablet' | 'desktop'
@@ -287,7 +288,7 @@ export default function EditorHeader({
   return (
     <TooltipProvider>
       <nav className="h-14 bg-editor-panel border-b border-editor-border flex items-center px-4 z-[100]">
-        {/* 왼쪽: 작업 제목 */}
+        {/* 왼쪽: 작업 제목 + 자동저장 상태 */}
         <div className="flex items-center gap-4">
           <input
             type="text"
@@ -297,6 +298,8 @@ export default function EditorHeader({
             onBlur={handleNameChange}
             onKeyDown={handleNameChange}
           />
+          {/* 자동 저장 상태 표시 */}
+          <AutoSaveIndicator className="hidden sm:flex" />
         </div>
 
         {/* 오른쪽: 액션 버튼들 */}

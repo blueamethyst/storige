@@ -22,7 +22,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { createRoot, Root } from 'react-dom/client'
 import { useAppStore } from './stores/useAppStore'
+import { useSaveStore } from './stores/useSaveStore'
 import { useEditorContents } from './hooks/useEditorContents'
+import { useEmbedAutoSave } from './hooks/useEmbedAutoSave'
 import { createCanvas } from './utils/createCanvas'
 import { templatesApi, editSessionsApi, filesApi, apiClient, type EditSessionResponse } from './api'
 import { core, ServicePlugin } from '@storige/canvas-core'
@@ -196,6 +198,19 @@ function EmbeddedEditor({
   } = useAppStore()
 
   const { loadEmptyEditor } = useEditorContents()
+
+  // Auto-save hook integration
+  const { saveNow, markDirty } = useEmbedAutoSave({
+    sessionId: currentSession?.id || sessionId || null,
+    currentSession,
+    onSessionUpdate: (updatedSession) => {
+      setCurrentSession(updatedSession)
+    },
+    onError: (error) => {
+      console.error('[EmbeddedEditor] Auto-save error:', error)
+      // Don't call onError for auto-save failures to avoid disrupting user flow
+    },
+  })
 
   // Screen resize handler
   const handleResize = useCallback(() => {
@@ -573,7 +588,7 @@ function EmbeddedEditor({
 
       getState: () => ({
         ready,
-        modified: false, // TODO: Track modifications
+        modified: useSaveStore.getState().isDirty,
         currentPage: 1,
         totalPages: 1,
       }),
@@ -710,25 +725,21 @@ function EmbeddedEditor({
     }
 
     try {
-      // Get canvas data
-      const canvasData = canvas?.toJSON(core.extendFabricOption) || null
+      // Use auto-save's saveNow for immediate save
+      const success = await saveNow()
 
-      // Update edit session with canvas data
-      const updatedSession = await editSessionsApi.update(currentSessionId, {
-        canvasData,
-        status: 'editing',
-      })
+      if (success) {
+        const result: SaveResult = {
+          sessionId: currentSessionId,
+          savedAt: new Date().toISOString(),
+          thumbnail: currentSession?.coverFile?.thumbnailUrl || undefined,
+        }
 
-      setCurrentSession(updatedSession)
-
-      const result: SaveResult = {
-        sessionId: updatedSession.id,
-        savedAt: updatedSession.updatedAt,
-        thumbnail: updatedSession.coverFile?.thumbnailUrl || undefined,
+        console.log('[EmbeddedEditor] Manual save completed:', result.sessionId)
+        onSave?.(result)
+      } else {
+        throw new Error('저장에 실패했습니다.')
       }
-
-      console.log('[EmbeddedEditor] Save completed:', result.sessionId)
-      onSave?.(result)
     } catch (err) {
       console.error('[EmbeddedEditor] Save failed:', err)
       onError?.({
@@ -737,7 +748,7 @@ function EmbeddedEditor({
       })
       throw err
     }
-  }, [canvas, sessionId, currentSession, onSave, onError])
+  }, [sessionId, currentSession, saveNow, onSave, onError])
 
   // 불러오기 핸들러 - 모달 열기
   const handleOpenWorkspace = useCallback(() => {
