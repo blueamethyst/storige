@@ -34,8 +34,30 @@ export async function selectFiles(options: {
         input.multiple = options.multiple // 다중 파일 선택 허용
       }
 
-      input.addEventListener('cancel', (event) => {
-        reject(new Error('File selection canceled'))
+      let resolved = false
+      let focusTimeout: ReturnType<typeof setTimeout> | null = null
+
+      const cleanup = () => {
+        window.removeEventListener('focus', handleFocus)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+        if (focusTimeout) {
+          clearTimeout(focusTimeout)
+          focusTimeout = null
+        }
+      }
+
+      const resolveOnce = (files: FileList | null) => {
+        if (!resolved) {
+          resolved = true
+          cleanup()
+          resolve(files)
+        }
+      }
+
+      // 취소 시 null 반환 (reject 대신 resolve로 처리하여 finally 블록이 정상 실행되도록 함)
+      input.addEventListener('cancel', () => {
+        console.log('File selection canceled (cancel event)')
+        resolveOnce(null)
       })
 
       // 파일 선택이 완료되었을 때 실행
@@ -45,16 +67,46 @@ export async function selectFiles(options: {
 
         console.log('files', files)
         if (files && files.length > 0) {
-          resolve(files) // 파일이 선택되면 resolve로 FileList 반환
+          resolveOnce(files) // 파일이 선택되면 resolve로 FileList 반환
         } else {
-          resolve(null) // 파일 선택이 취소되면 null 반환
+          resolveOnce(null) // 파일 선택이 취소되면 null 반환
         }
       }
 
       // 파일 선택을 취소하거나 문제가 있을 때 reject 처리
       input.onerror = () => {
+        cleanup()
         reject(new Error('File selection failed'))
       }
+
+      // 파일 다이얼로그가 닫힐 때 window focus 이벤트로 감지 (cancel 이벤트 폴백)
+      const handleFocus = () => {
+        // 약간의 지연 후 체크 (change 이벤트가 먼저 처리되도록)
+        if (focusTimeout) clearTimeout(focusTimeout)
+        focusTimeout = setTimeout(() => {
+          if (!resolved) {
+            console.log('File selection canceled (focus fallback)')
+            resolveOnce(null)
+          }
+        }, 300)
+      }
+
+      // visibilitychange 이벤트도 폴백으로 사용 (일부 브라우저/환경에서 필요)
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          if (focusTimeout) clearTimeout(focusTimeout)
+          focusTimeout = setTimeout(() => {
+            if (!resolved) {
+              console.log('File selection canceled (visibility fallback)')
+              resolveOnce(null)
+            }
+          }, 300)
+        }
+      }
+
+      // 파일 다이얼로그가 열리면 window가 blur됨, 닫히면 focus됨
+      window.addEventListener('focus', handleFocus)
+      document.addEventListener('visibilitychange', handleVisibilityChange)
 
       // 파일 선택 대화 상자 열기
       input.click()
