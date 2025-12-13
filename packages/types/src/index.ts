@@ -8,6 +8,7 @@
 // ============================================================================
 
 export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
   CUSTOMER = 'CUSTOMER',
@@ -769,6 +770,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     canViewAllSessions: true,
   },
   [UserRole.ADMIN]: {
+    canEdit: true,
+    canAddDeletePages: true,
+    canReplaceTemplate: true,
+    canUnlockElements: true,
+    canChangeStatus: true,
+    canViewAllSessions: true,
+  },
+  [UserRole.SUPER_ADMIN]: {
     canEdit: true,
     canAddDeletePages: true,
     canReplaceTemplate: true,

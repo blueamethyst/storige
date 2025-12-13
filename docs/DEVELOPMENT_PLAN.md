@@ -103,9 +103,14 @@
   - [x] 저장된 작업 목록 모달 (WorkspaceModal)
   - [x] 작업 불러오기 기능
 
-### 4.3 관리자 기능 ❌ 미완료
-- [ ] 관리자용 저장
-- [ ] CMS 연동
+### 4.3 관리자 기능 ✅ 완료
+- [x] 관리자용 저장
+  - [x] `useWorkSave.saveWorkForAdmin()` 훅 구현
+  - [x] `EditorHeader.handleSaveForAdmin()` 연동
+  - [x] SUPER_ADMIN 역할 정의 및 권한 추가
+- [x] CMS 연동
+  - [x] `sendMessageToCMS()` postMessage 통신
+  - [x] ADMIN_EDITOR_SAVED, ADMIN_EDITOR_CLOSED, ADMIN_EDITOR_ERROR 이벤트
 
 ## Phase 5: Worker 통합 ✅ 완료
 
@@ -164,18 +169,14 @@
 | Phase 1: 기반 인프라 | ✅ 완료 | 100% |
 | Phase 2: 에디터 번들 | ✅ 완료 | 100% |
 | Phase 3: Docker 환경 | ✅ 완료 | 100% |
-| Phase 4: 에디터 기능 | ✅ 완료 | 98% |
+| Phase 4: 에디터 기능 | ✅ 완료 | 100% |
 | Phase 5: Worker 통합 | ✅ 완료 | 100% |
 | Phase 6: 배포 | ❌ 미시작 | 0% |
 
-**전체 진행률: 약 90%**
+**전체 진행률: 약 95%**
 
 ## 다음 작업 우선순위
 
-1. **관리자 기능** (Phase 4.3)
-   - 관리자용 저장 로직
-   - CMS 연동
-
-2. **프로덕션 배포** (Phase 6)
+1. **프로덕션 배포** (Phase 6)
    - 배포 환경 설정
    - 모니터링 구축

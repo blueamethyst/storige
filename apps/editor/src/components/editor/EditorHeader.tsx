@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useIsAdmin } from '@/stores/useAuthStore'
+import { useWorkSave } from '@/hooks/useWorkSave'
 import { ServicePlugin, PreviewPlugin } from '@storige/canvas-core'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,6 +50,9 @@ export default function EditorHeader({
   const { ready, canvas, allCanvas, allEditors, getPlugin, setPage } = useAppStore()
   const { artwork, currentSettings } = useSettingsStore()
   const isAdmin = useIsAdmin()
+
+  // Work save hook for admin
+  const { saveWorkForAdmin, saving: workSaving } = useWorkSave()
 
   // Size from settings
   const size = currentSettings.size || { width: 100, height: 100, cutSize: 5, safeSize: 5, printSize: undefined }
@@ -242,6 +246,20 @@ export default function EditorHeader({
     }
   }, [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading, onFinish])
 
+  /**
+   * CMS에 메시지 전송 (iframe 통신)
+   */
+  const sendMessageToCMS = useCallback((message: {
+    type: 'ADMIN_EDITOR_SAVED' | 'ADMIN_EDITOR_CLOSED' | 'ADMIN_EDITOR_READY' | 'ADMIN_EDITOR_ERROR'
+    payload?: { success?: boolean; error?: string; workId?: string }
+  }) => {
+    // iframe 내에서 실행 중인지 확인
+    if (window.parent !== window) {
+      window.parent.postMessage(message, '*')
+      console.log('[EditorHeader] CMS 메시지 전송:', message)
+    }
+  }, [])
+
   // 관리자용 저장
   const handleSaveForAdmin = useCallback(
     async (closeWindow: boolean = false) => {
@@ -260,20 +278,45 @@ export default function EditorHeader({
           }
         }
 
-        // TODO: 관리자용 저장 로직
-        console.log('관리자용 저장 기능은 아직 구현되지 않았습니다.')
+        // 관리자용 저장 실행 (useWorkSave 훅 사용)
+        await saveWorkForAdmin()
+
+        console.log('관리자 작업이 성공적으로 저장되었습니다.')
+
+        // CMS에 저장 완료 메시지 전송
+        sendMessageToCMS({
+          type: 'ADMIN_EDITOR_SAVED',
+          payload: { success: true }
+        })
 
         if (closeWindow) {
-          // TODO: CMS에 메시지 전송 후 창 닫기
+          // CMS에 창 닫기 메시지 전송
+          sendMessageToCMS({
+            type: 'ADMIN_EDITOR_CLOSED',
+            payload: { success: true }
+          })
+
+          // iframe 내에서 실행 중인 경우 부모에게 닫기 요청
+          // 독립 창인 경우 직접 닫기
+          if (window.parent === window && window.opener) {
+            window.close()
+          }
         }
       } catch (error) {
         console.error('디자인 저장 실패:', error)
+        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
+
+        // CMS에 에러 메시지 전송
+        sendMessageToCMS({
+          type: 'ADMIN_EDITOR_ERROR',
+          payload: { success: false, error: errorMessage }
+        })
       } finally {
         setFinishing(false)
         setLoading(false)
       }
     },
-    [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading]
+    [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading, saveWorkForAdmin, sendMessageToCMS]
   )
 
   // 불러오기
