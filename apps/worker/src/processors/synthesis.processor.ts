@@ -11,6 +11,8 @@ interface SynthesisJobData {
   coverUrl: string;
   contentUrl: string;
   spineWidth: number;
+  bindingType?: 'perfect' | 'saddle' | 'hardcover';
+  generatePreview?: boolean;
 }
 
 @Processor('pdf-synthesis')
@@ -41,6 +43,8 @@ export class SynthesisProcessor {
           coverUrl: job.data.coverUrl,
           contentUrl: job.data.contentUrl,
           spineWidth: job.data.spineWidth,
+          bindingType: job.data.bindingType,
+          generatePreview: job.data.generatePreview,
         },
         outputPath,
       );

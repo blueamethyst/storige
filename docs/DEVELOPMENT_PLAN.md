@@ -101,17 +101,23 @@
 - [ ] 관리자용 저장
 - [ ] CMS 연동
 
-## Phase 5: Worker 통합 🔄 진행중
+## Phase 5: Worker 통합 ✅ 완료
 
 ### 5.1 PDF 처리
 - [x] 검증 작업 (Validation) ✅
   - [x] EditSession 완료 시 자동 생성
   - [x] Bull 큐 연동
   - [x] PDF 파일 검증 로직
-- [ ] 변환 작업 (Conversion)
-  - [ ] 페이지 추가/블리드 적용
-- [ ] 합성 작업 (Synthesis)
-  - [ ] 표지+내지 합성
+- [x] 변환 작업 (Conversion) ✅
+  - [x] Ghostscript 기반 블리드 적용
+  - [x] 페이지 추가 (pdf-lib)
+  - [x] 크기 조정 (Ghostscript)
+  - [x] 미리보기 이미지 생성
+- [x] 합성 작업 (Synthesis) ✅
+  - [x] 표지+내지 병합 (Ghostscript/pdf-lib)
+  - [x] 제본 유형별 처리 (perfect, saddle, hardcover)
+  - [x] 미리보기 이미지 생성
+  - [x] 책등 너비 계산 유틸리티
 
 ### 5.2 콜백 시스템 ✅
 - [x] 작업 완료 콜백
@@ -153,25 +159,21 @@
 | Phase 2: 에디터 번들 | ✅ 완료 | 100% |
 | Phase 3: Docker 환경 | ✅ 완료 | 100% |
 | Phase 4: 에디터 기능 | ✅ 완료 | 95% |
-| Phase 5: Worker 통합 | ✅ 완료 | 90% |
+| Phase 5: Worker 통합 | ✅ 완료 | 100% |
 | Phase 6: 배포 | ❌ 미시작 | 0% |
 
-**전체 진행률: 약 85%**
+**전체 진행률: 약 90%**
 
 ## 다음 작업 우선순위
 
-1. **PDF 변환/합성** (Phase 5.1)
-   - 변환 작업 구현
-   - 합성 작업 구현
-
-2. **자동 저장 구현** (Phase 4.2)
+1. **자동 저장 구현** (Phase 4.2)
    - 주기적 자동 저장
    - 로컬 백업
 
-3. **관리자 기능** (Phase 4.3)
+2. **관리자 기능** (Phase 4.3)
    - 관리자용 저장 로직
    - CMS 연동
 
-4. **프로덕션 배포** (Phase 6)
+3. **프로덕션 배포** (Phase 6)
    - 배포 환경 설정
    - 모니터링 구축

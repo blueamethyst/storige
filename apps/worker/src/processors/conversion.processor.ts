@@ -14,6 +14,8 @@ interface ConversionJobData {
     applyBleed: boolean;
     targetPages: number;
     bleed: number;
+    /** 출력 크기 (mm) */
+    targetSize?: { width: number; height: number };
   };
 }
 
