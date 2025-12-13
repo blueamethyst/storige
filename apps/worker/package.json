@@ -12,23 +12,24 @@
     "test": "jest"
   },
   "dependencies": {
+    "@nestjs/bull": "^10.2.3",
     "@nestjs/common": "^10.4.15",
+    "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",
     "@nestjs/platform-express": "^10.4.15",
     "@nestjs/typeorm": "^10.0.2",
-    "@nestjs/config": "^3.3.0",
-    "@nestjs/bull": "^10.2.3",
+    "@storige/types": "workspace:*",
+    "axios": "^1.7.9",
     "bull": "^4.16.4",
-    "typeorm": "^0.3.20",
+    "canvas": "^2.11.2",
+    "dotenv": "^17.2.3",
     "mysql2": "^3.12.0",
     "pdf-lib": "^1.17.1",
-    "sharp": "^0.33.5",
-    "canvas": "^2.11.2",
-    "axios": "^1.7.9",
-    "uuid": "^11.0.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "@storige/types": "workspace:*"
+    "sharp": "^0.33.5",
+    "typeorm": "^0.3.20",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.8",
