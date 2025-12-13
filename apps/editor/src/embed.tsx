@@ -58,6 +58,8 @@ export interface EditorConfig {
   contentFileId?: string
   /** API 기본 URL */
   apiBaseUrl?: string
+  /** Worker 완료 시 콜백 URL (bookmoa 웹훅 수신용) */
+  callbackUrl?: string
   /** 동적 옵션 */
   options?: {
     /** 페이지 수 */
@@ -139,6 +141,7 @@ interface EditSessionCreatePayload {
   coverFileId?: string
   contentFileId?: string
   templateSetId?: string
+  callbackUrl?: string
   metadata?: Record<string, any>
 }
 
@@ -161,6 +164,7 @@ function EmbeddedEditor({
   coverFileId,
   contentFileId,
   apiBaseUrl,
+  callbackUrl,
   options,
   onComplete,
   onCancel,
@@ -296,6 +300,7 @@ function EmbeddedEditor({
               coverFileId,
               contentFileId,
               templateSetId,
+              callbackUrl,
               metadata: {
                 // 주문 옵션 (Worker 검증에 사용)
                 size: options?.size,

@@ -40,4 +40,9 @@ export class CreateEditSessionDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;
+
+  @ApiPropertyOptional({ example: 'https://shop.example.com/api/callback', description: 'Worker 완료 콜백 URL' })
+  @IsOptional()
+  @IsString()
+  callbackUrl?: string;
 }

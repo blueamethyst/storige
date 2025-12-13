@@ -54,6 +54,8 @@ export interface CreateEditSessionRequest {
   templateSetId?: string
   canvasData?: any
   metadata?: Record<string, any>
+  /** Worker 완료 시 콜백 URL (bookmoa 웹훅 수신용) */
+  callbackUrl?: string
 }
 
 /**

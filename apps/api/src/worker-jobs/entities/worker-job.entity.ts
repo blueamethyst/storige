@@ -4,9 +4,12 @@ import {
   PrimaryColumn,
   CreateDateColumn,
   BeforeInsert,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkerJobType, WorkerJobStatus } from '@storige/types';
+import { EditSessionEntity } from '../../edit-sessions/entities/edit-session.entity';
 
 @Entity('worker_jobs')
 export class WorkerJob {
@@ -25,6 +28,13 @@ export class WorkerJob {
     length: 20,
   })
   status: WorkerJobStatus;
+
+  @Column({ name: 'edit_session_id', type: 'varchar', length: 36, nullable: true })
+  editSessionId: string | null;
+
+  @ManyToOne(() => EditSessionEntity, { nullable: true })
+  @JoinColumn({ name: 'edit_session_id' })
+  editSession: EditSessionEntity | null;
 
   @Column({ name: 'file_id', type: 'varchar', length: 36, nullable: true })
   fileId: string | null;

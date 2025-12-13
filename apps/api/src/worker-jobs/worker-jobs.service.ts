@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository } from 'typeorm';
@@ -12,16 +12,23 @@ import {
   UpdateJobStatusDto,
 } from './dto/worker-job.dto';
 import { FilesService } from '../files/files.service';
+import { WebhookService } from '../webhook/webhook.service';
+import { EditSessionEntity, WorkerStatus } from '../edit-sessions/entities/edit-session.entity';
 
 @Injectable()
 export class WorkerJobsService {
+  private readonly logger = new Logger(WorkerJobsService.name);
+
   constructor(
     @InjectRepository(WorkerJob)
     private workerJobRepository: Repository<WorkerJob>,
+    @InjectRepository(EditSessionEntity)
+    private editSessionRepository: Repository<EditSessionEntity>,
     @InjectQueue('pdf-validation') private validationQueue: Queue,
     @InjectQueue('pdf-conversion') private conversionQueue: Queue,
     @InjectQueue('pdf-synthesis') private synthesisQueue: Queue,
     private filesService: FilesService,
+    private webhookService: WebhookService,
   ) {}
 
   // ============================================================================
@@ -50,6 +57,7 @@ export class WorkerJobsService {
     const job = this.workerJobRepository.create({
       jobType: WorkerJobType.VALIDATE,
       status: WorkerJobStatus.PENDING,
+      editSessionId: createValidationJobDto.editSessionId || null,
       fileId,
       inputFileUrl: fileUrl,
       options: {
@@ -208,7 +216,14 @@ export class WorkerJobsService {
   }
 
   async updateJobStatus(id: string, updateJobStatusDto: UpdateJobStatusDto): Promise<WorkerJob> {
-    const job = await this.findOne(id);
+    const job = await this.workerJobRepository.findOne({
+      where: { id },
+      relations: ['editSession'],
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Worker job with ID ${id} not found`);
+    }
 
     Object.assign(job, updateJobStatusDto);
 
@@ -219,7 +234,110 @@ export class WorkerJobsService {
       job.completedAt = new Date();
     }
 
-    return await this.workerJobRepository.save(job);
+    const savedJob = await this.workerJobRepository.save(job);
+
+    // Update EditSession workerStatus and send webhook callback
+    if (job.editSessionId) {
+      await this.updateEditSessionWorkerStatus(job, updateJobStatusDto);
+    }
+
+    return savedJob;
+  }
+
+  /**
+   * EditSession의 workerStatus를 업데이트하고 웹훅 콜백 전송
+   */
+  private async updateEditSessionWorkerStatus(
+    job: WorkerJob,
+    updateDto: UpdateJobStatusDto,
+  ): Promise<void> {
+    const session = await this.editSessionRepository.findOne({
+      where: { id: job.editSessionId },
+    });
+
+    if (!session) {
+      this.logger.warn(`EditSession ${job.editSessionId} not found for job ${job.id}`);
+      return;
+    }
+
+    // Update workerStatus based on job status
+    let newWorkerStatus: WorkerStatus | null = null;
+
+    if (updateDto.status === WorkerJobStatus.PROCESSING) {
+      newWorkerStatus = WorkerStatus.PROCESSING;
+    } else if (updateDto.status === WorkerJobStatus.COMPLETED) {
+      // Check if all jobs for this session are completed
+      const allJobsCompleted = await this.areAllSessionJobsCompleted(job.editSessionId);
+      newWorkerStatus = allJobsCompleted ? WorkerStatus.VALIDATED : WorkerStatus.PROCESSING;
+    } else if (updateDto.status === WorkerJobStatus.FAILED) {
+      newWorkerStatus = WorkerStatus.FAILED;
+      session.workerError = updateDto.errorMessage || 'Unknown error';
+    }
+
+    if (newWorkerStatus) {
+      session.workerStatus = newWorkerStatus;
+      await this.editSessionRepository.save(session);
+      this.logger.log(`Updated EditSession ${session.id} workerStatus to ${newWorkerStatus}`);
+
+      // Send webhook callback when validation completes or fails
+      if (
+        newWorkerStatus === WorkerStatus.VALIDATED ||
+        newWorkerStatus === WorkerStatus.FAILED
+      ) {
+        await this.sendWebhookCallback(session, job, newWorkerStatus);
+      }
+    }
+  }
+
+  /**
+   * 세션의 모든 Worker 작업이 완료되었는지 확인
+   */
+  private async areAllSessionJobsCompleted(editSessionId: string): Promise<boolean> {
+    const jobs = await this.workerJobRepository.find({
+      where: { editSessionId },
+    });
+
+    return jobs.every(
+      (j) =>
+        j.status === WorkerJobStatus.COMPLETED || j.status === WorkerJobStatus.FAILED,
+    );
+  }
+
+  /**
+   * 웹훅 콜백 전송
+   */
+  private async sendWebhookCallback(
+    session: EditSessionEntity,
+    job: WorkerJob,
+    workerStatus: WorkerStatus,
+  ): Promise<void> {
+    if (!session.callbackUrl) {
+      this.logger.log(`No callback URL for session ${session.id}, skipping webhook`);
+      return;
+    }
+
+    try {
+      const payload = {
+        event: workerStatus === WorkerStatus.VALIDATED ? 'session.validated' : 'session.failed',
+        sessionId: session.id,
+        orderSeqno: Number(session.orderSeqno),
+        status: workerStatus === WorkerStatus.VALIDATED ? 'validated' : 'failed',
+        fileType: job.options?.fileType as 'cover' | 'content' | undefined,
+        errorMessage: session.workerError || undefined,
+        result: job.result,
+        timestamp: new Date().toISOString(),
+      };
+
+      const success = await this.webhookService.sendCallback(session.callbackUrl, payload);
+
+      if (success) {
+        this.logger.log(`Webhook callback sent successfully for session ${session.id}`);
+      } else {
+        this.logger.warn(`Webhook callback failed for session ${session.id}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send webhook callback: ${error.message}`);
+    }
   }
 
   async getJobStats(): Promise<any> {

@@ -45,6 +45,7 @@ export class EditSessionsService {
       templateSetId: dto.templateSetId,
       canvasData: dto.canvasData,
       metadata: dto.metadata,
+      callbackUrl: dto.callbackUrl,
     });
 
     const saved = await this.sessionRepository.save(session);
@@ -188,6 +189,7 @@ export class EditSessionsService {
       if (session.coverFileId) {
         try {
           const job = await this.workerJobsService.createValidationJob({
+            editSessionId: session.id,
             fileId: session.coverFileId,
             fileType: 'cover',
             orderOptions,
@@ -206,6 +208,7 @@ export class EditSessionsService {
       if (session.contentFileId) {
         try {
           const job = await this.workerJobsService.createValidationJob({
+            editSessionId: session.id,
             fileId: session.contentFileId,
             fileType: 'content',
             orderOptions,

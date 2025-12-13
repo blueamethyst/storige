@@ -3,6 +3,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WorkerJobType } from '@storige/types';
 
 export class CreateValidationJobDto {
+  @ApiPropertyOptional({ example: 'uuid', description: '편집 세션 ID' })
+  @IsOptional()
+  @IsUUID()
+  editSessionId?: string;
+
   @ApiPropertyOptional({ example: 'uuid', description: '파일 ID (fileUrl 대신 사용 가능)' })
   @IsOptional()
   @IsUUID()

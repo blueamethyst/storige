@@ -24,6 +24,13 @@ export enum SessionMode {
   TEMPLATE = 'template',
 }
 
+export enum WorkerStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  VALIDATED = 'validated',
+  FAILED = 'failed',
+}
+
 @Entity('file_edit_sessions')
 export class EditSessionEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -73,6 +80,20 @@ export class EditSessionEntity {
 
   @Column({ name: 'completed_at', type: 'timestamp', nullable: true })
   completedAt: Date | null;
+
+  @Column({
+    name: 'worker_status',
+    type: 'enum',
+    enum: WorkerStatus,
+    nullable: true,
+  })
+  workerStatus: WorkerStatus | null;
+
+  @Column({ name: 'worker_error', type: 'text', nullable: true })
+  workerError: string | null;
+
+  @Column({ name: 'callback_url', type: 'varchar', length: 500, nullable: true })
+  callbackUrl: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
