@@ -7,6 +7,7 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  RelationId,
 } from 'typeorm';
 import { ProductSize } from './product-size.entity';
 import { TemplateSet } from '../../templates/entities/template-set.entity';
@@ -64,12 +65,12 @@ export class Product {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ name: 'template_set_id', type: 'uuid', nullable: true })
-  templateSetId: string | null;
-
   @ManyToOne(() => TemplateSet, { nullable: true })
   @JoinColumn({ name: 'template_set_id' })
   templateSet: TemplateSet;
+
+  @RelationId((product: Product) => product.templateSet)
+  templateSetId: string | null;
 
   @OneToMany(() => ProductSize, (size) => size.product)
   sizes: ProductSize[];

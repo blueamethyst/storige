@@ -26,11 +26,17 @@ export class WorkerJob {
   })
   status: WorkerJobStatus;
 
+  @Column({ name: 'file_id', type: 'varchar', length: 36, nullable: true })
+  fileId: string | null;
+
   @Column({ name: 'input_file_url', type: 'varchar', length: 500, nullable: true })
   inputFileUrl: string | null;
 
   @Column({ name: 'output_file_url', type: 'varchar', length: 500, nullable: true })
   outputFileUrl: string | null;
+
+  @Column({ name: 'output_file_id', type: 'varchar', length: 36, nullable: true })
+  outputFileId: string | null;
 
   @Column({ type: 'json', nullable: true })
   options: any;

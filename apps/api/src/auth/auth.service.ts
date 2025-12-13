@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { LoginDto, RegisterDto } from './dto/login.dto';
+import { CreateShopSessionDto } from './dto/shop-session.dto';
 import { AuthTokens, UserRole } from '@storige/types';
 
 @Injectable()
@@ -93,6 +94,71 @@ export class AuthService {
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
+    }
+  }
+
+  /**
+   * bookmoa 쇼핑몰 회원을 위한 세션 생성
+   * API Key 인증을 통해 호출되며, JWT 쿠키를 발급합니다.
+   */
+  async createShopSession(
+    dto: CreateShopSessionDto,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const payload = {
+      sub: dto.memberSeqno.toString(),
+      email: dto.memberId,
+      name: dto.memberName,
+      role: 'customer',
+      source: 'shop',
+      phpSessionId: dto.phpSessionId,
+      permissions: dto.permissions || ['edit', 'upload', 'validate'],
+    };
+
+    const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' });
+    const refreshToken = this.jwtService.sign(
+      {
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        role: payload.role,
+        source: 'shop',
+        permissions: payload.permissions,
+      },
+      { expiresIn: '30d' },
+    );
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * refreshToken 쿠키를 사용하여 새로운 accessToken을 발급합니다.
+   */
+  async refreshShopToken(
+    refreshToken: string,
+  ): Promise<{ accessToken: string; expiresIn: number }> {
+    try {
+      const payload = this.jwtService.verify(refreshToken);
+
+      // 새로운 accessToken 발급
+      const newAccessToken = this.jwtService.sign(
+        {
+          sub: payload.sub,
+          email: payload.email,
+          name: payload.name,
+          role: payload.role,
+          source: payload.source,
+          permissions: payload.permissions,
+        },
+        { expiresIn: '1h' },
+      );
+
+      return { accessToken: newAccessToken, expiresIn: 3600 };
+    } catch (error) {
+      throw new UnauthorizedException({
+        success: false,
+        error: 'REFRESH_TOKEN_EXPIRED',
+        redirectUrl: '/login',
+      });
     }
   }
 }

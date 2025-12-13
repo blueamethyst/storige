@@ -8,6 +8,7 @@ import {
   JoinColumn,
   BeforeInsert,
   Index,
+  RelationId,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../../auth/entities/user.entity';
@@ -31,20 +32,14 @@ export enum EditSessionStatus {
 
 @Entity('edit_sessions')
 @Index('idx_edit_session_status', ['status'])
-@Index('idx_edit_session_user', ['userId'])
+@Index('idx_edit_session_user', ['user'])
 @Index('idx_edit_session_order', ['orderId'])
 export class EditSession {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
 
-  @Column({ name: 'user_id', type: 'varchar', length: 36, nullable: true })
-  userId: string | null;
-
   @Column({ name: 'order_id', type: 'varchar', length: 36, nullable: true })
   orderId: string | null;
-
-  @Column({ name: 'template_set_id', type: 'varchar', length: 36, nullable: true })
-  templateSetId: string | null;
 
   /**
    * 페이지별 캔버스 데이터
@@ -63,32 +58,16 @@ export class EditSession {
   status: EditStatus;
 
   /**
-   * 편집 잠금 - 현재 편집 중인 사용자 ID
-   */
-  @Column({ name: 'locked_by', type: 'varchar', length: 36, nullable: true })
-  lockedBy: string | null;
-
-  /**
    * 편집 잠금 시작 시간
    */
   @Column({ name: 'locked_at', type: 'datetime', nullable: true })
   lockedAt: Date | null;
 
   /**
-   * 마지막 수정자 ID
-   */
-  @Column({ name: 'modified_by', type: 'varchar', length: 36, nullable: true })
-  modifiedBy: string | null;
-
-  /**
    * 마지막 수정 시간
    */
   @Column({ name: 'modified_at', type: 'datetime', nullable: true })
   modifiedAt: Date | null;
-
-  // Legacy fields (하위 호환)
-  @Column({ name: 'template_id', type: 'varchar', length: 36, nullable: true })
-  templateId: string | null;
 
   @Column({ name: 'canvas_data', type: 'json', nullable: true })
   canvasData: CanvasData | null;
@@ -107,21 +86,36 @@ export class EditSession {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
+  @RelationId((session: EditSession) => session.user)
+  userId: string | null;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'locked_by' })
   lockedByUser: User;
+
+  @RelationId((session: EditSession) => session.lockedByUser)
+  lockedBy: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'modified_by' })
   modifiedByUser: User;
 
+  @RelationId((session: EditSession) => session.modifiedByUser)
+  modifiedBy: string | null;
+
   @ManyToOne(() => Template, { nullable: true })
   @JoinColumn({ name: 'template_id' })
   template: Template;
 
+  @RelationId((session: EditSession) => session.template)
+  templateId: string | null;
+
   @ManyToOne(() => TemplateSet, { nullable: true })
   @JoinColumn({ name: 'template_set_id' })
   templateSet: TemplateSet;
+
+  @RelationId((session: EditSession) => session.templateSet)
+  templateSetId: string | null;
 
   @BeforeInsert()
   generateId() {
@@ -138,16 +132,10 @@ export class EditSession {
  * 편집 이력 entity
  */
 @Entity('edit_histories')
-@Index('idx_edit_history_session', ['sessionId'])
+@Index('idx_edit_history_session', ['session'])
 export class EditHistory {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
-
-  @Column({ name: 'session_id', type: 'varchar', length: 36 })
-  sessionId: string;
-
-  @Column({ name: 'user_id', type: 'varchar', length: 36, nullable: true })
-  userId: string | null;
 
   @Column({ name: 'user_name', type: 'varchar', length: 100, nullable: true })
   userName: string | null;
@@ -166,9 +154,15 @@ export class EditHistory {
   @JoinColumn({ name: 'session_id' })
   session: EditSession;
 
+  @RelationId((history: EditHistory) => history.session)
+  sessionId: string;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'user_id' })
   user: User | null;
+
+  @RelationId((history: EditHistory) => history.user)
+  userId: string | null;
 
   @BeforeInsert()
   generateId() {

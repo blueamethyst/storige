@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   BeforeInsert,
+  RelationId,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../../auth/entities/user.entity';
@@ -16,9 +17,6 @@ import { EditorDesignMetadata } from '@storige/types';
 export class EditorDesign {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
-
-  @Column({ name: 'user_id', type: 'varchar', length: 36 })
-  userId: string;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;
@@ -41,6 +39,9 @@ export class EditorDesign {
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'user_id' })
   user: User;
+
+  @RelationId((design: EditorDesign) => design.user)
+  userId: string;
 
   @BeforeInsert()
   generateId() {

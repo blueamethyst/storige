@@ -24,7 +24,8 @@ import { createRoot, Root } from 'react-dom/client'
 import { useAppStore } from './stores/useAppStore'
 import { useEditorContents } from './hooks/useEditorContents'
 import { createCanvas } from './utils/createCanvas'
-import { templatesApi } from './api'
+import { templatesApi, editSessionsApi, apiClient, type EditSessionResponse } from './api'
+import type { ApiError } from './api/client'
 import ToolBar from './components/editor/ToolBar'
 import FeatureSidebar from './components/editor/FeatureSidebar'
 import ControlBar from './components/editor/ControlBar'
@@ -37,20 +38,39 @@ import './index.css'
 // ============================================================
 
 export interface EditorConfig {
+  /** 편집 모드 (bookmoa 연동용) */
+  mode?: 'cover' | 'content' | 'both' | 'template'
+  /** 주문 번호 (bookmoa 연동용) */
+  orderSeqno?: number
   /** 템플릿셋 ID (필수) */
   templateSetId: string
-  /** 쇼핑몰 상품 ID (필수) */
-  productId: string
-  /** API 인증 토큰 (필수) */
-  token: string
+  /** 쇼핑몰 상품 ID */
+  productId?: string
+  /** API 인증 토큰 (필수, 없으면 쿠키 기반 인증 사용) */
+  token?: string
   /** 기존 편집 세션 ID (재편집시) */
   sessionId?: string
+  /** 표지 파일 ID (bookmoa 연동용) */
+  coverFileId?: string
+  /** 내지 파일 ID (bookmoa 연동용) */
+  contentFileId?: string
   /** API 기본 URL */
   apiBaseUrl?: string
   /** 동적 옵션 */
   options?: {
+    /** 페이지 수 */
     pages?: number
+    /** 판형 크기 */
+    size?: { width: number; height: number }
+    /** 제본 방식 */
+    binding?: 'perfect' | 'saddle' | 'spring'
+    /** 재단 여백 */
+    bleed?: number
+    /** 종이 두께 */
+    paperThickness?: number
+    /** 날개 설정 */
     coverWing?: { front: number; back: number }
+    /** 종이 정보 */
     paper?: { type: string; weight: number }
   }
   /** 편집 완료 콜백 */
@@ -58,23 +78,32 @@ export interface EditorConfig {
   /** 편집 취소 콜백 */
   onCancel?: () => void
   /** 에러 발생 콜백 */
-  onError?: (error: Error) => void
+  onError?: (error: Error | EditorError) => void
   /** 저장 완료 콜백 */
   onSave?: (result: SaveResult) => void
   /** 준비 완료 콜백 */
   onReady?: () => void
 }
 
+export interface EditorError {
+  code: 'AUTH_EXPIRED' | 'NETWORK_ERROR' | 'SAVE_FAILED' | 'INVALID_DATA' | 'SESSION_NOT_FOUND'
+  message: string
+}
+
 export interface EditorResult {
   sessionId: string
-  editCode: string
+  orderSeqno?: number
+  editCode?: string
   pages: {
     initial: number
     final: number
   }
   files: {
+    coverFileId?: string
+    contentFileId?: string
     cover?: string
     content?: string
+    thumbnailUrl?: string
     thumbnail?: string
   }
   savedAt: string
@@ -101,6 +130,16 @@ interface EmbeddedEditorProps extends EditorConfig {
   instanceRef: React.MutableRefObject<EditorInstanceMethods | null>
 }
 
+// Edit Session API integration
+interface EditSessionCreatePayload {
+  orderSeqno: number
+  mode: 'cover' | 'content' | 'both' | 'template'
+  coverFileId?: string
+  contentFileId?: string
+  templateSetId?: string
+  metadata?: Record<string, any>
+}
+
 interface EditorInstanceMethods {
   save: () => Promise<SaveResult>
   complete: () => Promise<void>
@@ -111,10 +150,14 @@ interface EditorInstanceMethods {
 }
 
 function EmbeddedEditor({
+  mode,
+  orderSeqno,
   templateSetId,
   productId,
   token,
   sessionId,
+  coverFileId,
+  contentFileId,
   apiBaseUrl,
   options,
   onComplete,
@@ -130,6 +173,7 @@ function EmbeddedEditor({
   const [isLoading, setIsLoading] = useState(true)
   const [loadingMessage, setLoadingMessage] = useState('에디터를 초기화하는 중...')
   const [error, setError] = useState<string | null>(null)
+  const [currentSession, setCurrentSession] = useState<EditSessionResponse | null>(null)
 
   // Store state
   const {
@@ -163,6 +207,18 @@ function EmbeddedEditor({
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [handleResize])
+
+  // 인증 만료 이벤트 핸들링
+  useEffect(() => {
+    const unsubscribe = apiClient.onAuthExpired(() => {
+      console.warn('[EmbeddedEditor] Auth token expired')
+      onError?.({
+        code: 'AUTH_EXPIRED',
+        message: '인증이 만료되었습니다. 페이지를 새로고침해주세요.',
+      })
+    })
+    return unsubscribe
+  }, [onError])
 
   // Main initialization
   useEffect(() => {
@@ -213,7 +269,39 @@ function EmbeddedEditor({
         // Start initialization session
         const initId = startInitialization()
 
-        // 2. Fetch template set info
+        // 2. Fetch or create edit session (if bookmoa integration)
+        let editSession: EditSessionResponse | null = null
+        if (orderSeqno && mode) {
+          setLoadingMessage('편집 세션을 불러오는 중...')
+
+          if (sessionId) {
+            // 기존 세션 불러오기
+            try {
+              editSession = await editSessionsApi.get(sessionId)
+              console.log('[EmbeddedEditor] Existing session loaded:', editSession.id)
+            } catch (err) {
+              console.warn('[EmbeddedEditor] Session not found, creating new one:', sessionId)
+            }
+          }
+
+          // 기존 세션이 없으면 새로 생성
+          if (!editSession) {
+            editSession = await editSessionsApi.create({
+              orderSeqno,
+              mode,
+              coverFileId,
+              contentFileId,
+              templateSetId,
+            })
+            console.log('[EmbeddedEditor] New session created:', editSession.id)
+          }
+
+          setCurrentSession(editSession)
+        }
+
+        if (!isMounted) return
+
+        // 3. Fetch template set info
         setLoadingMessage('템플릿셋 정보를 불러오는 중...')
         const templateSetResponse = await templatesApi.getTemplateSet(templateSetId)
 
@@ -294,10 +382,37 @@ function EmbeddedEditor({
         onReady?.()
       } catch (err) {
         console.error('[EmbeddedEditor] Initialization error:', err)
-        const errorMessage = err instanceof Error ? err.message : '초기화 중 오류가 발생했습니다.'
+
+        // API 에러 타입 확인
+        const apiError = err as ApiError
+        let errorCode: EditorError['code'] = 'INVALID_DATA'
+        let errorMessage = '초기화 중 오류가 발생했습니다.'
+
+        if (apiError.code) {
+          switch (apiError.code) {
+            case 'AUTH_EXPIRED':
+              errorCode = 'AUTH_EXPIRED'
+              errorMessage = apiError.message || '인증이 만료되었습니다.'
+              break
+            case 'NETWORK_ERROR':
+            case 'TIMEOUT':
+              errorCode = 'NETWORK_ERROR'
+              errorMessage = apiError.message || '네트워크 연결을 확인해주세요.'
+              break
+            case 'SERVER_ERROR':
+              errorCode = 'NETWORK_ERROR'
+              errorMessage = apiError.message || '서버 오류가 발생했습니다.'
+              break
+            default:
+              errorMessage = apiError.message || errorMessage
+          }
+        } else if (err instanceof Error) {
+          errorMessage = err.message
+        }
+
         setError(errorMessage)
         setIsLoading(false)
-        onError?.(err instanceof Error ? err : new Error(errorMessage))
+        onError?.({ code: errorCode, message: errorMessage })
       }
     }
 
@@ -343,34 +458,101 @@ function EmbeddedEditor({
   useEffect(() => {
     instanceRef.current = {
       save: async () => {
-        // TODO: Implement actual save logic
-        const result: SaveResult = {
-          sessionId: sessionId || 'new-session',
-          savedAt: new Date().toISOString(),
+        const currentSessionId = currentSession?.id || sessionId
+
+        if (!currentSessionId) {
+          throw new Error('편집 세션이 없습니다.')
         }
-        onSave?.(result)
-        return result
+
+        try {
+          // Get canvas data from editor
+          const canvasData = editor?.toJSON() || null
+
+          // Update edit session with canvas data
+          const updatedSession = await editSessionsApi.update(currentSessionId, {
+            canvasData,
+            status: 'editing',
+          })
+
+          setCurrentSession(updatedSession)
+
+          const result: SaveResult = {
+            sessionId: updatedSession.id,
+            savedAt: updatedSession.updatedAt,
+            thumbnail: updatedSession.coverFile?.thumbnailUrl || undefined,
+          }
+
+          console.log('[EmbeddedEditor] Save completed:', result.sessionId)
+          onSave?.(result)
+          return result
+        } catch (err) {
+          console.error('[EmbeddedEditor] Save failed:', err)
+          onError?.({
+            code: 'SAVE_FAILED',
+            message: err instanceof Error ? err.message : '저장에 실패했습니다.',
+          })
+          throw err
+        }
       },
+
       complete: async () => {
-        // TODO: Implement actual complete logic
-        const result: EditorResult = {
-          sessionId: sessionId || 'new-session',
-          editCode: `EDIT-${Date.now()}`,
-          pages: { initial: options?.pages || 1, final: options?.pages || 1 },
-          files: {},
-          savedAt: new Date().toISOString(),
+        const currentSessionId = currentSession?.id || sessionId
+
+        if (!currentSessionId) {
+          throw new Error('편집 세션이 없습니다.')
         }
-        onComplete?.(result)
+
+        try {
+          // First save current state
+          const canvasData = editor?.toJSON() || null
+          await editSessionsApi.update(currentSessionId, {
+            canvasData,
+          })
+
+          // Then mark as completed
+          const completedSession = await editSessionsApi.complete(currentSessionId)
+          setCurrentSession(completedSession)
+
+          const result: EditorResult = {
+            sessionId: completedSession.id,
+            orderSeqno: Number(completedSession.orderSeqno),
+            editCode: `EDIT-${completedSession.id.substring(0, 8).toUpperCase()}`,
+            pages: {
+              initial: options?.pages || 1,
+              final: options?.pages || 1,
+            },
+            files: {
+              coverFileId: completedSession.coverFileId || undefined,
+              contentFileId: completedSession.contentFileId || undefined,
+              thumbnailUrl: completedSession.coverFile?.thumbnailUrl || undefined,
+            },
+            savedAt: completedSession.completedAt || completedSession.updatedAt,
+          }
+
+          console.log('[EmbeddedEditor] Complete success:', result.sessionId)
+          onComplete?.(result)
+        } catch (err) {
+          console.error('[EmbeddedEditor] Complete failed:', err)
+          onError?.({
+            code: 'SAVE_FAILED',
+            message: err instanceof Error ? err.message : '편집 완료에 실패했습니다.',
+          })
+          throw err
+        }
       },
+
       cancel: () => {
         onCancel?.()
       },
+
       undo: () => {
         editor?.undo()
       },
+
       redo: () => {
         editor?.redo()
       },
+
       getState: () => ({
         ready,
         modified: false, // TODO: Track modifications
@@ -378,7 +560,7 @@ function EmbeddedEditor({
         totalPages: 1,
       }),
     }
-  }, [ready, editor, sessionId, options, onComplete, onCancel, onSave, instanceRef])
+  }, [ready, editor, sessionId, currentSession, options, onComplete, onCancel, onSave, onError, instanceRef])
 
   // Loading state handler
   const handleLoadingChange = useCallback((loading: boolean, message?: string) => {

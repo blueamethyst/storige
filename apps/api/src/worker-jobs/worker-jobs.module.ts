@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bull';
 import { WorkerJobsController } from './worker-jobs.controller';
 import { WorkerJobsService } from './worker-jobs.service';
 import { WorkerJob } from './entities/worker-job.entity';
+import { FilesModule } from '../files/files.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { WorkerJob } from './entities/worker-job.entity';
         name: 'pdf-synthesis',
       },
     ),
+    FilesModule,
   ],
   controllers: [WorkerJobsController],
   providers: [WorkerJobsService],

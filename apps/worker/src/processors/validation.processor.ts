@@ -2,17 +2,24 @@ import { Processor, Process } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { PdfValidatorService } from '../services/pdf-validator.service';
+import { ValidationOptions, ValidationResultDto } from '../dto/validation-result.dto';
 import axios from 'axios';
 
 interface ValidationJobData {
   jobId: string;
+  /** 파일 URL 또는 경로 */
   fileUrl: string;
+  /** 파일 ID (옵션, 새 시스템) */
+  fileId?: string;
+  /** 파일 타입 */
   fileType: 'cover' | 'content';
+  /** 주문 옵션 */
   orderOptions: {
     size: { width: number; height: number };
     pages: number;
-    binding: 'perfect' | 'saddle';
+    binding: 'perfect' | 'saddle' | 'spring';
     bleed: number;
+    paperThickness?: number;
   };
 }
 
@@ -25,33 +32,45 @@ export class ValidationProcessor {
   constructor(private readonly validatorService: PdfValidatorService) {}
 
   @Process('validate-pdf')
-  async handleValidation(job: Job<ValidationJobData>) {
+  async handleValidation(job: Job<ValidationJobData>): Promise<ValidationResultDto> {
     this.logger.log(`Processing validation job ${job.data.jobId}`);
 
     try {
       // Update job status to PROCESSING
       await this.updateJobStatus(job.data.jobId, 'PROCESSING');
 
-      // Validate PDF
-      const result = await this.validatorService.validate(job.data.fileUrl, {
+      // 검증 옵션 구성
+      const validationOptions: ValidationOptions = {
         fileType: job.data.fileType,
         orderOptions: job.data.orderOptions,
-      });
+      };
 
-      // Update job status to COMPLETED or FAILED
-      if (result.valid) {
+      // PDF 검증 실행
+      const result = await this.validatorService.validate(
+        job.data.fileUrl,
+        validationOptions,
+      );
+
+      // 결과에 따라 상태 업데이트
+      if (result.isValid) {
         await this.updateJobStatus(job.data.jobId, 'COMPLETED', {
           result,
         });
         this.logger.log(`Validation job ${job.data.jobId} completed successfully`);
       } else {
+        // 에러가 있지만 모두 자동 수정 가능한 경우
+        const allErrorsFixable = result.errors.every(e => e.autoFixable);
+        const status = allErrorsFixable ? 'FIXABLE' : 'FAILED';
+
         await this.updateJobStatus(
           job.data.jobId,
-          'FAILED',
+          status,
           { result },
-          `Validation failed: ${result.errors.length} errors found`,
+          this.formatErrorMessage(result),
         );
-        this.logger.warn(`Validation job ${job.data.jobId} failed`);
+        this.logger.warn(
+          `Validation job ${job.data.jobId} ${status}: ${result.errors.length} errors, ${result.warnings.length} warnings`,
+        );
       }
 
       return result;
@@ -74,7 +93,19 @@ export class ValidationProcessor {
   }
 
   /**
-   * Update job status in API
+   * 에러 메시지 포맷
+   */
+  private formatErrorMessage(result: ValidationResultDto): string {
+    if (result.errors.length === 0) {
+      return '';
+    }
+
+    const errorMessages = result.errors.map(e => e.message);
+    return errorMessages.join('; ');
+  }
+
+  /**
+   * API를 통해 Job 상태 업데이트
    */
   private async updateJobStatus(
     jobId: string,
@@ -89,6 +120,9 @@ export class ValidationProcessor {
           status,
           result,
           errorMessage,
+        },
+        {
+          timeout: 10000, // 10초 타임아웃
         },
       );
     } catch (error) {

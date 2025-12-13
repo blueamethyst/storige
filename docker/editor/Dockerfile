@@ -17,7 +17,11 @@ COPY packages ./packages
 COPY apps/editor ./apps/editor
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
+
+# Build packages first (types -> canvas-core -> editor)
+RUN pnpm --filter @storige/types build || true
+RUN pnpm --filter @storige/canvas-core build || true
 
 # Build Editor
 RUN pnpm --filter @storige/editor build

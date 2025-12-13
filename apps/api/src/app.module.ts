@@ -13,6 +13,9 @@ import { EditorContentsModule } from './editor-contents/editor-contents.module';
 import { ProductsModule } from './products/products.module';
 import { HealthModule } from './health/health.module';
 import { SeedModule } from './database/seeds/seed.module';
+import { BookmoaModule } from './bookmoa/bookmoa.module';
+import { FilesModule } from './files/files.module';
+import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
 
 @Module({
   imports: [
@@ -35,7 +38,8 @@ import { SeedModule } from './database/seeds/seed.module';
         username: config.get('DATABASE_USER', 'root'),
         password: config.get('DATABASE_PASSWORD', ''),
         database: config.get('DATABASE_NAME', 'storige'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        // bookmoa-entities는 별도 DB 연결을 사용하므로 제외 (*/entities/ 경로만 포함)
+        entities: [__dirname + '/*/entities/*.entity{.ts,.js}'],
         synchronize: config.get('NODE_ENV') === 'development',
         logging: config.get('NODE_ENV') === 'development',
         charset: 'utf8mb4',
@@ -67,6 +71,15 @@ import { SeedModule } from './database/seeds/seed.module';
 
     // Database seeding
     SeedModule,
+
+    // Bookmoa integration (read-only)
+    BookmoaModule,
+
+    // File management
+    FilesModule,
+
+    // Edit sessions
+    EditSessionsModule,
   ],
   controllers: [],
   providers: [],

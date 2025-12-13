@@ -8,8 +8,12 @@ import { AuthController } from './auth.controller';
 import { User } from './entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { ApiKeyStrategy } from './strategies/api-key.strategy';
+import { JwtCookieStrategy } from './strategies/jwt-cookie.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { ApiKeyGuard } from './guards/api-key.guard';
+import { JwtCookieGuard } from './guards/jwt-cookie.guard';
 import { APP_GUARD } from '@nestjs/core';
 
 @Module({
@@ -32,12 +36,16 @@ import { APP_GUARD } from '@nestjs/core';
     AuthService,
     JwtStrategy,
     LocalStrategy,
+    ApiKeyStrategy,
+    JwtCookieStrategy,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
     RolesGuard,
+    ApiKeyGuard,
+    JwtCookieGuard,
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtCookieGuard, ApiKeyGuard],
 })
 export class AuthModule {}
