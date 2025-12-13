@@ -3,7 +3,7 @@ import { apiClient } from './client'
 /**
  * Edit Session 상태 (bookmoa 연동용)
  */
-export type SessionStatus = 'draft' | 'editing' | 'completed'
+export type SessionStatus = 'draft' | 'editing' | 'complete'
 
 /**
  * Edit Session 모드
@@ -120,6 +120,16 @@ export const editSessionsApi = {
    */
   delete: async (id: string): Promise<{ success: boolean }> => {
     const response = await apiClient.delete<{ success: boolean }>(`/edit-sessions/${id}`)
+    return response.data
+  },
+
+  /**
+   * 내 세션 목록 조회 (현재 사용자 기준)
+   */
+  getMySessions: async (): Promise<{ sessions: EditSessionResponse[]; total: number }> => {
+    const response = await apiClient.get<{ sessions: EditSessionResponse[]; total: number }>(
+      '/edit-sessions'
+    )
     return response.data
   },
 }

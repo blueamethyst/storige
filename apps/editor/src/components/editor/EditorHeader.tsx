@@ -24,12 +24,21 @@ interface EditorHeaderProps {
   screenMode?: 'mobile' | 'tablet' | 'desktop'
   onToggleSidePanel?: () => void
   onLoadingChange?: (loading: boolean, message?: string) => void
+  /** 편집완료 콜백 (bookmoa 연동용) */
+  onFinish?: () => Promise<void>
+  /** 내 작업에 저장 콜백 */
+  onSaveWork?: () => Promise<void>
+  /** 불러오기 콜백 */
+  onOpenWorkspace?: () => void
 }
 
 export default function EditorHeader({
   screenMode = 'desktop',
   onToggleSidePanel,
   onLoadingChange,
+  onFinish,
+  onSaveWork,
+  onOpenWorkspace,
 }: EditorHeaderProps) {
   const [previewMode, setPreviewMode] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -186,17 +195,19 @@ export default function EditorHeader({
         }
       }
 
-      // TODO: useWorkSave hook 포팅 후 실제 저장 로직 연결
-      console.log('내 작업에 저장 기능은 아직 구현되지 않았습니다.')
-
-      // TODO: 토스트 메시지 추가
+      // onSaveWork 콜백이 있으면 해당 콜백 호출
+      if (onSaveWork) {
+        await onSaveWork()
+      } else {
+        console.log('내 작업에 저장: 세션 없음 (독립 실행 모드)')
+      }
     } catch (error) {
       console.error('저장 중 오류:', error)
     } finally {
       setSaving(false)
       setLoading(false)
     }
-  }, [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading])
+  }, [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading, onSaveWork])
 
   // 편집완료 (고객용)
   const handleFinish = useCallback(async () => {
@@ -215,22 +226,20 @@ export default function EditorHeader({
         }
       }
 
-      // TODO: 실제 저장 및 PDF 생성 로직
-      // const pdf = await saveWork({ exportToPdf: true })
-
-      // TODO: 쇼핑몰에 메시지 전송
-      // if (pdf) {
-      //   setTimeout(() => sendMessageToShop(pdf, designMeta), 1000)
-      // }
-
-      console.log('편집완료 기능은 아직 구현되지 않았습니다.')
+      // onFinish 콜백이 있으면 (bookmoa 연동 모드) 해당 콜백 호출
+      if (onFinish) {
+        await onFinish()
+      } else {
+        // 독립 실행 모드 - 로컬 저장만 수행
+        console.log('편집완료: 독립 실행 모드 (세션 없음)')
+      }
     } catch (error) {
       console.error('디자인 저장 실패:', error)
     } finally {
       setFinishing(false)
       setLoading(false)
     }
-  }, [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading])
+  }, [ready, canvas, previewMode, getPlugin, currentSettings.colorMode, setLoading, onFinish])
 
   // 관리자용 저장
   const handleSaveForAdmin = useCallback(
@@ -268,9 +277,12 @@ export default function EditorHeader({
 
   // 불러오기
   const handleOpenWorkspace = useCallback(() => {
-    // TODO: WorkspaceModal 구현 후 연결
-    console.log('불러오기 기능은 아직 구현되지 않았습니다.')
-  }, [])
+    if (onOpenWorkspace) {
+      onOpenWorkspace()
+    } else {
+      console.log('불러오기: 세션 없음 (독립 실행 모드)')
+    }
+  }, [onOpenWorkspace])
 
   return (
     <TooltipProvider>

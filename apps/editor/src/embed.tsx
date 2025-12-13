@@ -25,12 +25,14 @@ import { useAppStore } from './stores/useAppStore'
 import { useEditorContents } from './hooks/useEditorContents'
 import { createCanvas } from './utils/createCanvas'
 import { templatesApi, editSessionsApi, apiClient, type EditSessionResponse } from './api'
+import { core } from '@storige/canvas-core'
 import type { ApiError } from './api/client'
 import ToolBar from './components/editor/ToolBar'
 import FeatureSidebar from './components/editor/FeatureSidebar'
 import ControlBar from './components/editor/ControlBar'
 import SidePanel from './components/editor/SidePanel'
 import EditorHeader from './components/editor/EditorHeader'
+import { WorkspaceModal } from './components/modals'
 import './index.css'
 
 // ============================================================
@@ -174,6 +176,7 @@ function EmbeddedEditor({
   const [loadingMessage, setLoadingMessage] = useState('에디터를 초기화하는 중...')
   const [error, setError] = useState<string | null>(null)
   const [currentSession, setCurrentSession] = useState<EditSessionResponse | null>(null)
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false)
 
   // Store state
   const {
@@ -185,6 +188,7 @@ function EmbeddedEditor({
     cancelInitialization,
     updateObjects,
     editor,
+    canvas,
   } = useAppStore()
 
   const { loadEmptyEditor } = useEditorContents()
@@ -465,8 +469,8 @@ function EmbeddedEditor({
         }
 
         try {
-          // Get canvas data from editor
-          const canvasData = editor?.toJSON() || null
+          // Get canvas data
+          const canvasData = canvas?.toJSON(core.extendFabricOption) || null
 
           // Update edit session with canvas data
           const updatedSession = await editSessionsApi.update(currentSessionId, {
@@ -504,7 +508,7 @@ function EmbeddedEditor({
 
         try {
           // First save current state
-          const canvasData = editor?.toJSON() || null
+          const canvasData = canvas?.toJSON(core.extendFabricOption) || null
           await editSessionsApi.update(currentSessionId, {
             canvasData,
           })
@@ -560,13 +564,135 @@ function EmbeddedEditor({
         totalPages: 1,
       }),
     }
-  }, [ready, editor, sessionId, currentSession, options, onComplete, onCancel, onSave, onError, instanceRef])
+  }, [ready, canvas, sessionId, currentSession, options, onComplete, onCancel, onSave, onError, instanceRef])
 
   // Loading state handler
   const handleLoadingChange = useCallback((loading: boolean, message?: string) => {
     setIsLoading(loading)
     setLoadingMessage(message || '')
   }, [])
+
+  // 편집완료 핸들러 - EditorHeader에서 호출됨
+  const handleFinish = useCallback(async () => {
+    const currentSessionId = currentSession?.id || sessionId
+
+    if (!currentSessionId) {
+      console.log('[EmbeddedEditor] No session, skipping complete')
+      return
+    }
+
+    try {
+      // Get canvas data
+      const canvasData = canvas?.toJSON(core.extendFabricOption) || null
+
+      // Update edit session with canvas data
+      await editSessionsApi.update(currentSessionId, {
+        canvasData,
+      })
+
+      // Mark session as completed
+      const completedSession = await editSessionsApi.complete(currentSessionId)
+      setCurrentSession(completedSession)
+
+      const result: EditorResult = {
+        sessionId: completedSession.id,
+        orderSeqno: Number(completedSession.orderSeqno),
+        editCode: `EDIT-${completedSession.id.substring(0, 8).toUpperCase()}`,
+        pages: {
+          initial: options?.pages || 1,
+          final: options?.pages || 1,
+        },
+        files: {
+          coverFileId: completedSession.coverFileId || undefined,
+          contentFileId: completedSession.contentFileId || undefined,
+          thumbnailUrl: completedSession.coverFile?.thumbnailUrl || undefined,
+        },
+        savedAt: completedSession.completedAt || completedSession.updatedAt,
+      }
+
+      console.log('[EmbeddedEditor] Complete success:', result.sessionId)
+      onComplete?.(result)
+    } catch (err) {
+      console.error('[EmbeddedEditor] Complete failed:', err)
+      onError?.({
+        code: 'SAVE_FAILED',
+        message: err instanceof Error ? err.message : '편집 완료에 실패했습니다.',
+      })
+      throw err
+    }
+  }, [canvas, sessionId, currentSession, options, onComplete, onError])
+
+  // 내 작업에 저장 핸들러 - EditorHeader에서 호출됨
+  const handleSaveWork = useCallback(async () => {
+    const currentSessionId = currentSession?.id || sessionId
+
+    if (!currentSessionId) {
+      console.log('[EmbeddedEditor] No session, skipping save')
+      return
+    }
+
+    try {
+      // Get canvas data
+      const canvasData = canvas?.toJSON(core.extendFabricOption) || null
+
+      // Update edit session with canvas data
+      const updatedSession = await editSessionsApi.update(currentSessionId, {
+        canvasData,
+        status: 'editing',
+      })
+
+      setCurrentSession(updatedSession)
+
+      const result: SaveResult = {
+        sessionId: updatedSession.id,
+        savedAt: updatedSession.updatedAt,
+        thumbnail: updatedSession.coverFile?.thumbnailUrl || undefined,
+      }
+
+      console.log('[EmbeddedEditor] Save completed:', result.sessionId)
+      onSave?.(result)
+    } catch (err) {
+      console.error('[EmbeddedEditor] Save failed:', err)
+      onError?.({
+        code: 'SAVE_FAILED',
+        message: err instanceof Error ? err.message : '저장에 실패했습니다.',
+      })
+      throw err
+    }
+  }, [canvas, sessionId, currentSession, onSave, onError])
+
+  // 불러오기 핸들러 - 모달 열기
+  const handleOpenWorkspace = useCallback(() => {
+    setShowWorkspaceModal(true)
+  }, [])
+
+  // 세션 불러오기 핸들러 - 선택한 세션 로드
+  const handleLoadSession = useCallback(async (session: EditSessionResponse) => {
+    try {
+      setShowWorkspaceModal(false)
+      setIsLoading(true)
+      setLoadingMessage('저장된 작업을 불러오는 중...')
+
+      // 세션 정보 업데이트
+      setCurrentSession(session)
+
+      // 캔버스 데이터가 있으면 로드
+      if (session.canvasData && canvas) {
+        await core.loadFromJSON(canvas, session.canvasData)
+        console.log('[EmbeddedEditor] Canvas data loaded from session:', session.id)
+      }
+
+      console.log('[EmbeddedEditor] Session loaded:', session.id)
+    } catch (err) {
+      console.error('[EmbeddedEditor] Failed to load session:', err)
+      onError?.({
+        code: 'INVALID_DATA',
+        message: err instanceof Error ? err.message : '작업을 불러오는데 실패했습니다.',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [canvas, onError])
 
   // Toggle side panel
   const toggleSidePanel = () => {
@@ -598,6 +724,9 @@ function EmbeddedEditor({
         screenMode={screenMode}
         onToggleSidePanel={toggleSidePanel}
         onLoadingChange={handleLoadingChange}
+        onFinish={handleFinish}
+        onSaveWork={handleSaveWork}
+        onOpenWorkspace={handleOpenWorkspace}
       />
 
       <div className={`flex-1 flex relative overflow-hidden ${screenMode !== 'desktop' ? 'flex-col' : 'flex-row'}`}>
@@ -635,6 +764,13 @@ function EmbeddedEditor({
           </div>
         </div>
       )}
+
+      {/* 저장된 작업 불러오기 모달 */}
+      <WorkspaceModal
+        isOpen={showWorkspaceModal}
+        onLoad={handleLoadSession}
+        onClose={() => setShowWorkspaceModal(false)}
+      />
     </div>
   )
 }

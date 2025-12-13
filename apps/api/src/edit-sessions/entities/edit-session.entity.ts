@@ -13,6 +13,7 @@ import { FileEntity } from '../../files/entities/file.entity';
 
 export enum SessionStatus {
   DRAFT = 'draft',
+  EDITING = 'editing',
   COMPLETE = 'complete',
 }
 
