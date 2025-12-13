@@ -24,8 +24,8 @@ import { createRoot, Root } from 'react-dom/client'
 import { useAppStore } from './stores/useAppStore'
 import { useEditorContents } from './hooks/useEditorContents'
 import { createCanvas } from './utils/createCanvas'
-import { templatesApi, editSessionsApi, apiClient, type EditSessionResponse } from './api'
-import { core } from '@storige/canvas-core'
+import { templatesApi, editSessionsApi, filesApi, apiClient, type EditSessionResponse } from './api'
+import { core, ServicePlugin } from '@storige/canvas-core'
 import type { ApiError } from './api/client'
 import ToolBar from './components/editor/ToolBar'
 import FeatureSidebar from './components/editor/FeatureSidebar'
@@ -296,6 +296,15 @@ function EmbeddedEditor({
               coverFileId,
               contentFileId,
               templateSetId,
+              metadata: {
+                // 주문 옵션 (Worker 검증에 사용)
+                size: options?.size,
+                pages: options?.pages,
+                binding: options?.binding,
+                bleed: options?.bleed,
+                paperThickness: options?.paperThickness,
+                productId,
+              },
             })
             console.log('[EmbeddedEditor] New session created:', editSession.id)
           }
@@ -581,7 +590,9 @@ function EmbeddedEditor({
       return
     }
 
+    setIsLoading(true)
     try {
+      setLoadingMessage('작업을 저장하는 중...')
       // Get canvas data
       const canvasData = canvas?.toJSON(core.extendFabricOption) || null
 
@@ -590,7 +601,67 @@ function EmbeddedEditor({
         canvasData,
       })
 
+      // Generate PDF from canvas
+      let fileId: string | undefined
+      if (editor && canvas) {
+        try {
+          setLoadingMessage('PDF를 생성하는 중...')
+          const servicePlugin = editor.getPlugin('ServicePlugin') as ServicePlugin | undefined
+          if (servicePlugin) {
+            // Generate PDF Blob
+            const pdfBlob = await servicePlugin.saveMultiPagePDFAsBlob(
+              [canvas],
+              [editor],
+              `session-${currentSessionId}`,
+              {
+                width: options?.size?.width || 210,
+                height: options?.size?.height || 297,
+                cutSize: options?.bleed || 3,
+                safeSize: 3,
+              },
+              undefined, // cutLine
+              300 // DPI
+            )
+
+            if (pdfBlob) {
+              // Upload PDF to server
+              setLoadingMessage('PDF를 업로드하는 중...')
+              const fileType = mode === 'cover' ? 'cover' : mode === 'content' ? 'content' : 'design'
+              const uploadResponse = await filesApi.upload({
+                file: pdfBlob,
+                type: fileType,
+                orderSeqno: orderSeqno,
+                metadata: {
+                  sessionId: currentSessionId,
+                  mode,
+                },
+              })
+              fileId = uploadResponse.id
+              console.log('[EmbeddedEditor] PDF uploaded:', fileId)
+
+              // Update session with file ID
+              const updatePayload: { coverFileId?: string; contentFileId?: string } = {}
+              if (mode === 'cover') {
+                updatePayload.coverFileId = fileId
+              } else if (mode === 'content') {
+                updatePayload.contentFileId = fileId
+              } else {
+                // For 'both' or 'template' mode, treat as cover for now
+                updatePayload.coverFileId = fileId
+              }
+              await editSessionsApi.update(currentSessionId, updatePayload)
+            }
+          } else {
+            console.warn('[EmbeddedEditor] ServicePlugin not found, skipping PDF generation')
+          }
+        } catch (pdfErr) {
+          console.error('[EmbeddedEditor] PDF generation/upload failed:', pdfErr)
+          // Continue without PDF - we still want to complete the session
+        }
+      }
+
       // Mark session as completed
+      setLoadingMessage('편집을 완료하는 중...')
       const completedSession = await editSessionsApi.complete(currentSessionId)
       setCurrentSession(completedSession)
 
@@ -619,8 +690,10 @@ function EmbeddedEditor({
         message: err instanceof Error ? err.message : '편집 완료에 실패했습니다.',
       })
       throw err
+    } finally {
+      setIsLoading(false)
     }
-  }, [canvas, sessionId, currentSession, options, onComplete, onError])
+  }, [canvas, editor, sessionId, currentSession, options, mode, orderSeqno, onComplete, onError])
 
   // 내 작업에 저장 핸들러 - EditorHeader에서 호출됨
   const handleSaveWork = useCallback(async () => {

@@ -87,8 +87,8 @@
   - [x] 캔버스 데이터 저장
   - [x] 세션 상태 'complete'로 변경
   - [x] 쇼핑몰 콜백 호출 (onComplete)
-  - [ ] 썸네일 생성 (Worker 연동 후)
-  - [ ] PDF 생성 요청 (Worker 연동 후)
+  - [x] PDF 생성 및 업로드
+  - [x] Worker 검증 작업 자동 생성
 - [x] **내 작업에 저장 (handleSaveWork)** ✅
   - [x] 세션 데이터 저장
   - [x] 세션 상태 'editing'으로 변경
@@ -101,16 +101,27 @@
 - [ ] 관리자용 저장
 - [ ] CMS 연동
 
-## Phase 5: Worker 통합 ❌ 미시작
+## Phase 5: Worker 통합 🔄 진행중
 
 ### 5.1 PDF 처리
-- [ ] 검증 작업 (Validation)
+- [x] 검증 작업 (Validation) ✅
+  - [x] EditSession 완료 시 자동 생성
+  - [x] Bull 큐 연동
+  - [x] PDF 파일 검증 로직
 - [ ] 변환 작업 (Conversion)
+  - [ ] 페이지 추가/블리드 적용
 - [ ] 합성 작업 (Synthesis)
+  - [ ] 표지+내지 합성
 
 ### 5.2 콜백 시스템
 - [ ] 작업 완료 콜백
 - [ ] bookmoa 주문 상태 업데이트
+
+### 5.3 에디터-Worker 연동 ✅
+- [x] 에디터 Files API 클라이언트 (`files.ts`)
+- [x] PDF 생성 (ServicePlugin.saveMultiPagePDFAsBlob)
+- [x] PDF 업로드 (filesApi.upload)
+- [x] 세션 완료 시 Worker Job 자동 생성
 
 ## Phase 6: 프로덕션 배포 ❌ 미시작
 
@@ -133,17 +144,17 @@
 | Phase 1: 기반 인프라 | ✅ 완료 | 100% |
 | Phase 2: 에디터 번들 | ✅ 완료 | 100% |
 | Phase 3: Docker 환경 | ✅ 완료 | 100% |
-| Phase 4: 에디터 기능 | 🔄 진행중 | 90% |
-| Phase 5: Worker 통합 | ❌ 미시작 | 0% |
+| Phase 4: 에디터 기능 | ✅ 완료 | 95% |
+| Phase 5: Worker 통합 | 🔄 진행중 | 60% |
 | Phase 6: 배포 | ❌ 미시작 | 0% |
 
-**전체 진행률: 약 70%**
+**전체 진행률: 약 80%**
 
 ## 다음 작업 우선순위
 
-1. **Worker 통합** (Phase 5)
-   - PDF 생성 파이프라인 연결
-   - 썸네일 생성 연동
+1. **Worker 콜백 시스템** (Phase 5.2)
+   - 검증 완료 콜백 처리
+   - bookmoa 주문 상태 업데이트
 
 2. **자동 저장 구현** (Phase 4.2)
    - 주기적 자동 저장

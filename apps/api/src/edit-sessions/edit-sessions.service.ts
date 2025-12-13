@@ -3,12 +3,15 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   EditSessionEntity,
   SessionStatus,
+  SessionMode,
 } from './entities/edit-session.entity';
 import { CreateEditSessionDto } from './dto/create-edit-session.dto';
 import { UpdateEditSessionDto } from './dto/update-edit-session.dto';
@@ -16,6 +19,7 @@ import {
   EditSessionResponseDto,
   FileInfoDto,
 } from './dto/edit-session-response.dto';
+import { WorkerJobsService } from '../worker-jobs/worker-jobs.service';
 
 @Injectable()
 export class EditSessionsService {
@@ -24,6 +28,8 @@ export class EditSessionsService {
   constructor(
     @InjectRepository(EditSessionEntity)
     private sessionRepository: Repository<EditSessionEntity>,
+    @Inject(forwardRef(() => WorkerJobsService))
+    private workerJobsService: WorkerJobsService,
   ) {}
 
   /**
@@ -158,7 +164,67 @@ export class EditSessionsService {
     const completed = await this.sessionRepository.save(session);
     this.logger.log(`Completed edit session ${id}`);
 
+    // Create Worker validation jobs for associated files
+    await this.createValidationJobs(completed);
+
     return completed;
+  }
+
+  /**
+   * 완료된 세션의 파일에 대한 Worker 검증 작업 생성
+   */
+  private async createValidationJobs(session: EditSessionEntity): Promise<void> {
+    try {
+      // Get order options from metadata or use defaults
+      const orderOptions = {
+        size: session.metadata?.size || { width: 210, height: 297 },
+        pages: session.metadata?.pages || 1,
+        binding: session.metadata?.binding || 'perfect',
+        bleed: session.metadata?.bleed || 3,
+        paperThickness: session.metadata?.paperThickness,
+      };
+
+      // Create validation job for cover file
+      if (session.coverFileId) {
+        try {
+          const job = await this.workerJobsService.createValidationJob({
+            fileId: session.coverFileId,
+            fileType: 'cover',
+            orderOptions,
+          });
+          this.logger.log(
+            `Created validation job ${job.id} for cover file ${session.coverFileId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to create validation job for cover file: ${error.message}`,
+          );
+        }
+      }
+
+      // Create validation job for content file
+      if (session.contentFileId) {
+        try {
+          const job = await this.workerJobsService.createValidationJob({
+            fileId: session.contentFileId,
+            fileType: 'content',
+            orderOptions,
+          });
+          this.logger.log(
+            `Created validation job ${job.id} for content file ${session.contentFileId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Failed to create validation job for content file: ${error.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      // Don't fail session completion if worker job creation fails
+      this.logger.error(
+        `Failed to create validation jobs for session ${session.id}: ${error.message}`,
+      );
+    }
   }
 
   /**
