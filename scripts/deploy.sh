@@ -87,11 +87,22 @@ fi
 echo "  - All builds verified successfully"
 
 # ===========================================
-# 6. Create logs directory
+# 6. Create logs directory & Copy editor bundle
 # ===========================================
-echo -e "\n${GREEN}[6/7] Setting up directories...${NC}"
+echo -e "\n${GREEN}[6/8] Setting up directories...${NC}"
 mkdir -p logs
 mkdir -p apps/api/storage
+
+# Copy editor embed bundle to bookmoa (if bookmoa path exists)
+BOOKMOA_EMBED_PATH="${BOOKMOA_PATH:-../bookmoa}/storige-embed"
+if [ -d "$(dirname "$BOOKMOA_EMBED_PATH")" ]; then
+    echo "  - Copying editor bundle to bookmoa..."
+    mkdir -p "$BOOKMOA_EMBED_PATH"
+    cp apps/editor/dist-embed/* "$BOOKMOA_EMBED_PATH/"
+    echo "  - Editor bundle copied to $BOOKMOA_EMBED_PATH"
+else
+    echo -e "${YELLOW}  - Warning: bookmoa directory not found, skipping editor bundle copy${NC}"
+fi
 
 # ===========================================
 # 7. Start/Restart PM2 processes
