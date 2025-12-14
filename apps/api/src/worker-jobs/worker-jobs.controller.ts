@@ -138,6 +138,25 @@ export class WorkerJobsController {
     return await this.workerJobsService.findOne(id);
   }
 
+  /**
+   * 외부 연동용 작업 상태 업데이트 (API Key 인증)
+   * Worker 서비스에서 서버 간 통신으로 호출
+   */
+  @Patch('external/:id/status')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Update job status (external API key auth)' })
+  @ApiResponse({ status: 200, description: 'Job status updated', type: WorkerJob })
+  @ApiResponse({ status: 404, description: 'Job not found' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  async updateJobStatusExternal(
+    @Param('id') id: string,
+    @Body() updateJobStatusDto: UpdateJobStatusDto,
+  ): Promise<WorkerJob> {
+    return await this.workerJobsService.updateJobStatus(id, updateJobStatusDto);
+  }
+
   @Patch(':id/status')
   @ApiOperation({ summary: 'Update job status (used by worker service)' })
   @ApiResponse({ status: 200, description: 'Job status updated', type: WorkerJob })

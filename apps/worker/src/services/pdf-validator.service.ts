@@ -353,13 +353,24 @@ export class PdfValidatorService {
    * 파일 다운로드
    */
   private async downloadFile(url: string): Promise<Uint8Array> {
-    // 로컬 파일 경로인 경우
-    if (url.startsWith('/') || url.startsWith('./')) {
-      const buffer = await fs.readFile(url);
+    // 로컬 파일 경로인 경우 (절대 경로, 상대 경로, storage/ 경로)
+    if (url.startsWith('/') || url.startsWith('./') || url.startsWith('storage/')) {
+      // storage/ 경로는 API 서비스의 storage 디렉토리 기준으로 처리
+      // Worker는 apps/worker에서 실행되므로 ../api/storage로 접근
+      let filePath = url;
+      if (url.startsWith('storage/')) {
+        // Worker는 apps/worker에서 실행되므로 API의 storage 디렉토리 접근 필요
+        // WORKER_STORAGE_PATH가 설정되어 있으면 사용, 없으면 상대 경로로 접근
+        const storagePath = process.env.WORKER_STORAGE_PATH || '../api';
+        filePath = `${storagePath}/${url}`;
+      }
+      this.logger.log(`Reading local file: ${filePath}`);
+      const buffer = await fs.readFile(filePath);
       return new Uint8Array(buffer);
     }
 
     // URL에서 다운로드
+    this.logger.log(`Downloading from URL: ${url}`);
     const response = await axios.get(url, {
       responseType: 'arraybuffer',
       timeout: 60000, // 60초 타임아웃

@@ -28,6 +28,7 @@ export class ValidationProcessor {
   private readonly logger = new Logger(ValidationProcessor.name);
   private readonly apiBaseUrl =
     process.env.API_BASE_URL || 'http://localhost:4000/api';
+  private readonly apiKey = process.env.WORKER_API_KEY || 'test-api-key';
 
   constructor(private readonly validatorService: PdfValidatorService) {}
 
@@ -115,7 +116,7 @@ export class ValidationProcessor {
   ): Promise<void> {
     try {
       await axios.patch(
-        `${this.apiBaseUrl}/worker-jobs/${jobId}/status`,
+        `${this.apiBaseUrl}/worker-jobs/external/${jobId}/status`,
         {
           status,
           result,
@@ -123,6 +124,9 @@ export class ValidationProcessor {
         },
         {
           timeout: 10000, // 10초 타임아웃
+          headers: {
+            'X-API-Key': this.apiKey,
+          },
         },
       );
     } catch (error) {
