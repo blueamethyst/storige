@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BookmoaMemberEntity } from '../bookmoa-entities/member.entity';
 import { BookmoaOrderEntity } from '../bookmoa-entities/order.entity';
+import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
 import { BookmoaService } from './bookmoa.service';
 import { BookmoaController } from './bookmoa.controller';
 
@@ -26,7 +27,7 @@ import { BookmoaController } from './bookmoa.controller';
         username: config.get('BOOKMOA_DB_USER', 'bookmoa_readonly'),
         password: config.get('BOOKMOA_DB_PASSWORD', ''),
         database: config.get('BOOKMOA_DB_NAME', 'bookmoa'),
-        entities: [BookmoaMemberEntity, BookmoaOrderEntity],
+        entities: [BookmoaMemberEntity, BookmoaOrderEntity, BookmoaCategoryEntity],
         synchronize: false, // 읽기 전용이므로 절대 동기화하지 않음
         logging: config.get('NODE_ENV') === 'development',
         charset: 'utf8mb4',
@@ -35,7 +36,7 @@ import { BookmoaController } from './bookmoa.controller';
 
     // Bookmoa 엔티티 등록
     TypeOrmModule.forFeature(
-      [BookmoaMemberEntity, BookmoaOrderEntity],
+      [BookmoaMemberEntity, BookmoaOrderEntity, BookmoaCategoryEntity],
       'bookmoa',
     ),
   ],

@@ -12,8 +12,9 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
 
 interface BookmoaCategory {
   sortcode: string;
@@ -30,16 +31,10 @@ interface CategoriesResponse {
 @ApiTags('Bookmoa')
 @Controller('bookmoa')
 export class BookmoaController {
-  private readonly bookmoaApiUrl: string;
-  private readonly apiKey: string;
-
-  constructor(private readonly configService: ConfigService) {
-    this.bookmoaApiUrl = this.configService.get<string>(
-      'BOOKMOA_API_URL',
-      'http://localhost:8080',
-    );
-    this.apiKey = this.configService.get<string>('API_KEYS', 'test-api-key').split(',')[0];
-  }
+  constructor(
+    @InjectRepository(BookmoaCategoryEntity, 'bookmoa')
+    private readonly categoryRepository: Repository<BookmoaCategoryEntity>,
+  ) {}
 
   /**
    * 북모아 카테고리(상품) 목록 조회
@@ -81,32 +76,51 @@ export class BookmoaController {
     @Query('limit') limit?: string,
   ): Promise<CategoriesResponse> {
     try {
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (depth) params.append('depth', depth);
-      if (parent) params.append('parent', parent);
-      if (limit) params.append('limit', limit);
+      const maxLimit = Math.min(parseInt(limit || '50', 10), 100);
 
-      const url = `${this.bookmoaApiUrl}/storige/ajax/get_categories.php?${params.toString()}`;
+      // QueryBuilder 사용
+      const qb = this.categoryRepository
+        .createQueryBuilder('cate')
+        .where('cate.useYn = :useYn', { useYn: 'Y' })
+        .orderBy('cate.sortcode', 'ASC')
+        .take(maxLimit);
 
-      const response = await axios.get<CategoriesResponse>(url, {
-        headers: {
-          'X-API-Key': this.apiKey,
-        },
-        timeout: 10000,
-      });
-
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          throw new HttpException('Bookmoa API 인증 실패', HttpStatus.UNAUTHORIZED);
-        }
-        throw new HttpException(
-          `Bookmoa API 호출 실패: ${error.message}`,
-          HttpStatus.BAD_GATEWAY,
+      // 검색어 조건
+      if (search) {
+        qb.andWhere(
+          '(cate.cateName LIKE :search OR cate.sortcode LIKE :search)',
+          { search: `%${search}%` },
         );
       }
+
+      // depth 조건
+      if (depth) {
+        qb.andWhere('cate.depth = :depth', { depth: parseInt(depth, 10) });
+      }
+
+      // parent 조건 (상위 카테고리)
+      if (parent) {
+        qb.andWhere('cate.sortcode LIKE :parent', { parent: `${parent}%` });
+        qb.andWhere('LENGTH(cate.sortcode) > :parentLen', { parentLen: parent.length });
+      }
+
+      const results = await qb.getMany();
+
+      const categories: BookmoaCategory[] = results.map((cat) => ({
+        sortcode: cat.sortcode,
+        name: cat.cateName,
+        depth: cat.depth,
+        parentSortcode: cat.sortcode.length > 3
+          ? cat.sortcode.substring(0, cat.sortcode.length - 3)
+          : null,
+      }));
+
+      return {
+        categories,
+        total: categories.length,
+      };
+    } catch (error) {
+      console.error('카테고리 조회 실패:', error);
       throw new HttpException(
         '카테고리 조회 중 오류가 발생했습니다',
         HttpStatus.INTERNAL_SERVER_ERROR,
