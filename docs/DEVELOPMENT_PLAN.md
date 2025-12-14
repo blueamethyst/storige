@@ -148,6 +148,69 @@
 - [x] PDF 업로드 (filesApi.upload)
 - [x] 세션 완료 시 Worker Job 자동 생성
 
+## Phase 5.5: 쇼핑몰 Worker UX 🔄 진행중
+
+> 기획 문서: `docs/worker-ux-plan.md`
+
+### 5.5.1 주문 화면 파일 업로드 ✅
+- [x] 파일 업로드 UI 컴포넌트
+  - [x] 표지/내지 파일 선택 (`file_upload.php`)
+  - [x] 드래그 앤 드롭 지원
+  - [x] 업로드 진행률 표시
+  - [x] 파일 정보 미리보기 (파일명, 크기)
+- [x] Storige Files API 연동
+  - [x] `POST /api/files/upload` 호출 (`ajax/upload_file.php`)
+  - [x] fileId 저장 및 관리
+- [x] 주문 버튼 분기 로직
+  - [x] 파일 첨부 상태에 따른 분기
+  - [x] 디자인 의뢰 체크 여부 처리
+
+### 5.5.2 파일 검증 UI ✅
+- [x] 검증 진행 화면 (`validate.php`)
+  - [x] 프로그레스 바 UI
+  - [x] 검증 단계별 상태 표시 (업로드 → 무결성 → 사이즈 → 페이지 수 → 재단선)
+  - [x] Worker Job 상태 폴링 (2초 간격)
+- [x] 검증 API 연동
+  - [x] `POST /api/worker-jobs` 호출
+  - [x] `GET /api/worker-jobs/:jobId` 상태 조회 (`ajax/get_job_status.php`)
+
+### 5.5.3 검증 결과 화면 ✅
+- [x] 검증 성공 화면 (`validation_result.php`)
+  - [x] 파일별 검증 결과 표시 (✓ 체크 마크)
+  - [x] 메타데이터 표시 (페이지 수, 사이즈, 재단선 등)
+  - [x] "주문 진행하기" 버튼
+- [x] 검증 실패 화면
+  - [x] 에러/경고 목록 표시
+  - [x] 에러 상세 설명
+  - [x] 액션 버튼: 파일 재업로드 / 자동 변환 요청 / 편집기로 수정
+
+### 5.5.4 자동 변환 미리보기 ✅
+- [x] Before/After 비교 UI (`auto_convert.php`)
+  - [x] 원본 이미지 썸네일 (placeholder)
+  - [x] 변환 후 이미지 썸네일 (재단선 표시)
+  - [x] 변환 내역 목록 (사이즈 조정, 재단선 추가, 빈 페이지 추가 등)
+- [x] 변환 승인 플로우
+  - [x] "변환 승인 및 주문" 버튼
+  - [x] "취소" 버튼
+- [ ] 썸네일 API 연동
+  - [ ] `GET /api/files/:fileId/thumbnail` (신규 개발 필요)
+
+### 5.5.5 검증 에러코드 통일 ❌
+- [ ] Worker 에러코드 업데이트
+  - [ ] `INVALID_SIZE` → `SIZE_MISMATCH`
+  - [ ] `MISSING_BLEED` → `BLEED_MISSING`
+  - [ ] `INVALID_PAGE_COUNT` → `PAGE_COUNT_INVALID`
+  - [ ] `LOAD_ERROR` → `FILE_CORRUPTED`
+- [ ] 신규 에러코드 추가
+  - [ ] `UNSUPPORTED_FORMAT` - 파일 형식 미지원
+  - [ ] `FILE_TOO_LARGE` - 파일 크기 초과 (100MB)
+  - [ ] `PAGE_COUNT_EXCEEDED` - 최대 페이지 초과 (500p)
+  - [ ] `SPINE_SIZE_MISMATCH` - 세네카 사이즈 불일치
+  - [ ] `RESOLUTION_LOW` - 해상도 부족 (warning)
+- [ ] `autoFixable` 필드 추가
+  - [ ] 자동 변환 가능 여부 표시
+  - [ ] `fixMethod` 변환 방법 명시
+
 ## Phase 6: 프로덕션 배포 ❌ 미시작
 
 ### 6.1 배포 준비
@@ -171,12 +234,32 @@
 | Phase 3: Docker 환경 | ✅ 완료 | 100% |
 | Phase 4: 에디터 기능 | ✅ 완료 | 100% |
 | Phase 5: Worker 통합 | ✅ 완료 | 100% |
+| Phase 5.5: 쇼핑몰 Worker UX | 🔄 진행중 | 80% |
 | Phase 6: 배포 | ❌ 미시작 | 0% |
 
-**전체 진행률: 약 95%**
+**전체 진행률: 약 92%**
 
 ## 다음 작업 우선순위
 
-1. **프로덕션 배포** (Phase 6)
+1. **쇼핑몰 Worker UX** (Phase 5.5) 🔄
+   - ✅ 5.5.1 주문 화면 파일 업로드
+   - ✅ 5.5.2 파일 검증 UI
+   - ✅ 5.5.3 검증 결과 화면
+   - ✅ 5.5.4 자동 변환 미리보기
+   - ❌ 5.5.5 검증 에러코드 통일
+   - ❌ 썸네일 API 개발
+
+2. **프로덕션 배포** (Phase 6)
    - 배포 환경 설정
    - 모니터링 구축
+
+## 구현된 파일 목록 (Phase 5.5)
+
+### bookmoa/front/storige/
+- `file_upload.php` - 파일 업로드 UI (드래그 앤 드롭 지원)
+- `validate.php` - 검증 진행 화면 (폴링 방식)
+- `validation_result.php` - 검증 결과 화면
+- `auto_convert.php` - 자동 변환 미리보기 (Before/After)
+- `storige_common.php` - 공통 함수 (검증, 파일정보 등 추가)
+- `ajax/upload_file.php` - 파일 업로드 API
+- `ajax/get_job_status.php` - 작업 상태 조회 API
