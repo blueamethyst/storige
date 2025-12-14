@@ -1,7 +1,7 @@
 # Storige 시스템 아키텍처
 
 > 작성일: 2024-12-11
-> 버전: 1.1 (bookmoa 상세 추가: 2024-12-13)
+> 버전: 1.2 (개발환경 Apache 전환: 2024-12-14)
 
 ---
 
@@ -667,7 +667,51 @@ Products/
 
 ## 6. 배포 구성
 
-### 6.1 서버 구성 (같은 서버)
+### 6.1 개발 환경 (Docker)
+
+프로덕션 환경과 동일하게 Apache를 사용합니다.
+
+```bash
+# 실행 방법
+cd bookmoa
+docker-compose -f docker-compose.dev.yml up -d --build
+# 접속: http://localhost:8080
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     개발 환경 (Docker)                                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │              bookmoa-web (Apache + mod_php)                      │   │
+│  │                       :8080 → :80                                │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │                                                                  │   │
+│  │  환경변수 (SetEnv):                                              │   │
+│  │  - STORIGE_API_URL = http://host.docker.internal:4000/api       │   │
+│  │  - STORIGE_API_KEY = bookmoa_dev_key_2024                       │   │
+│  │  - STORIGE_EDITOR_BUNDLE_URL = /storige-embed/editor-bundle.js  │   │
+│  │                                                                  │   │
+│  │  라우팅:                                                         │   │
+│  │  /              → /var/www/html/front (쇼핑몰)                   │   │
+│  │  /nimda/        → /var/www/html/nimda (관리자)                   │   │
+│  │  /storige/      → /var/www/html/front/storige (에디터 연동)      │   │
+│  │  /storige-api/  → host.docker.internal:4000/api (API 프록시)    │   │
+│  │  /storige-embed/→ 에디터 번들 정적 파일                          │   │
+│  │                                                                  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  호스트 머신에서 실행:                                                    │
+│  ┌──────────────┐  ┌──────────────┐                                    │
+│  │  Storige API │  │Storige Worker│                                    │
+│  │  :4000       │  │  :4001       │                                    │
+│  └──────────────┘  └──────────────┘                                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 프로덕션 환경
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -675,21 +719,21 @@ Products/
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                        Nginx (Reverse Proxy)                     │   │
+│  │                    Apache (mod_php + mod_proxy)                  │   │
 │  │                            :80, :443                             │   │
 │  ├─────────────────────────────────────────────────────────────────┤   │
 │  │                                                                  │   │
-│  │  /              → PHP-FPM (쇼핑몰)                               │   │
-│  │  /api/          → localhost:4000 (Storige API)                  │   │
+│  │  /              → DocumentRoot (쇼핑몰 PHP)                      │   │
+│  │  /storige-api/  → localhost:4000/api (Storige API 프록시)       │   │
+│  │  /storige-embed/→ 에디터 번들 정적 파일                          │   │
 │  │  /editor/       → localhost:3000 (에디터 Standalone)             │   │
 │  │  /admin/        → localhost:3001 (관리자)                        │   │
-│  │  /storage/      → /app/storage (정적 파일)                       │   │
 │  │                                                                  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │   PHP-FPM    │  │  Node.js     │  │  Node.js     │                  │
-│  │   (쇼핑몰)    │  │  (API)       │  │  (Worker)    │                  │
+│  │  Apache      │  │  Node.js     │  │  Node.js     │                  │
+│  │  (mod_php)   │  │  (API)       │  │  (Worker)    │                  │
 │  │              │  │  :4000       │  │  :4001       │                  │
 │  └──────────────┘  └──────────────┘  └──────────────┘                  │
 │                                                                         │
@@ -701,7 +745,7 @@ Products/
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 PM2 프로세스 관리
+### 6.3 PM2 프로세스 관리
 
 ```javascript
 // ecosystem.config.js
@@ -853,9 +897,37 @@ GET /health/worker    # Worker 상태
 
 ## 부록 B. 환경변수
 
+### 북모아 기본 환경변수
+
 | 변수 | 설명 | 예시 |
 |------|------|------|
 | `$_SERVER["INC"]` | inc 디렉토리 경로 | `/var/www/html/inc` |
 | `$_SERVER["SELL_SITE"]` | 사이트 구분 코드 | `GP`, `DP` |
 | `$_SERVER["SiteHome"]` | 사이트 홈 URL | `http://bookmoa.noriter.co.kr` |
 | `$_SERVER["DOCUMENT_ROOT"]` | 웹 루트 | `/var/www/html/front` |
+
+### Storige 연동 환경변수
+
+| 변수 | 설명 | 개발 환경 | 프로덕션 |
+|------|------|----------|---------|
+| `STORIGE_API_URL` | Storige API 주소 | `http://host.docker.internal:4000/api` | `http://localhost:4000/api` |
+| `STORIGE_API_KEY` | API 인증 키 | `bookmoa_dev_key_2024` | (프로덕션 키) |
+| `STORIGE_EDITOR_BUNDLE_URL` | 에디터 JS 번들 경로 | `/storige-embed/editor-bundle.iife.js` | 동일 |
+| `STORIGE_EDITOR_CSS_URL` | 에디터 CSS 경로 | `/storige-embed/editor-bundle.css` | 동일 |
+
+Apache 설정에서 `SetEnv` 디렉티브로 설정:
+```apache
+SetEnv STORIGE_API_URL "http://localhost:4000/api"
+SetEnv STORIGE_API_KEY "your-api-key"
+SetEnv STORIGE_EDITOR_BUNDLE_URL "/storige-embed/editor-bundle.iife.js"
+SetEnv STORIGE_EDITOR_CSS_URL "/storige-embed/editor-bundle.css"
+```
+
+## 부록 C. Docker 개발 환경 파일
+
+| 파일 | 설명 |
+|------|------|
+| `bookmoa/docker-compose.dev.yml` | Docker Compose 설정 |
+| `bookmoa/docker/Dockerfile.apache` | Apache + PHP 이미지 |
+| `bookmoa/docker/apache.conf` | Apache VirtualHost 설정 |
+| `bookmoa/front/storige/.env.example` | 환경변수 예시 파일 |
