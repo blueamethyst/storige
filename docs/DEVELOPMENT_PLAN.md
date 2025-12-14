@@ -73,7 +73,7 @@
 - [x] Worker Dockerfile 업데이트
 - [x] nginx 설정 업데이트
 
-## Phase 4: 에디터 핵심 기능 🔄 진행중
+## Phase 4: 에디터 핵심 기능 ✅ 완료
 
 ### 4.1 캔버스 편집 ✅
 - [x] 텍스트 추가/편집
@@ -148,7 +148,7 @@
 - [x] PDF 업로드 (filesApi.upload)
 - [x] 세션 완료 시 Worker Job 자동 생성
 
-## Phase 5.5: 쇼핑몰 Worker UX 🔄 진행중
+## Phase 5.5: 쇼핑몰 Worker UX ✅ 완료
 
 > 기획 문서: `docs/worker-ux-plan.md`
 
@@ -192,24 +192,29 @@
 - [x] 변환 승인 플로우
   - [x] "변환 승인 및 주문" 버튼
   - [x] "취소" 버튼
-- [ ] 썸네일 API 연동
-  - [ ] `GET /api/files/:fileId/thumbnail` (신규 개발 필요)
+- [x] 썸네일 API 연동
+  - [x] `GET /api/files/:fileId/thumbnail` (Ghostscript + Sharp)
+  - [x] `POST /api/files/upload/external` (API Key 인증)
 
-### 5.5.5 검증 에러코드 통일 ❌
-- [ ] Worker 에러코드 업데이트
-  - [ ] `INVALID_SIZE` → `SIZE_MISMATCH`
-  - [ ] `MISSING_BLEED` → `BLEED_MISSING`
-  - [ ] `INVALID_PAGE_COUNT` → `PAGE_COUNT_INVALID`
-  - [ ] `LOAD_ERROR` → `FILE_CORRUPTED`
-- [ ] 신규 에러코드 추가
-  - [ ] `UNSUPPORTED_FORMAT` - 파일 형식 미지원
-  - [ ] `FILE_TOO_LARGE` - 파일 크기 초과 (100MB)
-  - [ ] `PAGE_COUNT_EXCEEDED` - 최대 페이지 초과 (500p)
-  - [ ] `SPINE_SIZE_MISMATCH` - 세네카 사이즈 불일치
-  - [ ] `RESOLUTION_LOW` - 해상도 부족 (warning)
-- [ ] `autoFixable` 필드 추가
-  - [ ] 자동 변환 가능 여부 표시
-  - [ ] `fixMethod` 변환 방법 명시
+### 5.5.5 검증 에러코드 통일 ✅
+- [x] Worker 에러코드 (`pdf-validator.service.ts`)
+  - [x] `SIZE_MISMATCH` - 크기 불일치
+  - [x] `BLEED_MISSING` - 재단선 누락 (warning)
+  - [x] `PAGE_COUNT_INVALID` - 페이지 수 오류
+  - [x] `FILE_CORRUPTED` - 파일 손상
+  - [x] `UNSUPPORTED_FORMAT` - 파일 형식 미지원
+  - [x] `FILE_TOO_LARGE` - 파일 크기 초과 (100MB)
+  - [x] `PAGE_COUNT_EXCEEDED` - 최대 페이지 초과
+  - [x] `SPINE_SIZE_MISMATCH` - 책등 사이즈 불일치
+  - [x] `RESOLUTION_LOW` - 해상도 부족 (warning)
+- [x] `autoFixable` 필드 구현
+  - [x] 자동 변환 가능 여부 표시
+  - [x] `fixMethod` 변환 방법 명시
+
+### 5.5.6 Worker 안정화 ✅
+- [x] 파일 경로 문제 수정 (`WORKER_STORAGE_PATH`)
+- [x] API Key 인증 추가 (worker→api 통신)
+- [x] Worker 단위 테스트 추가 (19 tests)
 
 ## Phase 6: 프로덕션 배포 ❌ 미시작
 
@@ -234,24 +239,18 @@
 | Phase 3: Docker 환경 | ✅ 완료 | 100% |
 | Phase 4: 에디터 기능 | ✅ 완료 | 100% |
 | Phase 5: Worker 통합 | ✅ 완료 | 100% |
-| Phase 5.5: 쇼핑몰 Worker UX | 🔄 진행중 | 80% |
+| Phase 5.5: 쇼핑몰 Worker UX | ✅ 완료 | 100% |
 | Phase 6: 배포 | ❌ 미시작 | 0% |
 
-**전체 진행률: 약 92%**
+**전체 진행률: 약 95%**
 
 ## 다음 작업 우선순위
 
-1. **쇼핑몰 Worker UX** (Phase 5.5) 🔄
-   - ✅ 5.5.1 주문 화면 파일 업로드
-   - ✅ 5.5.2 파일 검증 UI
-   - ✅ 5.5.3 검증 결과 화면
-   - ✅ 5.5.4 자동 변환 미리보기
-   - ❌ 5.5.5 검증 에러코드 통일
-   - ❌ 썸네일 API 개발
-
-2. **프로덕션 배포** (Phase 6)
-   - 배포 환경 설정
-   - 모니터링 구축
+1. **프로덕션 배포** (Phase 6)
+   - 프로덕션 환경변수 설정
+   - CDN 설정
+   - SSL 인증서
+   - 로깅 및 모니터링 구축
 
 ## 구현된 파일 목록 (Phase 5.5)
 
