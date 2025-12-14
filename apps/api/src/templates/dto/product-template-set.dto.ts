@@ -151,6 +151,9 @@ export class ProductTemplateSetResponseDto {
   @ApiProperty({ example: '001001001' })
   sortcode: string;
 
+  @ApiPropertyOptional({ example: '책자', description: '상품명 (bookmoa 카테고리명)' })
+  categoryName: string | null;
+
   @ApiPropertyOptional({ example: 1 })
   prdtStanSeqno: number | null;
 

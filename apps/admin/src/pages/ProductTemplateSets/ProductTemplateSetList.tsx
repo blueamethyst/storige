@@ -246,18 +246,16 @@ export const ProductTemplateSetList = () => {
 
   const columns: ColumnsType<ProductTemplateSet> = [
     {
-      title: '상품코드',
-      dataIndex: 'sortcode',
-      key: 'sortcode',
-      width: 140,
-      render: (sortcode: string, record) => (
+      title: '상품',
+      key: 'product',
+      width: 200,
+      render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{sortcode}</Text>
-          {record.prdtStanSeqno && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              규격: {record.prdtStanSeqno}
-            </Text>
-          )}
+          <Text strong>{record.categoryName || record.sortcode}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {record.sortcode}
+            {record.prdtStanSeqno && ` · 규격 ${record.prdtStanSeqno}`}
+          </Text>
         </Space>
       ),
     },

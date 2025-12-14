@@ -4,9 +4,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import { ProductTemplateSet } from './entities/product-template-set.entity';
 import { TemplateSet } from './entities/template-set.entity';
+import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
 import {
   CreateProductTemplateSetDto,
   UpdateProductTemplateSetDto,
@@ -24,6 +25,8 @@ export class ProductTemplateSetsService {
     private ptsRepository: Repository<ProductTemplateSet>,
     @InjectRepository(TemplateSet)
     private templateSetRepository: Repository<TemplateSet>,
+    @InjectRepository(BookmoaCategoryEntity, 'bookmoa')
+    private categoryRepository: Repository<BookmoaCategoryEntity>,
   ) {}
 
   /**
@@ -151,7 +154,7 @@ export class ProductTemplateSetsService {
       .leftJoinAndSelect('pts.templateSet', 'ts');
 
     if (sortcode) {
-      qb.andWhere('pts.sortcode = :sortcode', { sortcode });
+      qb.andWhere('pts.sortcode LIKE :sortcode', { sortcode: `%${sortcode}%` });
     }
 
     if (templateSetId) {
@@ -171,8 +174,26 @@ export class ProductTemplateSetsService {
       .take(limit)
       .getManyAndCount();
 
+    // 카테고리 이름 조회 (bookmoa DB에서)
+    const sortcodes = [...new Set(items.map((item) => item.sortcode))];
+    const categoryMap = new Map<string, string>();
+
+    if (sortcodes.length > 0) {
+      try {
+        const categories = await this.categoryRepository.find({
+          where: { sortcode: In(sortcodes) },
+        });
+        categories.forEach((cat) => {
+          categoryMap.set(cat.sortcode, cat.cateName);
+        });
+      } catch (error) {
+        // bookmoa DB 연결 실패 시 무시
+        console.warn('Failed to fetch category names from bookmoa:', error.message);
+      }
+    }
+
     return {
-      items: items.map((item) => this.toResponseDto(item)),
+      items: items.map((item) => this.toResponseDto(item, categoryMap.get(item.sortcode))),
       total,
       page,
       limit,
@@ -254,10 +275,11 @@ export class ProductTemplateSetsService {
   /**
    * Entity → Response DTO 변환
    */
-  toResponseDto(entity: ProductTemplateSet): ProductTemplateSetResponseDto {
+  toResponseDto(entity: ProductTemplateSet, categoryName?: string): ProductTemplateSetResponseDto {
     return {
       id: entity.id,
       sortcode: entity.sortcode,
+      categoryName: categoryName || null,
       prdtStanSeqno: entity.prdtStanSeqno,
       templateSetId: entity.templateSetId,
       displayOrder: entity.displayOrder,

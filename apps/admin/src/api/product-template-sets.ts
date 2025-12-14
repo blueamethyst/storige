@@ -3,6 +3,7 @@ import { axiosInstance } from '../lib/axios';
 export interface ProductTemplateSet {
   id: string;
   sortcode: string;
+  categoryName: string | null;
   prdtStanSeqno: number | null;
   templateSetId: string;
   displayOrder: number;

@@ -13,6 +13,7 @@ import { Category } from './entities/category.entity';
 import { TemplateSet, TemplateSetItem } from './entities/template-set.entity';
 import { ProductTemplateSet } from './entities/product-template-set.entity';
 import { Product } from '../products/entities/product.entity';
+import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
 
 @Module({
   imports: [
@@ -24,6 +25,8 @@ import { Product } from '../products/entities/product.entity';
       ProductTemplateSet,
       Product,
     ]),
+    // Bookmoa 카테고리 (상품명 조회용)
+    TypeOrmModule.forFeature([BookmoaCategoryEntity], 'bookmoa'),
   ],
   controllers: [
     TemplatesController,
