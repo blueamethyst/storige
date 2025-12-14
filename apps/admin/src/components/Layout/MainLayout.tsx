@@ -16,6 +16,7 @@ import {
   AppstoreOutlined,
   ShoppingOutlined,
   AuditOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 import { authApi } from '../../api/auth';
@@ -72,6 +73,12 @@ export const MainLayout = () => {
       icon: <AppstoreOutlined />,
       label: '템플릿셋 관리',
       onClick: () => navigate('/template-sets'),
+    },
+    {
+      key: '/product-template-sets',
+      icon: <LinkOutlined />,
+      label: '상품-템플릿 연결',
+      onClick: () => navigate('/product-template-sets'),
     },
     {
       key: '/categories',

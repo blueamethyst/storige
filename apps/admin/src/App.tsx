@@ -8,6 +8,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TemplateList, TemplateEditor } from './pages/Templates';
 import { TemplateSetList, TemplateSetForm } from './pages/TemplateSets';
+import { ProductTemplateSetList } from './pages/ProductTemplateSets';
 import { CategoryManagement } from './pages/Categories';
 import { ProductList } from './pages/Products';
 import { ReviewList, ReviewDetail } from './pages/Reviews';
@@ -56,6 +57,7 @@ function App() {
               <Route path="template-sets" element={<TemplateSetList />} />
               <Route path="template-sets/new" element={<TemplateSetForm />} />
               <Route path="template-sets/:id" element={<TemplateSetForm />} />
+              <Route path="product-template-sets" element={<ProductTemplateSetList />} />
               <Route path="categories" element={<CategoryManagement />} />
               <Route path="products" element={<ProductList />} />
               <Route path="reviews" element={<ReviewList />} />
