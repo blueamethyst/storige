@@ -26,9 +26,9 @@ export class CreateEditSessionDto {
   @IsUUID()
   contentFileId?: string;
 
-  @ApiPropertyOptional({ example: 'uuid', description: '템플릿 세트 ID' })
+  @ApiPropertyOptional({ example: 'ts-001', description: '템플릿 세트 ID' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   templateSetId?: string;
 
   @ApiPropertyOptional({ description: '초기 캔버스 데이터' })
