@@ -173,7 +173,7 @@ export default function EditorView() {
             console.log('[EditorView] Product loaded:', product.title)
 
             await loadProductBasedEditor({
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               
               product: product as any,
               sizeno: Number(size ?? 0),
             })

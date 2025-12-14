@@ -59,7 +59,7 @@ export default function SmartCodes() {
   const addQr = useCallback(async (url: string) => {
     if (!ready || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const workspace = canvas.getObjects().find((obj: any) => obj.id === 'workspace')
     if (!workspace) {
       alert('workspace를 등록해 주세요')
@@ -93,7 +93,7 @@ export default function SmartCodes() {
   const addBarcode = useCallback(async (value: string) => {
     if (!ready || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const workspace = canvas.getObjects().find((obj: any) => obj.id === 'workspace')
     if (!workspace) {
       alert('workspace를 등록해 주세요')

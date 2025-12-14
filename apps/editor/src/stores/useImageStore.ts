@@ -10,11 +10,11 @@ const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !==
 
 // Fabric.js 타입 (실제 fabric 타입은 런타임에 로드됨)
 // canvas-core API를 통해 fabric 객체를 다루므로 타입만 정의
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricCanvas = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricObject = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricImage = any
 
 
@@ -554,7 +554,7 @@ export const useImageStore = create<ImageState & ImageActions>()((set, get) => (
     loadingBar.start()
     canvas.offHistory()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const hasRemoved = imagePlugin.tellHasAlpha(image.getElement() as any)
 
     if (hasRemoved) {
@@ -656,7 +656,7 @@ export const useImageStore = create<ImageState & ImageActions>()((set, get) => (
       })
 
       if (outline) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (outline as any).alwaysTop = true
       }
 
@@ -696,14 +696,14 @@ export const useImageStore = create<ImageState & ImageActions>()((set, get) => (
       canvas.add(plusIcon)
 
       // 히스토리에 포함되도록 SVG 요소로 등록
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       if (typeof (canvas as any).registerSvgElement === 'function') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         ;(canvas as any).registerSvgElement(plusIcon)
       }
 
       // 칼선과 + 아이콘을 shape와 바인딩
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       imagePlugin.bindWithMold(shape, outline as any, plusIcon)
 
       console.log('모양틀 생성 완료:', shape.id)

@@ -53,7 +53,7 @@ export default function SpecialEffect() {
       return []
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.effects || []
   }, [activeSelection])

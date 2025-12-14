@@ -7,7 +7,7 @@ import type { CreateTemplateDto, UpdateTemplateDto, Template } from '@/api/templ
 import type { CanvasData, TemplateType } from '@storige/types'
 
 // Fabric.js 타입 (런타임에 로드됨)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricObject = any
 
 export interface UseTemplateSaveReturn {

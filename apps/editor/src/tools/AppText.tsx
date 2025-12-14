@@ -30,7 +30,7 @@ export default function AppText() {
     canvas.offHistory()
 
     // Find workspace
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const workspace = canvas.getObjects().find((obj: any) => obj.id === 'workspace')
     if (!workspace) {
       alert('workspace를 등록해 주세요')
@@ -45,7 +45,7 @@ export default function AppText() {
     const initialFontSize = Math.max(12, Math.round(baseLength * ratio)) || getDefaultFontSizeInPixels()
 
     // Dynamic import fabric
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const fabricModule = await import('fabric') as any
     const fabric = fabricModule.fabric || fabricModule.default || fabricModule
 

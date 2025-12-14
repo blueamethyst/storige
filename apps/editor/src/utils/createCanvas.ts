@@ -59,7 +59,7 @@ export const createCanvas = async (
   const index =
     allCanvas.length > 0
       ? allCanvas.reduce((max, item) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const canvasIndex = (item as any).index ?? 0
           return canvasIndex > max ? canvasIndex : max
         }, -Infinity) + 1

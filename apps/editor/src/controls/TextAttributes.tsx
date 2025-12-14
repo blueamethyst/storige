@@ -19,7 +19,7 @@ import { FontPlugin, ptToPx, pxToPt } from '@storige/canvas-core'
 import { fontList, findFontByName, type FontSource } from '@/utils/fonts'
 
 // Fabric.js IText 타입 정의 (런타임에 로드됨)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricIText = any
 
 export default function TextAttributes() {
@@ -96,7 +96,7 @@ export default function TextAttributes() {
         return explicitValues
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const objValue = (obj as any)[prop]
       if (objValue !== undefined) {
         values.add(objValue as T)

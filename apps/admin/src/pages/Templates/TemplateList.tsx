@@ -152,7 +152,7 @@ const EditableEditCode = ({ templateId, value, onSave }: EditableEditCodeProps) 
       // 저장
       await onSave(templateId, trimmedValue);
       setIsEditing(false);
-    } catch (err) {
+    } catch (_err) {
       setError('저장에 실패했습니다.');
     } finally {
       setIsChecking(false);

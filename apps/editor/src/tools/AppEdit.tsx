@@ -23,7 +23,7 @@ export default function AppEdit() {
   const eventCleanupFnsRef = useRef<Array<() => void>>([])
 
   // Register event listener
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const registerEvent = useCallback((target: any, eventName: string, handler: (...args: any[]) => void) => {
     target.on(eventName, handler)
     eventCleanupFnsRef.current.push(() => target.off(eventName, handler))
@@ -41,7 +41,7 @@ export default function AppEdit() {
       setHasPageOutline(false)
       return
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const outline = canvas.getObjects().find((obj: any) => obj.id === 'page-outline')
     setHasPageOutline(!!outline)
   }, [canvas])
@@ -79,14 +79,14 @@ export default function AppEdit() {
     if (!item || !canvas) return
 
     // Remove existing mockup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const prev = canvas.getObjects().find((o: any) => o.id === 'template-mockup')
     if (prev) {
       canvas.remove(prev)
     }
 
     // Set mockup properties
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(item as any).set({
       id: 'template-mockup',
       name: 'template-mockup',
@@ -106,7 +106,7 @@ export default function AppEdit() {
       extensionType: 'template-element'
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(item as any).setCoords()
     canvas.bringToFront(item)
     canvas.requestRenderAll()
@@ -114,17 +114,17 @@ export default function AppEdit() {
     // Create foreground outline
     try {
       // Clone image
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const cloned: fabric.Image = await new Promise((resolve) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (item as any).clone((c: fabric.Image) => resolve(c))
       )
 
       // Get foreground image
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const img = await imagePlugin!.getForegroundByAlpha(cloned as any)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(img as any).set({
         originX: 'center',
         originY: 'center',
@@ -134,7 +134,7 @@ export default function AppEdit() {
       })
 
       const objectPath = await imagePlugin!.createPrecisePathFromObject(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         img as any,
         {
           insetPx: 2,
@@ -143,7 +143,7 @@ export default function AppEdit() {
       )
 
       if (objectPath) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (objectPath as any).set({
           id: `${(item as any).id}_objectPath`,
           fill: 'white',
@@ -158,7 +158,7 @@ export default function AppEdit() {
 
         // core API를 사용하여 Point 생성
         objectPath.setPositionByOrigin(core.createPoint(0, 0), 'center', 'center')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         canvas.clipPath = objectPath as any
         canvas.requestRenderAll()
       }
@@ -172,14 +172,14 @@ export default function AppEdit() {
     if (!ready || !canvas) return
 
     // Remove existing outline
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const existingOutline = canvas.getObjects().find((obj: any) => obj.id === 'page-outline')
     if (existingOutline) {
       canvas.remove(existingOutline)
     }
 
     // Find workspace
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const workspace = canvas.getObjects().find((obj: any) => obj.id === 'workspace')
     if (!workspace) return
 
@@ -200,7 +200,7 @@ export default function AppEdit() {
     ]
 
     // core API를 사용하여 Path 생성
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const outlinePath = core.createPath(pathData as any, {
       id: 'page-outline',
       originX: 'center',
@@ -238,9 +238,9 @@ export default function AppEdit() {
 
     // Clear fillImage from objects
     const allObjects = canvas.getObjects()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const filledObjects = allObjects.filter((obj: any) => obj.extensionType === 'fillImage')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     filledObjects.forEach((obj: any) => {
       obj.fillImage = null
       obj.extensionType = null
@@ -254,7 +254,7 @@ export default function AppEdit() {
   const removeOutline = useCallback(() => {
     if (!ready || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const existingOutline = canvas.getObjects().find((obj: any) => obj.id === 'page-outline')
     if (existingOutline) {
       canvas.remove(existingOutline)
@@ -269,7 +269,7 @@ export default function AppEdit() {
 
     const imagePlugin = getPlugin<ImageProcessingPlugin>('ImageProcessingPlugin')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const workspace = canvas.getObjects().find((obj: any) => obj.id === 'workspace')
     if (!workspace) {
       alert('workspace를 등록해 주세요')
@@ -284,13 +284,13 @@ export default function AppEdit() {
     if (!files || files.length === 0) return
 
     const file = files[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const item = await core.fileToImage(canvas, file, imagePlugin as any)
 
     if (!item || !canvas) return
 
     // Remove existing template-background
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const prev = canvas.getObjects().find((o: any) => o.id === 'template-background')
     if (prev) {
       canvas.remove(prev)
@@ -298,7 +298,7 @@ export default function AppEdit() {
 
     canvas.clipPath = null
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(item as any).set({
       id: 'template-background',
       name: 'template-background',
@@ -319,20 +319,20 @@ export default function AppEdit() {
     const maxWidth = workspaceWidth * 1.2
     const maxHeight = workspaceHeight * 1.2
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const scaleX = maxWidth / (item as any).width!
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const scaleY = maxHeight / (item as any).height!
     const scale = Math.max(scaleX, scaleY)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(item as any).scale(scale)
 
     canvas.clipPath = null
     canvas.add(item)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(item as any).setCoords()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(canvas as any).fire('object:modified', { target: item })
 
     canvas.requestRenderAll()

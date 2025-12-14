@@ -52,7 +52,7 @@ export default function AppTemplate() {
 
   // Add template content to canvas
   const addContentToCanvas = useCallback((content: EditorTemplate) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     setupTemplateContent(content as any)
   }, [setupTemplateContent])
 
@@ -139,7 +139,7 @@ export default function AppTemplate() {
   const handleRemoveCutTemplate = useCallback(async () => {
     if (!canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cutlineTemplate = canvas.getObjects().find((obj: any) => obj.id === 'cutline-template')
     if (cutlineTemplate) {
       canvas.remove(cutlineTemplate)

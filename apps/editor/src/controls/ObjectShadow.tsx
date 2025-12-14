@@ -34,7 +34,7 @@ export default function ObjectShadow() {
       return false
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.effects?.includes('emboss') ?? false
   }, [activeSelection, refreshTick])
@@ -46,7 +46,7 @@ export default function ObjectShadow() {
       return false
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.shadow != null
   }, [activeSelection, refreshTick])
@@ -58,7 +58,7 @@ export default function ObjectShadow() {
       return '#000000'
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     const rgba = parseColorValue(obj?.shadow?.color ?? '#000000')
     if (!rgba) return '#000000'
@@ -72,7 +72,7 @@ export default function ObjectShadow() {
       return 20
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return Math.round((obj?.shadow?.opacity ?? 0.2) * 100)
   }, [activeSelection, refreshTick])
@@ -84,7 +84,7 @@ export default function ObjectShadow() {
       return 0
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.shadow?.offsetX ?? 0
   }, [activeSelection, refreshTick])
@@ -96,7 +96,7 @@ export default function ObjectShadow() {
       return 0
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.shadow?.offsetY ?? 0
   }, [activeSelection, refreshTick])
@@ -108,7 +108,7 @@ export default function ObjectShadow() {
       return 0
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.shadow?.blur ?? 0
   }, [activeSelection, refreshTick])
@@ -119,7 +119,7 @@ export default function ObjectShadow() {
       return
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
@@ -143,7 +143,7 @@ export default function ObjectShadow() {
       return
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
@@ -167,7 +167,7 @@ export default function ObjectShadow() {
   const debouncedRenderRef = useRef(
     debounce((canvasRef: typeof canvas, value: string, activeObj: (typeof activeSelection)[number]) => {
       if (!canvasRef || !activeObj) return
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeObj as any
       if (!obj?.shadow) return
 
@@ -216,7 +216,7 @@ export default function ObjectShadow() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj?.shadow) return
 
@@ -246,7 +246,7 @@ export default function ObjectShadow() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj?.shadow) return
 
@@ -270,7 +270,7 @@ export default function ObjectShadow() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj?.shadow) return
 
@@ -295,7 +295,7 @@ export default function ObjectShadow() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj?.shadow) return
 

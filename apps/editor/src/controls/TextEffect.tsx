@@ -44,7 +44,7 @@ export default function TextEffect() {
     if (!activeSelection || !Array.isArray(activeSelection) || activeSelection.length === 0) {
       return false
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     return obj?.path != null
   }, [activeSelection, refreshTick])
@@ -61,7 +61,7 @@ export default function TextEffect() {
   const calcRadius = useCallback((count: number) => {
     if (!activeSelection || activeSelection.length === 0) return 200
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     const effectiveSize = (obj?.fontSize || 0) + gap / 2
     const textLength = effectiveSize * count
@@ -72,7 +72,7 @@ export default function TextEffect() {
   const curveText = useCallback(async () => {
     if (!activeSelection || activeSelection.length === 0 || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
@@ -91,10 +91,10 @@ export default function TextEffect() {
     })
 
     // Get path segments info
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const fabric = (window as any).fabric
     if (fabric?.util?.getPathSegmentsInfo) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (path as any).segmentsInfo = fabric.util.getPathSegmentsInfo((path as any).path)
     }
 
@@ -115,7 +115,7 @@ export default function TextEffect() {
   const addCurve = useCallback(async () => {
     if (!activeSelection || activeSelection.length === 0 || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
@@ -143,10 +143,10 @@ export default function TextEffect() {
       width: (obj.width || 0) * (obj.scaleX || 1),
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const fabric = (window as any).fabric
     if (fabric?.util?.getPathSegmentsInfo) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (path as any).segmentsInfo = fabric.util.getPathSegmentsInfo((path as any).path)
     }
 
@@ -168,7 +168,7 @@ export default function TextEffect() {
   const removeCurve = useCallback(() => {
     if (!activeSelection || activeSelection.length === 0 || !canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
@@ -234,7 +234,7 @@ export default function TextEffect() {
   useEffect(() => {
     if (!activeSelection || activeSelection.length === 0) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (obj?.path && obj?.extensionType === 'curveText') {
       const objRadius = obj.curveRadius || 200
@@ -272,7 +272,7 @@ export default function TextEffect() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!activeSelection || activeSelection.length === 0) return
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       const target = e.target as HTMLTextAreaElement
 

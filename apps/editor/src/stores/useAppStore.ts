@@ -14,11 +14,11 @@ import Editor, {
 import type { AppMenu } from '@/types/menu'
 
 // Fabric.js 타입 (실제 fabric 타입은 런타임에 로드됨)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricCanvas = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricObject = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricEvent = any
 
 type ContentsBrowserType = 'image' | 'frame' | 'element' | 'background' | 'template' | null
@@ -159,7 +159,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let throttleTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Debounced 함수들 (cancel 가능하도록 외부에 선언)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const debouncedTakeScreenshot = debounce((allCanvas: any[], set: any) => {
   // 캔버스가 유효한지 확인
   if (!allCanvas || allCanvas.length === 0) return
@@ -182,14 +182,14 @@ const debouncedTakeScreenshot = debounce((allCanvas: any[], set: any) => {
   set({ screenshots: newScreenshots })
 }, 200)
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const debouncedRenderFn = debounce((canvas: any) => {
   if (canvas && !canvas.disposed) {
     RenderOptimizer.queueRender(canvas, false)
   }
 }, 16)
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const debouncedUpdateObjectsHandler = debounce((callback: () => void) => {
   callback()
 }, 100)
@@ -365,7 +365,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
 
   // 새 페이지 추가
   addPage: async () => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { allCanvas, allEditors: _allEditors, init, setPage, updateObjects, takeCanvasScreenshot, initializationId } = get()
 
     try {

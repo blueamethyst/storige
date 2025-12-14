@@ -14,7 +14,7 @@ export default function ObjectStroke() {
   const updateObjects = useAppStore((state) => state.updateObjects)
 
   // Reference to bound object for cleanup
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const boundObjectRef = useRef<any>(null)
 
   // Bump selection tick to trigger re-computation
@@ -37,7 +37,7 @@ export default function ObjectStroke() {
 
     // Bind new object
     if (obj && obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       it.on('selection:changed', bumpSelectionTick)
       it.on('changed', bumpSelectionTick)
@@ -65,12 +65,12 @@ export default function ObjectStroke() {
       return false
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return false
 
     if (obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       const textLen = it.text?.length ?? 0
       const hasRange = it.selectionStart !== it.selectionEnd
@@ -82,7 +82,7 @@ export default function ObjectStroke() {
       if (count === 0) {
         const all = it.getSelectionStyles(0, textLen) as Array<Record<string, unknown>>
         for (let i = 0; i < textLen; i++) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const s = all[i] || {} as any
           const v = s.stroke ?? obj.stroke
           if (v != null && v !== '') return true
@@ -91,7 +91,7 @@ export default function ObjectStroke() {
       }
 
       for (let i = 0; i < count; i++) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const s = arr[i] || {} as any
         const v = s.stroke ?? obj.stroke
         if (v != null && v !== '') return true
@@ -109,12 +109,12 @@ export default function ObjectStroke() {
       return '#000000'
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return '#000000'
 
     if (obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       const textLen = it.text?.length ?? 0
       const hasRange = it.selectionStart !== it.selectionEnd
@@ -127,7 +127,7 @@ export default function ObjectStroke() {
 
       for (let i = 0; i < rangeLen; i++) {
         if (text[start + i] === '\n') continue
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const style = arr[i] || {} as any
         const base = style.stroke ?? obj.stroke
         if (!base || base === '' || base === 'transparent') continue
@@ -140,7 +140,7 @@ export default function ObjectStroke() {
         const temp = new Set<string>()
         for (let i = 0; i < textLen; i++) {
           if (text[i] === '\n') continue
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const style = arrAll[i] || {} as any
           const base = style.stroke ?? obj.stroke
           if (!base || base === '' || base === 'transparent') continue
@@ -171,12 +171,12 @@ export default function ObjectStroke() {
       return 100
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return 100
 
     if (obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       const textLen = it.text?.length ?? 0
       const hasRange = it.selectionStart !== it.selectionEnd
@@ -196,7 +196,7 @@ export default function ObjectStroke() {
       const alphas = new Set<number>()
       for (let i = 0; i < count; i++) {
         if (text[start + i] === '\n') continue
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const s = styles[i] || {} as any
         const strokeSrc = s.stroke ?? obj.stroke
         if (strokeSrc && strokeSrc !== '' && strokeSrc !== 'transparent') {
@@ -225,7 +225,7 @@ export default function ObjectStroke() {
       return 0
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return 0
 
@@ -233,7 +233,7 @@ export default function ObjectStroke() {
       return obj.strokeWidth ?? 0
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const it = obj as any
     const textLen = it.text?.length ?? 0
     const hasRange = it.selectionStart !== it.selectionEnd
@@ -244,7 +244,7 @@ export default function ObjectStroke() {
     const values = new Set<number>()
 
     const getWidthForChar = (style: Record<string, unknown>): number => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const s = style as any
       const strokeValue = s.stroke ?? obj.stroke
       if (strokeValue == null || strokeValue === '') return 0
@@ -274,12 +274,12 @@ export default function ObjectStroke() {
       return
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
     if (obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       const hasRange = it.selectionStart !== it.selectionEnd
       const color = '#000000'
@@ -316,12 +316,12 @@ export default function ObjectStroke() {
       return
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = activeSelection[0] as any
     if (!obj) return
 
     if (obj.type === 'i-text') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const it = obj as any
       const hasRange = it.selectionStart !== it.selectionEnd
 
@@ -330,9 +330,9 @@ export default function ObjectStroke() {
       } else {
         const total = it.text?.length ?? 0
         if (total > 0) it.setSelectionStyles({ stroke: undefined, strokeWidth: undefined }, 0, total)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         it.set('stroke', null as any)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         it.set('strokeWidth', null as any)
         it.setCoords()
       }
@@ -360,7 +360,7 @@ export default function ObjectStroke() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj) return
 
@@ -371,7 +371,7 @@ export default function ObjectStroke() {
       const rgbaString = `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`
 
       if (obj.type === 'i-text') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const it = obj as any
         const hasRange = it.selectionStart !== it.selectionEnd
 
@@ -412,7 +412,7 @@ export default function ObjectStroke() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj) return
 
@@ -424,7 +424,7 @@ export default function ObjectStroke() {
       }
 
       if (obj.type === 'i-text') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const it = obj as any
         const hasRange = it.selectionStart !== it.selectionEnd
 
@@ -435,7 +435,7 @@ export default function ObjectStroke() {
           const count = Math.max(0, end - start)
 
           for (let i = 0; i < count; i++) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const style = arr[i] || {} as any
             const base = style.stroke ?? obj.stroke
             if (base == null || base === '') continue
@@ -450,7 +450,7 @@ export default function ObjectStroke() {
           const arrAll = it.getSelectionStyles(0, textLen) as Array<Record<string, unknown>>
 
           for (let i = 0; i < textLen; i++) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const style = arrAll[i] || {} as any
             const base = style.stroke ?? obj.stroke
             if (base == null || base === '') continue
@@ -494,12 +494,12 @@ export default function ObjectStroke() {
         return
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = activeSelection[0] as any
       if (!obj) return
 
       if (obj.type === 'i-text') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const it = obj as any
         const hasRange = it.selectionStart !== it.selectionEnd
 

@@ -6,7 +6,7 @@ import { ServicePlugin, core } from '@storige/canvas-core'
 import { designsApi, storageApi } from '@/api'
 
 // Fabric.js 타입 (런타임에 로드됨)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type FabricObject = any
 
 // 타입 정의

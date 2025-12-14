@@ -42,7 +42,7 @@ export type UseCaseConfigMap = {
 }
 
 // 메타데이터 안전 접근 유틸리티
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const safeGetMetadata = (content: any, key: string, defaultValue: any = null) => {
   return content?.metadata?.[key] ?? defaultValue
 }
@@ -54,7 +54,7 @@ const safeGetImageUrl = (content: EditorContent | EditorTemplate): string | null
 
 // 안전한 템플릿 URL 접근
 const safeGetTemplateUrl = (content: EditorTemplate): string | null => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const designUrl = (content as any)?.design?.document?.url
   if (designUrl) return designUrl
   return content?.image?.image?.url || null
@@ -62,7 +62,7 @@ const safeGetTemplateUrl = (content: EditorTemplate): string | null => {
 
 // 안전한 칼선 템플릿 URL 접근
 const safeGetCutLineTemplateUrl = (content: EditorTemplate): string | null => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return (content as any)?.cutLineTemplate?.image?.url || null
 }
 
@@ -186,7 +186,7 @@ export function useEditorContents(): UseEditorContentsReturn {
   /**
    * 에셋을 캔버스에 추가
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const addAssetToCanvas = useCallback(async (url: string, _objectId: string): Promise<fabric.Object> => {
     if (!url) {
       throw new Error('이미지 URL을 찾을 수 없습니다.')
@@ -302,7 +302,7 @@ export function useEditorContents(): UseEditorContentsReturn {
 
       // 캔버스가 disposed 상태인지 확인
       const firstCanvas = latestAllCanvas[0]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       if (!firstCanvas || (firstCanvas as any).disposed) {
         console.warn('[loadCanvasData] Canvas is disposed, skipping')
         return false
@@ -515,7 +515,7 @@ export function useEditorContents(): UseEditorContentsReturn {
       const content = result.data
       console.log('loaded content', content)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await setupEditContent(content as any, contentType)
     } catch (e) {
       console.error('콘텐츠 로드 중 오류 발생:', e)
@@ -531,19 +531,19 @@ export function useEditorContents(): UseEditorContentsReturn {
     try {
       switch (contentType) {
         case 'image':
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           await setupImageContent(content as any, canvas)
           break
         case 'frame':
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           await setupFrameContent(content as any, canvas)
           break
         case 'element':
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           await setupShapeContent(content as any, canvas)
           break
         case 'background':
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           await setupBackgroundContent(content as any, canvas)
           break
         case 'template':
@@ -578,7 +578,7 @@ export function useEditorContents(): UseEditorContentsReturn {
       console.log('콘텐츠 크기 정보:', _sizeInfo, _printSize)
 
       // 문서 URL 확인
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       let documentURL = (content as any)?.design?.document?.url || null
       const workId = safeGetMetadata(content, 'workId')
 
@@ -595,7 +595,7 @@ export function useEditorContents(): UseEditorContentsReturn {
       // 문서가 있으면 로드
       if (documentURL) {
         console.log('문서 로드:', documentURL)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         await loadEditDesign(content as any, documentURL)
       } else {
         // 기본 에셋으로 설정
@@ -616,7 +616,7 @@ export function useEditorContents(): UseEditorContentsReturn {
   const setupTemplateFromSvgString = useCallback(async (
     svgString: string,
     cutLineSvgString?: string | null,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _options?: { viaUpload?: boolean }
   ): Promise<boolean> => {
     editor?.emit('longTask:start', { message: '템플릿을 적용하는 중...' })
@@ -706,7 +706,7 @@ export function useEditorContents(): UseEditorContentsReturn {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const workspacePlugin = getPlugin<any>('WorkspacePlugin')
 
       if (workspacePlugin) {
@@ -778,7 +778,7 @@ export function useEditorContents(): UseEditorContentsReturn {
         const sizeMatchTemplate = allTemplates.find(t => t.sizeNo === config.sizeno)
         const templateToLoad = sizeMatchTemplate || defaultTemplate || allTemplates[0]
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const designUrl = (templateToLoad as any)?.design?.document?.url
         if (designUrl) {
           console.log('[EditorContents] Loading template:', templateToLoad.name)
@@ -883,7 +883,7 @@ export function useEditorContents(): UseEditorContentsReturn {
       })
 
       // 3. 템플릿 메타데이터를 설정 스토어에 저장 (페이지 이름 표시용)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const templateMetadata = templateDetails.map((t, index) => ({
         id: t.id,
         type: 'template',
@@ -982,7 +982,7 @@ export function useEditorContents(): UseEditorContentsReturn {
             // WorkspacePlugin의 내부 옵션 업데이트 및 workspace 객체 크기 조정
             // reset()은 workspace를 새로 생성할 수 있어 기존 객체가 사라지므로 사용하지 않음
             // setOptions는 template-background 등을 다시 변경하므로 사용하지 않음
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const workspacePlugin = firstEditor.getPlugin<any>('WorkspacePlugin')
             if (workspacePlugin) {
               // 플러그인 내부 옵션을 직접 업데이트

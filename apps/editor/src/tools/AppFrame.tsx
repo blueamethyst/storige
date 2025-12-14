@@ -53,7 +53,7 @@ export default function AppFrame() {
         })
 
         if (result.success && result.data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           setContents(result.data.items as any[])
         } else {
           setContents([])
@@ -87,7 +87,7 @@ export default function AppFrame() {
   // Add content to canvas
   const addContentToCanvas = useCallback((content: EditorContent) => {
     if (!canvas) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     setupFrameContent(content as any, canvas)
   }, [canvas, setupFrameContent])
 

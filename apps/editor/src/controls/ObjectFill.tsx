@@ -21,7 +21,7 @@ export default function ObjectFill() {
       return '#FFFFFF'
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let fillValue = (selection as any).fill
 
     if (!fillValue || fillValue === '' || fillValue === 'transparent') {
@@ -47,7 +47,7 @@ export default function ObjectFill() {
     }
 
     const selection = activeSelection[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (selection as any)?.fillOpacity ?? 100
   }, [activeSelection])
 
@@ -58,7 +58,7 @@ export default function ObjectFill() {
     }
 
     const selection = activeSelection[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const fillValue = (selection as any)?.fill
     return fillValue && fillValue !== '' && fillValue !== 'transparent'
   }, [activeSelection])
@@ -70,7 +70,7 @@ export default function ObjectFill() {
     }
 
     const selection = activeSelection[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const effects = (selection as any)?.effects
     if (!effects) return false
 
@@ -86,7 +86,7 @@ export default function ObjectFill() {
     const firstSelection = activeSelection[0]
     if (!firstSelection) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const obj = firstSelection as any
     obj.fill = '#FFFFFF'
     obj.fillOpacity = 100
@@ -113,7 +113,7 @@ export default function ObjectFill() {
       const alpha = effectiveOpacity / 100
       const rgbaString = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${alpha})`
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = firstSelection as any
 
       if (obj.type === 'i-text') {
@@ -152,7 +152,7 @@ export default function ObjectFill() {
       const firstSelection = activeSelection[0]
       if (!firstSelection) return
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const obj = firstSelection as any
       obj.fillOpacity = value
 
@@ -180,7 +180,7 @@ export default function ObjectFill() {
     }
 
     const firstSelection = activeSelection[0]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const effects = (firstSelection as any)?.effects
     if (!effects) return false
 

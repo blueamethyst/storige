@@ -153,7 +153,7 @@ export default function AppClipping() {
 
       const file = files[0]
       const imagePlugin = getPlugin<ImageProcessingPlugin>('ImageProcessingPlugin')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const fabricImage = await core.fileToImage(canvas, file, imagePlugin as any)
 
       if (!fabricImage) {
@@ -173,7 +173,7 @@ export default function AppClipping() {
   }, [canvas, hideSidePanel, getPlugin])
 
   // Render image to canvas
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const render = async (item: any, canvasInstance: fabric.Canvas) => {
     // Clear canvas
     canvasInstance.clipPath = undefined
@@ -189,7 +189,7 @@ export default function AppClipping() {
   }
 
   // Render workspace with outline and accessories
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const renderWorkspace = async (item: any, canvasInstance: fabric.Canvas, distance: number) => {
     try {
       if (!item) {
@@ -224,12 +224,12 @@ export default function AppClipping() {
       })
 
       let hasAlpha = false
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       let outline: any = null
 
       if ('getElement' in item) {
         const element = item.getElement()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         hasAlpha = imagePlugin!.tellHasAlpha(element as any)
       }
 
@@ -266,12 +266,12 @@ export default function AppClipping() {
           scaleY: outerScale
         })
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const targetItem = await imagePlugin!.objAsImage(tempPathOutline as any, pxDistance)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         outline = await imagePlugin!.getObjectPath(targetItem as any)
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         outline = imagePlugin!.createExpandedPath(item as any, pxDistance)
       }
 
@@ -303,16 +303,16 @@ export default function AppClipping() {
         left: 0,
         originX: 'center',
         originY: 'center',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         clipPath: objectPath as any,
         selectable: false,
         editable: false,
         extensionType: 'clipping'
       })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       canvasInstance.add(outline as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       canvasInstance.add(item as any)
 
       if (!hasAlpha) {
@@ -332,7 +332,7 @@ export default function AppClipping() {
       // Add accessory if selected
       if (selectedAccessory) {
         const accessoryPlugin = getPlugin<AccessoryPlugin>('AccessoryPlugin')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const ac = await accessoryPlugin?.addAccessory(
           outline as any,
           item,
@@ -343,7 +343,7 @@ export default function AppClipping() {
 
         if (ac) {
           canvasInstance.add(ac)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           if ((ac as any).accessory?.movingArea !== 'inner') {
             await accessoryPlugin?.drawMergedWorkspace()
           } else {
@@ -370,12 +370,12 @@ export default function AppClipping() {
   useEffect(() => {
     if (!canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const accessoryObj = canvas.getObjects().find((obj: any) =>
       obj.id === 'accessory' && obj.extensionType === 'clipping'
     )
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const innerItem = canvas.getObjects().find((obj: any) =>
       obj.id === 'innerItem' && obj.extensionType === 'clipping'
     )
@@ -385,7 +385,7 @@ export default function AppClipping() {
     }
 
     if (innerItem) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       setCurrentImage(innerItem as any)
     }
   }, [canvas])

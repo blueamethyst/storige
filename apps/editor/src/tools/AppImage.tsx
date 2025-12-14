@@ -96,7 +96,7 @@ export default function AppImage() {
   const addToCanvas = useCallback(async (image: unknown) => {
     if (!canvas) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const imgObj = image as any
 
     canvas.offHistory()
@@ -139,7 +139,7 @@ export default function AppImage() {
   const addContentToCanvas = useCallback(async (content: unknown) => {
     if (!content) return
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await setupAsset(content as EditorContent, 'image')
     } catch (error) {
       console.error('이미지 콘텐츠 추가 오류:', error)
