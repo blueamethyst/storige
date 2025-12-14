@@ -17,6 +17,7 @@ import {
   Card,
   Tooltip,
   Badge,
+  AutoComplete,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -33,7 +34,9 @@ import {
   CreateProductTemplateSetInput,
 } from '../../api/product-template-sets';
 import { templateSetsApi } from '../../api/template-sets';
+import { bookmoaApi, BookmoaCategory } from '../../api/bookmoa';
 import { TemplateSet } from '@storige/types';
+import { useDebouncedCallback } from 'use-debounce';
 
 const { Title, Text } = Typography;
 
@@ -93,6 +96,29 @@ export const ProductTemplateSetList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTemplateSetIds, setSelectedTemplateSetIds] = useState<string[]>([]);
   const [form] = Form.useForm();
+
+  // 카테고리 자동완성 상태
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
+
+  // 카테고리 검색 (debounced)
+  const searchCategories = useDebouncedCallback(async (search: string) => {
+    if (!search || search.length < 2) {
+      setCategoryOptions([]);
+      return;
+    }
+
+    try {
+      const result = await bookmoaApi.getCategories({ search, limit: 20 });
+      const options = result.categories.map((cat: BookmoaCategory) => ({
+        value: cat.sortcode,
+        label: `${cat.sortcode} - ${cat.name}`,
+      }));
+      setCategoryOptions(options);
+    } catch (error) {
+      console.error('카테고리 검색 실패:', error);
+      setCategoryOptions([]);
+    }
+  }, 300);
 
   // Fetch product-template-sets
   const { data, isLoading } = useQuery({
@@ -363,7 +389,17 @@ export const ProductTemplateSetList = () => {
             label="상품코드 (sortcode)"
             rules={[{ required: true, message: '상품코드를 입력하세요' }]}
           >
-            <Input placeholder="예: 001001001" />
+            <AutoComplete
+              options={categoryOptions}
+              onSearch={(value) => {
+                searchCategories(value);
+              }}
+              onSelect={(value) => {
+                form.setFieldValue('sortcode', value);
+              }}
+              placeholder="상품명 또는 코드로 검색 (예: 책자, 001001)"
+              allowClear
+            />
           </Form.Item>
 
           <Form.Item

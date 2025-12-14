@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BookmoaMemberEntity } from '../bookmoa-entities/member.entity';
 import { BookmoaOrderEntity } from '../bookmoa-entities/order.entity';
 import { BookmoaService } from './bookmoa.service';
+import { BookmoaController } from './bookmoa.controller';
 
 /**
  * Bookmoa 모듈
@@ -38,6 +39,7 @@ import { BookmoaService } from './bookmoa.service';
       'bookmoa',
     ),
   ],
+  controllers: [BookmoaController],
   providers: [BookmoaService],
   exports: [BookmoaService, TypeOrmModule],
 })
