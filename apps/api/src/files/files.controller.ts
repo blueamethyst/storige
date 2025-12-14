@@ -21,6 +21,7 @@ import {
   ApiConsumes,
   ApiBody,
   ApiBearerAuth,
+  ApiSecurity,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { FilesService } from './files.service';
@@ -29,6 +30,7 @@ import { FileResponseDto, FileListResponseDto } from './dto/file-response.dto';
 import { FileType } from './entities/file.entity';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 
 @ApiTags('Files')
 @Controller('files')
@@ -102,6 +104,79 @@ export class FilesController {
       dto.type,
       dto.orderSeqno,
       memberSeqno,
+      dto.metadata,
+    );
+
+    return this.filesService.toResponseDto(fileEntity);
+  }
+
+  /**
+   * 외부 연동용 파일 업로드 (API Key 인증)
+   * bookmoa 등 외부 시스템에서 서버 간 통신으로 호출
+   */
+  @Post('upload/external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'PDF 파일 업로드 (외부 API Key 인증)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'PDF 파일' },
+        type: {
+          type: 'string',
+          enum: Object.values(FileType),
+          description: '파일 타입',
+        },
+        orderSeqno: { type: 'number', description: '주문 번호 (선택)' },
+        memberSeqno: { type: 'number', description: '회원 번호 (선택)' },
+      },
+      required: ['file', 'type'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: '파일 업로드 성공',
+    type: FileResponseDto,
+  })
+  @ApiResponse({ status: 400, description: '잘못된 파일 형식 또는 크기 초과' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype !== 'application/pdf') {
+          cb(
+            new BadRequestException({
+              code: 'UNSUPPORTED_FORMAT',
+              message: 'PDF 파일만 업로드할 수 있습니다.',
+            }),
+            false,
+          );
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  async uploadFileExternal(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadFileDto,
+  ): Promise<FileResponseDto> {
+    if (!file) {
+      throw new BadRequestException({
+        code: 'FILE_REQUIRED',
+        message: '파일을 선택해주세요.',
+      });
+    }
+
+    const fileEntity = await this.filesService.uploadFile(
+      file,
+      dto.type,
+      dto.orderSeqno,
+      dto.memberSeqno,
       dto.metadata,
     );
 
