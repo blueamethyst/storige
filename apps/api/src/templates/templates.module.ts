@@ -6,9 +6,12 @@ import { TemplateSetsService } from './template-sets.service';
 import { TemplateSetsController } from './template-sets.controller';
 import { CategoriesService } from './categories.service';
 import { CategoriesController } from './categories.controller';
+import { ProductTemplateSetsService } from './product-template-sets.service';
+import { ProductTemplateSetsController } from './product-template-sets.controller';
 import { Template } from './entities/template.entity';
 import { Category } from './entities/category.entity';
 import { TemplateSet, TemplateSetItem } from './entities/template-set.entity';
+import { ProductTemplateSet } from './entities/product-template-set.entity';
 import { Product } from '../products/entities/product.entity';
 
 @Module({
@@ -18,6 +21,7 @@ import { Product } from '../products/entities/product.entity';
       Category,
       TemplateSet,
       TemplateSetItem,
+      ProductTemplateSet,
       Product,
     ]),
   ],
@@ -25,16 +29,19 @@ import { Product } from '../products/entities/product.entity';
     TemplatesController,
     TemplateSetsController,
     CategoriesController,
+    ProductTemplateSetsController,
   ],
   providers: [
     TemplatesService,
     TemplateSetsService,
     CategoriesService,
+    ProductTemplateSetsService,
   ],
   exports: [
     TemplatesService,
     TemplateSetsService,
     CategoriesService,
+    ProductTemplateSetsService,
   ],
 })
 export class TemplatesModule {}
