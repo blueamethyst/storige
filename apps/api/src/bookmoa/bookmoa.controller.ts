@@ -93,9 +93,10 @@ export class BookmoaController {
         );
       }
 
-      // depth 조건
+      // depth 조건 (sortcode 길이로 필터링: depth 1 = 3자, depth 2 = 6자, depth 3 = 9자)
       if (depth) {
-        qb.andWhere('cate.depth = :depth', { depth: parseInt(depth, 10) });
+        const depthLen = parseInt(depth, 10) * 3;
+        qb.andWhere('LENGTH(cate.sortcode) = :depthLen', { depthLen });
       }
 
       // parent 조건 (상위 카테고리)
