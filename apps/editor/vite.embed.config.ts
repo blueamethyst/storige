@@ -118,6 +118,8 @@ export default defineConfig({
     // Define process for browser compatibility
     'process': JSON.stringify({ env: { NODE_ENV: 'production' } }),
     'global': 'globalThis',
+    // Disable AI features (excludes AiPanel from bundle via dead code elimination)
+    'import.meta.env.VITE_AI_ENABLED': JSON.stringify('false'),
     // Disable image processing features (hides CLIPPING/EDIT menus)
     'import.meta.env.VITE_ENABLE_IMAGE_PROCESSING': JSON.stringify('false'),
     // Disable ruler for embed build
