@@ -148,7 +148,14 @@ export const ProductTemplateSetList = () => {
       setSelectedTemplateSetIds([]);
     },
     onError: (error: any) => {
-      message.error(error.response?.data?.message || '연결 추가에 실패했습니다.');
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.message;
+
+      if (status === 409) {
+        message.warning('이미 등록된 연결입니다.');
+      } else {
+        message.error(serverMessage || '연결 추가에 실패했습니다.');
+      }
     },
   });
 
@@ -163,7 +170,14 @@ export const ProductTemplateSetList = () => {
       setSelectedTemplateSetIds([]);
     },
     onError: (error: any) => {
-      message.error(error.response?.data?.message || '연결 추가에 실패했습니다.');
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.message;
+
+      if (status === 409) {
+        message.warning('일부 연결이 이미 등록되어 있습니다.');
+      } else {
+        message.error(serverMessage || '연결 추가에 실패했습니다.');
+      }
     },
   });
 
