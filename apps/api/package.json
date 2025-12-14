@@ -15,6 +15,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.config.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@nestjs/bull": "^10.2.3",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
@@ -24,6 +25,7 @@
     "@nestjs/platform-express": "^10.4.15",
     "@nestjs/swagger": "^8.0.5",
     "@nestjs/typeorm": "^10.0.2",
+    "@storige/ai": "workspace:*",
     "@storige/types": "workspace:*",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
@@ -39,6 +41,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
+    "replicate": "^1.0.1",
     "rxjs": "^7.8.1",
     "sharp": "^0.33.5",
     "typeorm": "^0.3.20",

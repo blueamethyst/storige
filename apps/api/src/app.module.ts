@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
@@ -16,6 +16,20 @@ import { SeedModule } from './database/seeds/seed.module';
 import { BookmoaModule } from './bookmoa/bookmoa.module';
 import { FilesModule } from './files/files.module';
 import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
+
+// AI 기능 활성화 여부 (환경변수에서 읽음, 기본값 false)
+const isAiEnabled = process.env.AI_ENABLED === 'true';
+
+// 조건부 AI 모듈 import (tree-shaking 지원)
+const conditionalModules: DynamicModule[] = [];
+if (isAiEnabled) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { AiModule } = require('./ai/ai.module');
+  conditionalModules.push(AiModule);
+  console.log('[AppModule] AI features enabled');
+} else {
+  console.log('[AppModule] AI features disabled');
+}
 
 @Module({
   imports: [
@@ -80,6 +94,9 @@ import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
 
     // Edit sessions
     EditSessionsModule,
+
+    // AI features (conditionally loaded based on AI_ENABLED env)
+    ...conditionalModules,
   ],
   controllers: [],
   providers: [],
