@@ -26,8 +26,8 @@ export class CreateProductTemplateSetDto {
   @Type(() => Number)
   prdtStanSeqno?: number;
 
-  @ApiProperty({ example: 'uuid-1234-5678', description: '템플릿셋 ID' })
-  @IsUUID()
+  @ApiProperty({ example: 'ts-001', description: '템플릿셋 ID' })
+  @IsString()
   @IsNotEmpty()
   templateSetId: string;
 
@@ -82,11 +82,11 @@ export class BulkCreateProductTemplateSetDto {
   prdtStanSeqno?: number;
 
   @ApiProperty({
-    example: ['uuid-1', 'uuid-2', 'uuid-3'],
+    example: ['ts-001', 'ts-002', 'ts-003'],
     description: '템플릿셋 ID 목록',
   })
   @IsArray()
-  @IsUUID('4', { each: true })
+  @IsString({ each: true })
   templateSetIds: string[];
 }
 
@@ -115,9 +115,9 @@ export class ProductTemplateSetListQueryDto {
   @IsString()
   sortcode?: string;
 
-  @ApiPropertyOptional({ example: 'uuid-1234', description: '템플릿셋 ID' })
+  @ApiPropertyOptional({ example: 'ts-001', description: '템플릿셋 ID' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   templateSetId?: string;
 
   @ApiPropertyOptional({ example: true, description: '활성화 상태 필터' })
