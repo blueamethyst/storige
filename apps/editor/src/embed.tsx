@@ -335,6 +335,9 @@ function EmbeddedEditor({
         if (!isMounted) return
 
         // 3. Fetch template set info
+        if (!templateSetId) {
+          throw new Error('템플릿셋 ID가 필요합니다. (templateSetId)')
+        }
         setLoadingMessage('템플릿셋 정보를 불러오는 중...')
         const templateSetResponse = await templatesApi.getTemplateSet(templateSetId)
 
