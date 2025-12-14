@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiSecurity } from '@nestjs/swagger';
 import { WorkerJobsService } from './worker-jobs.service';
 import {
   CreateValidationJobDto,
@@ -19,6 +19,8 @@ import {
 import { WorkerJob } from './entities/worker-job.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole, WorkerJobStatus, WorkerJobType } from '@storige/types';
 
 @ApiTags('Worker Jobs')
@@ -38,6 +40,24 @@ export class WorkerJobsController {
   @ApiResponse({ status: 201, description: 'Validation job created and queued', type: WorkerJob })
   @ApiResponse({ status: 400, description: 'Invalid input' })
   async createValidationJob(
+    @Body() createValidationJobDto: CreateValidationJobDto,
+  ): Promise<WorkerJob> {
+    return await this.workerJobsService.createValidationJob(createValidationJobDto);
+  }
+
+  /**
+   * 외부 연동용 검증 작업 생성 (API Key 인증)
+   * bookmoa 등 외부 시스템에서 서버 간 통신으로 호출
+   */
+  @Post('validate/external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Create a PDF validation job (external API key auth)' })
+  @ApiResponse({ status: 201, description: 'Validation job created and queued', type: WorkerJob })
+  @ApiResponse({ status: 400, description: 'Invalid input' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  async createValidationJobExternal(
     @Body() createValidationJobDto: CreateValidationJobDto,
   ): Promise<WorkerJob> {
     return await this.workerJobsService.createValidationJob(createValidationJobDto);
@@ -92,6 +112,22 @@ export class WorkerJobsController {
   @ApiResponse({ status: 200, description: 'Job statistics' })
   async getJobStats() {
     return await this.workerJobsService.getJobStats();
+  }
+
+  /**
+   * 외부 연동용 작업 상태 조회 (API Key 인증)
+   * bookmoa 등 외부 시스템에서 서버 간 통신으로 호출
+   */
+  @Get('external/:id')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Get a worker job by ID (external API key auth)' })
+  @ApiResponse({ status: 200, description: 'Worker job details', type: WorkerJob })
+  @ApiResponse({ status: 404, description: 'Job not found' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  async findOneExternal(@Param('id') id: string): Promise<WorkerJob> {
+    return await this.workerJobsService.findOne(id);
   }
 
   @Get(':id')
