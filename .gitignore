@@ -8,6 +8,7 @@ coverage/
 
 # Production builds
 dist/
+dist-embed/
 build/
 .next/
 
