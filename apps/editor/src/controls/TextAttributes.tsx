@@ -16,7 +16,7 @@ import {
   MoveHorizontal,
 } from 'lucide-react'
 import { FontPlugin, ptToPx, pxToPt } from '@storige/canvas-core'
-import { fontList, findFontByName, type FontSource } from '@/utils/fonts'
+import { getFontListAsSource, findFontByName, type FontSource } from '@/utils/fontManager'
 
 // Fabric.js IText 타입 정의 (런타임에 로드됨)
  
@@ -398,7 +398,7 @@ export default function TextAttributes() {
           <div className="col-span-2">
             <FontPreviewDropdown
               value={currentFont === 'mixed' ? undefined : currentFont}
-              options={fontList}
+              options={getFontListAsSource()}
               placeholder={currentFont === 'mixed' ? '혼합' : '폰트 선택'}
               onSelect={handleFontSelect}
             />

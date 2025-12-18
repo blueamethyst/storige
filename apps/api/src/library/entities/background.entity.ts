@@ -4,8 +4,11 @@ import {
   PrimaryColumn,
   CreateDateColumn,
   BeforeInsert,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { LibraryCategory } from './category.entity';
 
 @Entity('library_backgrounds')
 export class LibraryBackground {
@@ -24,11 +27,19 @@ export class LibraryBackground {
   @Column({ type: 'varchar', length: 100, nullable: true })
   category: string | null;
 
+  @Column({ name: 'category_id', type: 'varchar', length: 36, nullable: true })
+  categoryId: string | null;
+
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  // Relations
+  @ManyToOne(() => LibraryCategory, { nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  categoryEntity: LibraryCategory | null;
 
   @BeforeInsert()
   generateId() {

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
-import type { FontSource } from '@/utils/fonts'
-import { getFontUrl } from '@/utils/fonts'
+import type { LibraryFont } from '@storige/types'
+import type { FontSource } from '@/utils/fontManager'
+import { resolveStorageUrl } from '@/utils/fontManager'
 
 // Simple logger for font preview
 const logger = {
@@ -30,8 +31,23 @@ export const hasFontErrorGlobal = (fontName: string): boolean => {
   return errorFonts.has(fontName)
 }
 
+/**
+ * 폰트 URL 추출 (LibraryFont 또는 FontSource 지원)
+ */
+const getFontUrlFromFont = (font: LibraryFont | FontSource): string | undefined => {
+  // LibraryFont: fileUrl 사용 (상대 URL은 절대 URL로 변환)
+  if ('fileUrl' in font) {
+    return resolveStorageUrl(font.fileUrl)
+  }
+  // FontSource: file이 URL인 경우 (이미 변환되어 있어야 함)
+  if (font.file.startsWith('http') || font.file.startsWith('/')) {
+    return resolveStorageUrl(font.file)
+  }
+  return undefined
+}
+
 // Load a font
-export const loadFont = async (font: FontSource): Promise<boolean> => {
+export const loadFont = async (font: LibraryFont | FontSource): Promise<boolean> => {
   const fontName = font.name
 
   // Already loaded
@@ -63,7 +79,7 @@ export const loadFont = async (font: FontSource): Promise<boolean> => {
     })
   }
 
-  const fontUrl = getFontUrl(font.file)
+  const fontUrl = getFontUrlFromFont(font)
   if (!fontUrl) {
     logger.error(`Failed to get URL for font: ${fontName}`)
     errorFonts.add(fontName)
@@ -90,7 +106,7 @@ export const loadFont = async (font: FontSource): Promise<boolean> => {
 
 // Hook for font preview
 export const useFontPreview = () => {
-  const loadFontPreview = useCallback(async (font: FontSource): Promise<boolean> => {
+  const loadFontPreview = useCallback(async (font: LibraryFont | FontSource): Promise<boolean> => {
     return loadFont(font)
   }, [])
 

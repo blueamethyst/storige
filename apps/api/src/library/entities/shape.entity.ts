@@ -10,8 +10,8 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { LibraryCategory } from './category.entity';
 
-@Entity('library_cliparts')
-export class LibraryClipart {
+@Entity('library_shapes')
+export class LibraryShape {
   @PrimaryColumn('varchar', { length: 36 })
   id: string;
 
@@ -23,9 +23,6 @@ export class LibraryClipart {
 
   @Column({ name: 'thumbnail_url', type: 'varchar', length: 500, nullable: true })
   thumbnailUrl: string | null;
-
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  category: string | null;
 
   @Column({ name: 'category_id', type: 'varchar', length: 36, nullable: true })
   categoryId: string | null;

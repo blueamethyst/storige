@@ -18,8 +18,16 @@ import {
   UpdateBackgroundDto,
   CreateClipartDto,
   UpdateClipartDto,
+  CreateShapeDto,
+  UpdateShapeDto,
+  CreateFrameDto,
+  UpdateFrameDto,
+  CreateCategoryDto,
+  UpdateCategoryDto,
+  LibraryCategoryType,
 } from './dto/library.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '@storige/types';
 
@@ -34,6 +42,7 @@ export class LibraryController {
   // ============================================================================
 
   @Get('fonts')
+  @Public()
   @ApiOperation({ summary: 'Get all fonts' })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Fonts retrieved successfully' })
@@ -185,5 +194,165 @@ export class LibraryController {
   @ApiResponse({ status: 200, description: 'Clipart deleted successfully' })
   removeClipart(@Param('id') id: string) {
     return this.libraryService.removeClipart(id);
+  }
+
+  // ============================================================================
+  // Shapes
+  // ============================================================================
+
+  @Get('shapes')
+  @ApiOperation({ summary: 'Get all shapes' })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiResponse({ status: 200, description: 'Shapes retrieved successfully' })
+  findAllShapes(
+    @Query('categoryId') categoryId?: string,
+    @Query('isActive') isActive?: boolean,
+  ) {
+    return this.libraryService.findAllShapes(categoryId, isActive);
+  }
+
+  @Get('shapes/:id')
+  @ApiOperation({ summary: 'Get shape by ID' })
+  @ApiResponse({ status: 200, description: 'Shape found' })
+  @ApiResponse({ status: 404, description: 'Shape not found' })
+  findOneShape(@Param('id') id: string) {
+    return this.libraryService.findOneShape(id);
+  }
+
+  @Post('shapes')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Create a new shape' })
+  @ApiResponse({ status: 201, description: 'Shape created successfully' })
+  createShape(@Body() createShapeDto: CreateShapeDto) {
+    return this.libraryService.createShape(createShapeDto);
+  }
+
+  @Patch('shapes/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Update shape' })
+  @ApiResponse({ status: 200, description: 'Shape updated successfully' })
+  updateShape(@Param('id') id: string, @Body() updateShapeDto: UpdateShapeDto) {
+    return this.libraryService.updateShape(id, updateShapeDto);
+  }
+
+  @Delete('shapes/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete shape' })
+  @ApiResponse({ status: 200, description: 'Shape deleted successfully' })
+  removeShape(@Param('id') id: string) {
+    return this.libraryService.removeShape(id);
+  }
+
+  // ============================================================================
+  // Frames
+  // ============================================================================
+
+  @Get('frames')
+  @ApiOperation({ summary: 'Get all frames' })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiResponse({ status: 200, description: 'Frames retrieved successfully' })
+  findAllFrames(
+    @Query('categoryId') categoryId?: string,
+    @Query('isActive') isActive?: boolean,
+  ) {
+    return this.libraryService.findAllFrames(categoryId, isActive);
+  }
+
+  @Get('frames/:id')
+  @ApiOperation({ summary: 'Get frame by ID' })
+  @ApiResponse({ status: 200, description: 'Frame found' })
+  @ApiResponse({ status: 404, description: 'Frame not found' })
+  findOneFrame(@Param('id') id: string) {
+    return this.libraryService.findOneFrame(id);
+  }
+
+  @Post('frames')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Create a new frame' })
+  @ApiResponse({ status: 201, description: 'Frame created successfully' })
+  createFrame(@Body() createFrameDto: CreateFrameDto) {
+    return this.libraryService.createFrame(createFrameDto);
+  }
+
+  @Patch('frames/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Update frame' })
+  @ApiResponse({ status: 200, description: 'Frame updated successfully' })
+  updateFrame(@Param('id') id: string, @Body() updateFrameDto: UpdateFrameDto) {
+    return this.libraryService.updateFrame(id, updateFrameDto);
+  }
+
+  @Delete('frames/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete frame' })
+  @ApiResponse({ status: 200, description: 'Frame deleted successfully' })
+  removeFrame(@Param('id') id: string) {
+    return this.libraryService.removeFrame(id);
+  }
+
+  // ============================================================================
+  // Categories
+  // ============================================================================
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Get all categories' })
+  @ApiQuery({ name: 'type', required: false, enum: ['background', 'shape', 'frame', 'clipart'] })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiResponse({ status: 200, description: 'Categories retrieved successfully' })
+  findAllCategories(
+    @Query('type') type?: LibraryCategoryType,
+    @Query('isActive') isActive?: boolean,
+  ) {
+    return this.libraryService.findAllCategories(type, isActive);
+  }
+
+  @Get('categories/tree/:type')
+  @ApiOperation({ summary: 'Get categories as tree structure' })
+  @ApiResponse({ status: 200, description: 'Categories tree retrieved successfully' })
+  findCategoriesTree(@Param('type') type: LibraryCategoryType) {
+    return this.libraryService.findCategoriesTree(type);
+  }
+
+  @Get('categories/:id')
+  @ApiOperation({ summary: 'Get category by ID' })
+  @ApiResponse({ status: 200, description: 'Category found' })
+  @ApiResponse({ status: 404, description: 'Category not found' })
+  findOneCategory(@Param('id') id: string) {
+    return this.libraryService.findOneCategory(id);
+  }
+
+  @Post('categories')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Create a new category' })
+  @ApiResponse({ status: 201, description: 'Category created successfully' })
+  createCategory(@Body() createCategoryDto: CreateCategoryDto) {
+    return this.libraryService.createCategory(createCategoryDto);
+  }
+
+  @Patch('categories/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Update category' })
+  @ApiResponse({ status: 200, description: 'Category updated successfully' })
+  updateCategory(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
+    return this.libraryService.updateCategory(id, updateCategoryDto);
+  }
+
+  @Delete('categories/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete category' })
+  @ApiResponse({ status: 200, description: 'Category deleted successfully' })
+  removeCategory(@Param('id') id: string) {
+    return this.libraryService.removeCategory(id);
   }
 }

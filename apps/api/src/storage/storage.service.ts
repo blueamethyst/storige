@@ -78,8 +78,8 @@ export class StorageService {
     const filePath = path.join(categoryPath, filename);
     await fs.writeFile(filePath, file.buffer);
 
-    // Generate URL
-    const url = `/storage/${category}/${filename}`;
+    // Generate URL (matches controller endpoint /storage/files/:category/:filename)
+    const url = `/storage/files/${category}/${filename}`;
 
     return {
       id: fileId,
@@ -102,8 +102,8 @@ export class StorageService {
   }
 
   async deleteFileByUrl(url: string): Promise<void> {
-    // Extract path from URL (e.g., /storage/uploads/file.jpg -> uploads/file.jpg)
-    const relativePath = url.replace('/storage/', '');
+    // Extract path from URL (e.g., /storage/files/uploads/file.jpg -> uploads/file.jpg)
+    const relativePath = url.replace('/storage/files/', '').replace('/storage/', '');
     const filePath = path.join(this.storagePath, relativePath);
     await this.deleteFile(filePath);
   }
@@ -153,7 +153,8 @@ export class StorageService {
 
   // Helper method to get full file path from URL
   getFilePathFromUrl(url: string): string {
-    const relativePath = url.replace('/storage/', '');
+    // Handle both old (/storage/category/file) and new (/storage/files/category/file) URL formats
+    const relativePath = url.replace('/storage/files/', '').replace('/storage/', '');
     return path.join(this.storagePath, relativePath);
   }
 

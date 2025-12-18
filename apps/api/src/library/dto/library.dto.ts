@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsArray, IsNumber, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 // Font DTOs
 export class CreateFontDto {
@@ -68,6 +69,11 @@ export class CreateBackgroundDto {
   @IsString()
   category?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
@@ -94,6 +100,11 @@ export class UpdateBackgroundDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
@@ -122,6 +133,11 @@ export class CreateClipartDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 
   @ApiPropertyOptional({ example: ['star', 'icon', 'shape'] })
   @IsOptional()
@@ -156,11 +172,204 @@ export class UpdateClipartDto {
   @IsString()
   category?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @ApiPropertyOptional({ example: ['star', 'icon', 'shape'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// Shape DTOs
+export class CreateShapeDto {
+  @ApiProperty({ example: 'Circle' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ example: 'https://example.com/shapes/circle.svg' })
+  @IsString()
+  @IsNotEmpty()
+  fileUrl: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/shapes/circle-thumb.jpg' })
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ example: ['circle', 'basic'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateShapeDto {
+  @ApiPropertyOptional({ example: 'Circle' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/shapes/circle.svg' })
+  @IsOptional()
+  @IsString()
+  fileUrl?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/shapes/circle-thumb.jpg' })
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ example: ['circle', 'basic'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// Frame DTOs
+export class CreateFrameDto {
+  @ApiProperty({ example: 'Rounded Frame' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ example: 'https://example.com/frames/rounded.svg' })
+  @IsString()
+  @IsNotEmpty()
+  fileUrl: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/frames/rounded-thumb.jpg' })
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ example: ['rounded', 'photo'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateFrameDto {
+  @ApiPropertyOptional({ example: 'Rounded Frame' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/frames/rounded.svg' })
+  @IsOptional()
+  @IsString()
+  fileUrl?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/frames/rounded-thumb.jpg' })
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({ example: ['rounded', 'photo'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// Category DTOs
+export type LibraryCategoryType = 'background' | 'shape' | 'frame' | 'clipart';
+
+export class CreateCategoryDto {
+  @ApiProperty({ example: '기본 도형' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ enum: ['background', 'shape', 'frame', 'clipart'] })
+  @IsString()
+  @IsIn(['background', 'shape', 'frame', 'clipart'])
+  type: LibraryCategoryType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  parentId?: string;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateCategoryDto {
+  @ApiPropertyOptional({ example: '기본 도형' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  parentId?: string;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  sortOrder?: number;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

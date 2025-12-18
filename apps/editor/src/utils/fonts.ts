@@ -1,25 +1,19 @@
-import fontData from '@/data/fonts.json'
+// 하위 호환성을 위해 fontManager에서 re-export
+export type { FontSource } from './fontManager'
+export {
+  DEFAULT_FONT_FAMILY,
+  getFontUrl,
+  getFontList,
+  getFontListAsSource,
+  findFontByName,
+  searchFonts,
+  loadFonts,
+  refreshFonts,
+  isFontsLoaded,
+  resolveStorageUrl,
+} from './fontManager'
 
-export interface FontSource {
-  name: string
-  file: string
-}
-
-export const getFontUrl = (fileName: string): string | undefined => {
-  try {
-    // 공백을 +로 변환
-    const encodedFileName = fileName.replace(/ /g, '+')
-    return `https://cdn.webeasy.co.kr/fonts/${encodedFileName}`
-  } catch (e) {
-    console.error(`Error creating URL path for font: ${fileName}`, e)
-    return undefined
-  }
-}
-
-// JSON에서 폰트 리스트 로드
-export const fontList: FontSource[] = fontData
-
-// 폰트 이름으로 폰트 찾기
-export const findFontByName = (name: string): FontSource | undefined => {
-  return fontList.find((f) => f.name === name || f.name.toLowerCase() === name.toLowerCase())
-}
+// fontList는 이제 비동기로 로드되므로, 동기적 접근은 빈 배열 반환
+// getFontList() 또는 loadFonts()를 사용하세요
+import { getFontListAsSource } from './fontManager'
+export const fontList = getFontListAsSource()

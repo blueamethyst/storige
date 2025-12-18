@@ -5,6 +5,9 @@ import { LibraryController } from './library.controller';
 import { LibraryFont } from './entities/font.entity';
 import { LibraryBackground } from './entities/background.entity';
 import { LibraryClipart } from './entities/clipart.entity';
+import { LibraryShape } from './entities/shape.entity';
+import { LibraryFrame } from './entities/frame.entity';
+import { LibraryCategory } from './entities/category.entity';
 
 @Module({
   imports: [
@@ -12,6 +15,9 @@ import { LibraryClipart } from './entities/clipart.entity';
       LibraryFont,
       LibraryBackground,
       LibraryClipart,
+      LibraryShape,
+      LibraryFrame,
+      LibraryCategory,
     ]),
   ],
   controllers: [LibraryController],

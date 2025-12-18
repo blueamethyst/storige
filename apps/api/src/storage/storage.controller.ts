@@ -72,6 +72,21 @@ export class StorageController {
     return await this.storageService.saveFile(file, category || 'uploads');
   }
 
+  // Legacy endpoint for backward compatibility (old URLs: /storage/:category/:filename)
+  @Get(':category/:filename')
+  @Public()
+  @ApiOperation({ summary: 'Get a file (legacy URL format)' })
+  @ApiResponse({ status: 200, description: 'File retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'File not found' })
+  async getFileLegacy(
+    @Param('category') category: string,
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    // Delegate to the main getFile method
+    return this.getFile(category, filename, res);
+  }
+
   @Get('files/:category/:filename')
   @Public()
   @ApiOperation({ summary: 'Get a file' })

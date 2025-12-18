@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { LibraryFont } from './entities/font.entity';
 import { LibraryBackground } from './entities/background.entity';
 import { LibraryClipart } from './entities/clipart.entity';
+import { LibraryShape } from './entities/shape.entity';
+import { LibraryFrame } from './entities/frame.entity';
+import { LibraryCategory, LibraryCategoryType } from './entities/category.entity';
 import {
   CreateFontDto,
   UpdateFontDto,
@@ -11,6 +14,12 @@ import {
   UpdateBackgroundDto,
   CreateClipartDto,
   UpdateClipartDto,
+  CreateShapeDto,
+  UpdateShapeDto,
+  CreateFrameDto,
+  UpdateFrameDto,
+  CreateCategoryDto,
+  UpdateCategoryDto,
 } from './dto/library.dto';
 
 @Injectable()
@@ -22,6 +31,12 @@ export class LibraryService {
     private backgroundRepository: Repository<LibraryBackground>,
     @InjectRepository(LibraryClipart)
     private clipartRepository: Repository<LibraryClipart>,
+    @InjectRepository(LibraryShape)
+    private shapeRepository: Repository<LibraryShape>,
+    @InjectRepository(LibraryFrame)
+    private frameRepository: Repository<LibraryFrame>,
+    @InjectRepository(LibraryCategory)
+    private categoryRepository: Repository<LibraryCategory>,
   ) {}
 
   // ============================================================================
@@ -168,5 +183,179 @@ export class LibraryService {
     });
 
     return await query.andWhere('clipart.isActive = :isActive', { isActive: true }).getMany();
+  }
+
+  // ============================================================================
+  // Shapes
+  // ============================================================================
+
+  async createShape(createShapeDto: CreateShapeDto): Promise<LibraryShape> {
+    const shape = this.shapeRepository.create(createShapeDto);
+    return await this.shapeRepository.save(shape);
+  }
+
+  async findAllShapes(categoryId?: string, isActive?: boolean): Promise<LibraryShape[]> {
+    const query = this.shapeRepository.createQueryBuilder('shape');
+
+    if (categoryId) {
+      query.andWhere('shape.categoryId = :categoryId', { categoryId });
+    }
+
+    if (isActive !== undefined) {
+      query.andWhere('shape.isActive = :isActive', { isActive });
+    }
+
+    return await query.orderBy('shape.name', 'ASC').getMany();
+  }
+
+  async findOneShape(id: string): Promise<LibraryShape> {
+    const shape = await this.shapeRepository.findOne({ where: { id } });
+
+    if (!shape) {
+      throw new NotFoundException(`Shape with ID ${id} not found`);
+    }
+
+    return shape;
+  }
+
+  async updateShape(id: string, updateShapeDto: UpdateShapeDto): Promise<LibraryShape> {
+    const shape = await this.findOneShape(id);
+    Object.assign(shape, updateShapeDto);
+    return await this.shapeRepository.save(shape);
+  }
+
+  async removeShape(id: string): Promise<void> {
+    const shape = await this.findOneShape(id);
+    await this.shapeRepository.remove(shape);
+  }
+
+  // ============================================================================
+  // Frames
+  // ============================================================================
+
+  async createFrame(createFrameDto: CreateFrameDto): Promise<LibraryFrame> {
+    const frame = this.frameRepository.create(createFrameDto);
+    return await this.frameRepository.save(frame);
+  }
+
+  async findAllFrames(categoryId?: string, isActive?: boolean): Promise<LibraryFrame[]> {
+    const query = this.frameRepository.createQueryBuilder('frame');
+
+    if (categoryId) {
+      query.andWhere('frame.categoryId = :categoryId', { categoryId });
+    }
+
+    if (isActive !== undefined) {
+      query.andWhere('frame.isActive = :isActive', { isActive });
+    }
+
+    return await query.orderBy('frame.name', 'ASC').getMany();
+  }
+
+  async findOneFrame(id: string): Promise<LibraryFrame> {
+    const frame = await this.frameRepository.findOne({ where: { id } });
+
+    if (!frame) {
+      throw new NotFoundException(`Frame with ID ${id} not found`);
+    }
+
+    return frame;
+  }
+
+  async updateFrame(id: string, updateFrameDto: UpdateFrameDto): Promise<LibraryFrame> {
+    const frame = await this.findOneFrame(id);
+    Object.assign(frame, updateFrameDto);
+    return await this.frameRepository.save(frame);
+  }
+
+  async removeFrame(id: string): Promise<void> {
+    const frame = await this.findOneFrame(id);
+    await this.frameRepository.remove(frame);
+  }
+
+  // ============================================================================
+  // Categories
+  // ============================================================================
+
+  async createCategory(createCategoryDto: CreateCategoryDto): Promise<LibraryCategory> {
+    const category = this.categoryRepository.create(createCategoryDto);
+    return await this.categoryRepository.save(category);
+  }
+
+  async findAllCategories(type?: LibraryCategoryType, isActive?: boolean): Promise<LibraryCategory[]> {
+    const query = this.categoryRepository.createQueryBuilder('category');
+
+    if (type) {
+      query.andWhere('category.type = :type', { type });
+    }
+
+    if (isActive !== undefined) {
+      query.andWhere('category.isActive = :isActive', { isActive });
+    }
+
+    return await query
+      .orderBy('category.sortOrder', 'ASC')
+      .addOrderBy('category.name', 'ASC')
+      .getMany();
+  }
+
+  async findCategoriesTree(type: LibraryCategoryType): Promise<LibraryCategory[]> {
+    // Fetch root categories (parentId is null)
+    const rootCategories = await this.categoryRepository.find({
+      where: {
+        type,
+        parentId: IsNull(),
+        isActive: true,
+      },
+      order: { sortOrder: 'ASC', name: 'ASC' },
+    });
+
+    // Fetch children for each root
+    for (const root of rootCategories) {
+      root.children = await this.categoryRepository.find({
+        where: {
+          parentId: root.id,
+          isActive: true,
+        },
+        order: { sortOrder: 'ASC', name: 'ASC' },
+      });
+    }
+
+    return rootCategories;
+  }
+
+  async findOneCategory(id: string): Promise<LibraryCategory> {
+    const category = await this.categoryRepository.findOne({ where: { id } });
+
+    if (!category) {
+      throw new NotFoundException(`Category with ID ${id} not found`);
+    }
+
+    return category;
+  }
+
+  async updateCategory(id: string, updateCategoryDto: UpdateCategoryDto): Promise<LibraryCategory> {
+    const category = await this.findOneCategory(id);
+    Object.assign(category, updateCategoryDto);
+    return await this.categoryRepository.save(category);
+  }
+
+  async removeCategory(id: string): Promise<void> {
+    const category = await this.findOneCategory(id);
+
+    // Check if category has children
+    const children = await this.categoryRepository.find({
+      where: { parentId: id },
+    });
+
+    if (children.length > 0) {
+      // Move children to root (set parentId to null)
+      for (const child of children) {
+        child.parentId = null;
+        await this.categoryRepository.save(child);
+      }
+    }
+
+    await this.categoryRepository.remove(category);
   }
 }

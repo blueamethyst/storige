@@ -327,6 +327,26 @@ export interface OrderOptions {
 // Library
 // ============================================================================
 
+/**
+ * 라이브러리 카테고리 타입
+ */
+export type LibraryCategoryType = 'background' | 'shape' | 'frame' | 'clipart';
+
+/**
+ * 라이브러리 카테고리 (계층형)
+ */
+export interface LibraryCategory {
+  id: string;
+  name: string;
+  type: LibraryCategoryType;
+  parentId: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  children?: LibraryCategory[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface LibraryFont {
   id: string;
   name: string;
@@ -342,6 +362,35 @@ export interface LibraryBackground {
   fileUrl: string;
   thumbnailUrl?: string;
   category?: string;
+  categoryId?: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+/**
+ * 도형 에셋
+ */
+export interface LibraryShape {
+  id: string;
+  name: string;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  categoryId?: string;
+  tags?: string[];
+  isActive: boolean;
+  createdAt: Date;
+}
+
+/**
+ * 사진틀 에셋
+ */
+export interface LibraryFrame {
+  id: string;
+  name: string;
+  fileUrl: string;
+  thumbnailUrl?: string;
+  categoryId?: string;
+  tags?: string[];
   isActive: boolean;
   createdAt: Date;
 }
@@ -352,6 +401,7 @@ export interface LibraryClipart {
   fileUrl: string;
   thumbnailUrl?: string;
   category?: string;
+  categoryId?: string;
   tags?: string[];
   isActive: boolean;
   createdAt: Date;

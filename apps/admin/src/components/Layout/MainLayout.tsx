@@ -8,15 +8,17 @@ import {
   FolderOutlined,
   PictureOutlined,
   CloudServerOutlined,
-  SettingOutlined,
   UserOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   AppstoreOutlined,
-  ShoppingOutlined,
-  AuditOutlined,
   LinkOutlined,
+  EditOutlined,
+  FontSizeOutlined,
+  BorderOutlined,
+  BlockOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 import { authApi } from '../../api/auth';
@@ -63,40 +65,34 @@ export const MainLayout = () => {
       onClick: () => navigate('/'),
     },
     {
-      key: '/templates',
+      key: '/templates-group',
       icon: <FileTextOutlined />,
-      label: '템플릿 관리',
-      onClick: () => navigate('/templates'),
-    },
-    {
-      key: '/template-sets',
-      icon: <AppstoreOutlined />,
-      label: '템플릿셋 관리',
-      onClick: () => navigate('/template-sets'),
-    },
-    {
-      key: '/product-template-sets',
-      icon: <LinkOutlined />,
-      label: '상품-템플릿 연결',
-      onClick: () => navigate('/product-template-sets'),
-    },
-    {
-      key: '/categories',
-      icon: <FolderOutlined />,
-      label: '카테고리 관리',
-      onClick: () => navigate('/categories'),
-    },
-    {
-      key: '/products',
-      icon: <ShoppingOutlined />,
-      label: '상품 관리',
-      onClick: () => navigate('/products'),
-    },
-    {
-      key: '/reviews',
-      icon: <AuditOutlined />,
-      label: '편집 검토',
-      onClick: () => navigate('/reviews'),
+      label: '템플릿',
+      children: [
+        {
+          key: '/categories',
+          icon: <FolderOutlined />,
+          label: '템플릿분류',
+          onClick: () => navigate('/categories'),
+        },
+        {
+          key: '/templates',
+          label: '템플릿관리',
+          onClick: () => navigate('/templates'),
+        },
+        {
+          key: '/template-sets',
+          icon: <AppstoreOutlined />,
+          label: '템플릿셋관리',
+          onClick: () => navigate('/template-sets'),
+        },
+        {
+          key: '/product-template-sets',
+          icon: <LinkOutlined />,
+          label: '상품-템플릿 연결',
+          onClick: () => navigate('/product-template-sets'),
+        },
+      ],
     },
     {
       key: '/library',
@@ -104,33 +100,65 @@ export const MainLayout = () => {
       label: '라이브러리',
       children: [
         {
+          key: '/library/categories',
+          icon: <FolderOutlined />,
+          label: '카테고리관리',
+          onClick: () => navigate('/library/categories'),
+        },
+        {
           key: '/library/fonts',
+          icon: <FontSizeOutlined />,
           label: '폰트',
           onClick: () => navigate('/library/fonts'),
         },
         {
           key: '/library/backgrounds',
+          icon: <PictureOutlined />,
           label: '배경',
           onClick: () => navigate('/library/backgrounds'),
         },
         {
+          key: '/library/shapes',
+          icon: <BorderOutlined />,
+          label: '도형',
+          onClick: () => navigate('/library/shapes'),
+        },
+        {
+          key: '/library/frames',
+          icon: <BlockOutlined />,
+          label: '사진틀',
+          onClick: () => navigate('/library/frames'),
+        },
+        {
           key: '/library/cliparts',
+          icon: <StarOutlined />,
           label: '클립아트',
           onClick: () => navigate('/library/cliparts'),
         },
       ],
     },
     {
-      key: '/worker-jobs',
-      icon: <CloudServerOutlined />,
-      label: '워커 작업',
-      onClick: () => navigate('/worker-jobs'),
+      key: '/edit-management',
+      icon: <EditOutlined />,
+      label: '편집관리',
+      children: [
+        {
+          key: '/edit-sessions',
+          label: '편집데이터관리',
+          onClick: () => navigate('/edit-sessions'),
+        },
+        {
+          key: '/reviews',
+          label: '편집검토',
+          onClick: () => navigate('/reviews'),
+        },
+      ],
     },
     {
-      key: '/settings',
-      icon: <SettingOutlined />,
-      label: '설정',
-      onClick: () => navigate('/settings'),
+      key: '/worker-jobs',
+      icon: <CloudServerOutlined />,
+      label: '워커작업관리',
+      onClick: () => navigate('/worker-jobs'),
     },
   ];
 

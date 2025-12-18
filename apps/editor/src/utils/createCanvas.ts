@@ -28,7 +28,7 @@ const ENABLE_IMAGE_PROCESSING = import.meta.env.VITE_ENABLE_IMAGE_PROCESSING !==
 const ENABLE_RULER = import.meta.env.VITE_ENABLE_RULER !== 'false'
 import { useAppStore } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { DEFAULT_FONT_FAMILY, getFontList, getFontUrl } from '@/utils/fontManager'
+import { DEFAULT_FONT_FAMILY, loadFonts, getFontList, resolveStorageUrl } from '@/utils/fontManager'
 import type { fabric } from 'fabric'
 
 /**
@@ -130,7 +130,10 @@ export const createCanvas = async (
     canvas.wrapperEl = customContainer
   }
 
-  // 6. 플러그인 초기화
+  // 6. 폰트 목록 로드 (API에서)
+  await loadFonts()
+
+  // 7. 플러그인 초기화
   initPlugins(canvas, editor, settings, initId)
 
   return canvas
@@ -209,13 +212,12 @@ function initPlugins(
   const material = new AccessoryPlugin(canvas, editor, {})
   const drag = new DraggingPlugin(canvas, editor)
 
-  // FontPlugin에 전달하기 위해 fontList 변환
-  const fontListForPlugin = getFontList()
-    .map((font) => ({
-      name: font.name,
-      src: getFontUrl(font.file),
-    }))
-    .filter((font) => font.src !== undefined) as { name: string; src: string }[]
+  // FontPlugin에 전달하기 위해 fontList 변환 (API에서 로드된 LibraryFont 사용)
+  // 상대 URL을 절대 URL로 변환하여 전달
+  const fontListForPlugin = getFontList().map((font) => ({
+    name: font.name,
+    src: resolveStorageUrl(font.fileUrl),
+  }))
 
   const font = new FontPlugin(canvas, editor, fontListForPlugin, DEFAULT_FONT_FAMILY)
 

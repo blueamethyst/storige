@@ -12,9 +12,15 @@ import { ProductTemplateSetList } from './pages/ProductTemplateSets';
 import { CategoryManagement } from './pages/Categories';
 import { ProductList } from './pages/Products';
 import { ReviewList, ReviewDetail } from './pages/Reviews';
-import { FontList } from './pages/Library';
-import { BackgroundList } from './pages/Library/BackgroundList';
-import { ClipartList } from './pages/Library/ClipartList';
+import {
+  FontList,
+  BackgroundList,
+  ClipartList,
+  ShapeList,
+  FrameList,
+  CategoryManagement as LibraryCategoryManagement,
+} from './pages/Library';
+import { EditSessionList } from './pages/EditSessions';
 import { WorkerJobList } from './pages/WorkerJobs';
 
 const queryClient = new QueryClient({
@@ -53,20 +59,27 @@ function App() {
               }
             >
               <Route index element={<Dashboard />} />
+              {/* 템플릿 그룹 */}
               <Route path="templates" element={<TemplateList />} />
               <Route path="template-sets" element={<TemplateSetList />} />
               <Route path="template-sets/new" element={<TemplateSetForm />} />
               <Route path="template-sets/:id" element={<TemplateSetForm />} />
               <Route path="product-template-sets" element={<ProductTemplateSetList />} />
               <Route path="categories" element={<CategoryManagement />} />
-              <Route path="products" element={<ProductList />} />
-              <Route path="reviews" element={<ReviewList />} />
-              <Route path="reviews/:id" element={<ReviewDetail />} />
+              {/* 라이브러리 그룹 */}
+              <Route path="library/categories" element={<LibraryCategoryManagement />} />
               <Route path="library/fonts" element={<FontList />} />
               <Route path="library/backgrounds" element={<BackgroundList />} />
+              <Route path="library/shapes" element={<ShapeList />} />
+              <Route path="library/frames" element={<FrameList />} />
               <Route path="library/cliparts" element={<ClipartList />} />
+              {/* 편집관리 그룹 */}
+              <Route path="edit-sessions" element={<EditSessionList />} />
+              <Route path="reviews" element={<ReviewList />} />
+              <Route path="reviews/:id" element={<ReviewDetail />} />
+              {/* 기타 */}
               <Route path="worker-jobs" element={<WorkerJobList />} />
-              <Route path="settings" element={<div>설정 (구현 예정)</div>} />
+              <Route path="products" element={<ProductList />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

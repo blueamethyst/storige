@@ -1,6 +1,6 @@
 # Storige-Bookmoa 통합 개발 계획
 
-마지막 업데이트: 2025-12-14
+마지막 업데이트: 2025-12-18
 
 ## Phase 1: 기반 인프라 구축 ✅ 완료
 
@@ -216,37 +216,136 @@
 - [x] API Key 인증 추가 (worker→api 통신)
 - [x] Worker 단위 테스트 추가 (19 tests)
 
-## Phase 6: 상품-템플릿셋 연동 ❌ 미시작
+## Phase 6: 상품-템플릿셋 연동 ✅ 완료
 
 > 기획 문서: `docs/product-templateset-linking-plan.md`
 
-### 6.1 백엔드 구현
-- [ ] `ProductTemplateSet` 엔티티 생성
-- [ ] Repository 구현 (조회/생성/수정/삭제)
-- [ ] Service 구현 (폴백 조회 로직 포함)
-- [ ] Controller 구현 (API 엔드포인트)
-- [ ] DTO 정의 (Request/Response)
-- [ ] API Key 인증 (외부 조회 API)
+### 6.1 백엔드 구현 ✅
+- [x] `ProductTemplateSet` 엔티티 생성
+  - `apps/api/src/templates/entities/product-template-set.entity.ts`
+- [x] Repository 구현 (조회/생성/수정/삭제)
+- [x] Service 구현 (폴백 조회 로직 포함)
+  - `apps/api/src/templates/product-template-sets.service.ts`
+  - sortcode+stanSeqno 정확 매칭 → sortcode만 폴백
+- [x] Controller 구현 (API 엔드포인트)
+  - `apps/api/src/templates/product-template-sets.controller.ts`
+  - `GET /product-template-sets/by-product` (외부용, API Key)
+  - `GET/POST/PATCH/DELETE /product-template-sets` (관리자용)
+  - `POST /product-template-sets/bulk` (일괄 생성)
+- [x] DTO 정의 (Request/Response)
+  - `apps/api/src/templates/dto/product-template-set.dto.ts`
+- [x] API Key 인증 (외부 조회 API)
+  - `@Public()` + `@UseGuards(ApiKeyGuard)`
 
-### 6.2 Admin UI 구현
-- [ ] 연결 관리 페이지 (목록/추가/삭제)
-- [ ] 카테고리 셀렉터 (북모아 카테고리 트리)
-- [ ] 템플릿셋 선택 모달 (검색/필터/다중선택)
-- [ ] 순서/기본 설정 UI (드래그앤드롭)
+### 6.2 Admin UI 구현 ✅
+- [x] 연결 관리 페이지 (목록/추가/삭제)
+  - `apps/admin/src/pages/ProductTemplateSets/ProductTemplateSetList.tsx`
+- [x] 카테고리 셀렉터 (북모아 카테고리 자동완성)
+  - bookmoa DB 연동으로 카테고리명 조회
+- [x] 템플릿셋 선택 모달 (검색/필터/다중선택)
+  - 템플릿셋 다중 선택 및 일괄 생성 지원
+- [x] 순서/기본 설정 UI
+  - 기본 템플릿 설정 (별표 토글)
+  - 활성화 토글 (Switch)
 
-### 6.3 bookmoa 연동
-- [ ] `storige_get_template_sets()` 헬퍼 함수
-- [ ] `edit.php` 수정 (템플릿셋 목록 전달)
-- [ ] 에디터 템플릿 선택 UI
+### 6.3 bookmoa 연동 ✅
+- [x] `storige_get_template_sets()` 헬퍼 함수
+  - `bookmoa/front/storige/storige_common.php:369-382`
+- [x] `edit.php` 수정 (템플릿셋 목록 전달)
+  - `availableTemplateSets` 파라미터로 에디터에 전달
+  - 기본 템플릿 자동 선택 로직
+- [x] 에디터 템플릿 선택 UI
+  - 에디터 설정에 templateSetId 전달
 
-## Phase 7: 프로덕션 배포 ❌ 미시작
+## Phase 7: Admin 기능 확장 ❌ 미시작
 
-### 7.1 배포 준비
+> PDF 기획서: `storige/admin-flow.pdf` 참조
+
+### 7.1 라이브러리 에셋 확장 ❌
+
+관리 대상 에셋: 폰트, 배경, 도형, 사진틀, 클립아트
+- 폰트 제외 나머지는 계층형 카테고리 관리 필요
+
+#### 7.1.1 타입 정의 추가 (`packages/types`)
+- [ ] `LibraryShape` 인터페이스 추가
+- [ ] `LibraryFrame` 인터페이스 추가
+- [ ] `LibraryCategory` 인터페이스 추가 (계층형 카테고리)
+
+#### 7.1.2 백엔드 구현 (`apps/api`)
+- [ ] `LibraryCategory` 엔티티 (계층형)
+- [ ] `LibraryShape` 엔티티
+- [ ] `LibraryFrame` 엔티티
+- [ ] Library 모듈 확장 (Service, Controller)
+- [ ] API 엔드포인트
+  - `GET/POST/PATCH/DELETE /api/library/categories`
+  - `GET/POST/PATCH/DELETE /api/library/shapes`
+  - `GET/POST/PATCH/DELETE /api/library/frames`
+
+#### 7.1.3 Admin UI 구현 (`apps/admin`)
+- [ ] `LibraryCategoryManagement.tsx` - 계층형 카테고리 관리
+  - 트리 구조 UI (Ant Design Tree)
+  - 드래그 앤 드롭 순서 변경
+  - 카테고리 타입별 필터 (배경/도형/사진틀/클립아트)
+- [ ] `ShapeList.tsx` - 도형 관리
+  - 목록/업로드/삭제
+  - 카테고리 필터
+- [ ] `FrameList.tsx` - 사진틀 관리
+  - 목록/업로드/삭제
+  - 카테고리 필터
+- [ ] `BackgroundList.tsx` 개선 - 카테고리 연결 추가
+- [ ] `ClipartList.tsx` 개선 - 카테고리 연결 추가
+
+### 7.2 편집데이터관리 ❌
+
+> PDF 기획서 페이지 18 참조
+
+- [ ] `EditSessionManagement.tsx` - 고객 편집 세션 관리 페이지
+  - 주문번호, 편집코드, 편집명
+  - 편집 시작일, 마지막 수정일, 편집 완료일
+  - 작업상태 필터 (편집중/편집완료)
+  - 고객명/아이디 검색
+  - 수정/복사/삭제 기능
+- [ ] Admin API 클라이언트 (`api/edit-sessions.ts`)
+- [ ] 사이드바 메뉴 추가
+
+### 7.3 사이드바 메뉴 구조 개편 ❌
+
+최종 메뉴 구조:
+```
+📊 대시보드
+
+📁 템플릿
+   ├─ 템플릿분류 (카테고리)
+   ├─ 템플릿관리
+   ├─ 템플릿셋관리
+   └─ 상품-템플릿 연결
+
+🎨 라이브러리
+   ├─ 카테고리관리 (계층형)
+   ├─ 폰트
+   ├─ 배경
+   ├─ 도형 ← 신규
+   ├─ 사진틀 ← 신규
+   └─ 클립아트
+
+📝 편집관리
+   ├─ 편집데이터관리 ← 신규
+   └─ 편집검토
+
+🔧 워커작업관리
+```
+
+- [ ] `MainLayout.tsx` 메뉴 구조 변경
+- [ ] `App.tsx` 라우트 추가
+
+## Phase 8: 프로덕션 배포 ❌ 미시작
+
+### 8.1 배포 준비
 - [ ] 프로덕션 환경변수
 - [ ] CDN 설정
 - [ ] SSL 인증서
 
-### 7.2 모니터링
+### 8.2 모니터링
 - [ ] 로깅 설정
 - [ ] 에러 추적
 - [ ] 성능 모니터링
@@ -263,19 +362,25 @@
 | Phase 4: 에디터 기능 | ✅ 완료 | 100% |
 | Phase 5: Worker 통합 | ✅ 완료 | 100% |
 | Phase 5.5: 쇼핑몰 Worker UX | ✅ 완료 | 100% |
-| Phase 6: 상품-템플릿셋 연동 | ❌ 미시작 | 0% |
-| Phase 7: 배포 | ❌ 미시작 | 0% |
+| Phase 6: 상품-템플릿셋 연동 | ✅ 완료 | 100% |
+| Phase 7: Admin 기능 확장 | ❌ 미시작 | 0% |
+| Phase 8: 배포 | ❌ 미시작 | 0% |
 
 **전체 진행률: 약 85%**
 
 ## 다음 작업 우선순위
 
-1. **상품-템플릿셋 연동** (Phase 6)
-   - 백엔드 API 구현
-   - Admin UI 구현
-   - bookmoa 연동
+1. **Admin 기능 확장** (Phase 7)
+   - 라이브러리 에셋 확장 (도형, 사진틀, 계층형 카테고리)
+   - 편집데이터관리 페이지
+   - 사이드바 메뉴 구조 개편
 
-2. **프로덕션 배포** (Phase 7)
+2. **마이페이지 편집 보관함** (docs/DEVELOPMENT_PLAN.md Phase 5 참조)
+   - `bookmoa/front/mypage/edit_sessions.php` 구현
+   - `bookmoa/front/mypage/edit_session_detail.php` 구현
+   - 세션 목록 조회 및 재개 기능
+
+3. **프로덕션 배포** (Phase 8)
    - 프로덕션 환경변수 설정
    - CDN 설정
    - SSL 인증서
@@ -288,6 +393,23 @@
 - `validate.php` - 검증 진행 화면 (폴링 방식)
 - `validation_result.php` - 검증 결과 화면
 - `auto_convert.php` - 자동 변환 미리보기 (Before/After)
-- `storige_common.php` - 공통 함수 (검증, 파일정보 등 추가)
+- `storige_common.php` - 공통 함수 (검증, 파일정보, 템플릿셋 조회 등)
 - `ajax/upload_file.php` - 파일 업로드 API
 - `ajax/get_job_status.php` - 작업 상태 조회 API
+
+## 구현된 파일 목록 (Phase 6)
+
+### storige/apps/api/src/templates/
+- `entities/product-template-set.entity.ts` - 상품-템플릿셋 연결 엔티티
+- `product-template-sets.controller.ts` - API 컨트롤러
+- `product-template-sets.service.ts` - 비즈니스 로직 (폴백 조회 포함)
+- `dto/product-template-set.dto.ts` - DTO 정의
+
+### storige/apps/admin/src/
+- `pages/ProductTemplateSets/ProductTemplateSetList.tsx` - Admin 연결 관리 UI
+- `api/product-template-sets.ts` - Admin API 클라이언트
+- `api/bookmoa.ts` - 북모아 카테고리 API 클라이언트
+
+### bookmoa/front/storige/
+- `storige_common.php` - `storige_get_template_sets()` 헬퍼 함수
+- `edit.php` - 템플릿셋 목록 조회 및 에디터 전달
