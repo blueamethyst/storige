@@ -49,20 +49,31 @@ export const BackgroundList = () => {
     },
   });
 
-  // Upload mutation (placeholder - actual implementation needed)
+  // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      // TODO: Implement actual upload
-      console.log('Upload data:', data);
-      return Promise.resolve({ id: 'new-bg', fileUrl: '/uploaded.jpg' });
+    mutationFn: async (data: { name: string; category?: string; file: File }) => {
+      // 1. 파일 업로드
+      const uploadResult = await libraryApi.uploadFile(data.file);
+
+      // 2. 배경 정보 저장
+      const background = await libraryApi.createBackground({
+        name: data.name,
+        category: data.category || null,
+        fileUrl: uploadResult.url,
+        thumbnailUrl: uploadResult.url, // 썸네일도 동일한 URL 사용
+        isActive: true,
+      });
+
+      return background;
     },
     onSuccess: () => {
       message.success('배경이 업로드되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['backgrounds'] });
       handleCloseModal();
     },
-    onError: () => {
-      message.error('배경 업로드에 실패했습니다.');
+    onError: (error: any) => {
+      console.error('Background upload error:', error);
+      message.error(error?.response?.data?.message || '배경 업로드에 실패했습니다.');
     },
   });
 
@@ -82,12 +93,17 @@ export const BackgroundList = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('name', values.name);
-    formData.append('category', values.category || '');
-    formData.append('file', fileList[0] as RcFile);
+    const file = fileList[0].originFileObj as File;
+    if (!file) {
+      message.error('파일을 다시 선택해주세요.');
+      return;
+    }
 
-    uploadMutation.mutate(formData);
+    uploadMutation.mutate({
+      name: values.name,
+      category: values.category,
+      file,
+    });
   };
 
   const handleDelete = (id: string) => {

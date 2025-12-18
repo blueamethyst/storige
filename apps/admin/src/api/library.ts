@@ -1,5 +1,9 @@
+import axios from 'axios';
 import { axiosInstance } from '../lib/axios';
 import { LibraryFont, LibraryBackground, LibraryClipart, LibraryShape, LibraryFrame, LibraryCategory, LibraryCategoryType } from '@storige/types';
+
+// Storage API는 /api prefix가 없으므로 별도 base URL 사용
+const STORAGE_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:4000';
 
 // File upload response type
 interface UploadResponse {
@@ -18,16 +22,18 @@ export interface CreateFontDto {
 }
 
 export const libraryApi = {
-  // File upload
+  // File upload (storage routes don't have /api prefix)
   uploadFile: async (file: File): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await axiosInstance.post<UploadResponse>(
-      '/storage/upload?category=library',
+    const token = localStorage.getItem('accessToken');
+    const response = await axios.post<UploadResponse>(
+      `${STORAGE_BASE_URL}/storage/upload?category=library`,
       formData,
       {
         headers: {
           'Content-Type': 'multipart/form-data',
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
       }
     );
