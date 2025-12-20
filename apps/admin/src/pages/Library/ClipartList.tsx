@@ -50,20 +50,35 @@ export const ClipartList = () => {
     },
   });
 
-  // Upload mutation (placeholder - actual implementation needed)
+  // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      // TODO: Implement actual upload
-      console.log('Upload data:', data);
-      return Promise.resolve({ id: 'new-clipart', fileUrl: '/uploaded.svg' });
+    mutationFn: async (data: { name: string; category?: string; tags?: string; file: File }) => {
+      // 1. 파일 업로드
+      const uploadResult = await libraryApi.uploadFile(data.file);
+
+      // 2. 태그 파싱
+      const tags = data.tags ? data.tags.split(',').map((t: string) => t.trim()) : [];
+
+      // 3. 클립아트 정보 저장
+      const clipart = await libraryApi.createClipart({
+        name: data.name,
+        category: data.category || null,
+        fileUrl: uploadResult.url,
+        thumbnailUrl: uploadResult.url,
+        tags,
+        isActive: true,
+      });
+
+      return clipart;
     },
     onSuccess: () => {
       message.success('클립아트가 업로드되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['cliparts'] });
       handleCloseModal();
     },
-    onError: () => {
-      message.error('클립아트 업로드에 실패했습니다.');
+    onError: (error: any) => {
+      console.error('Clipart upload error:', error);
+      message.error(error?.response?.data?.message || '클립아트 업로드에 실패했습니다.');
     },
   });
 
@@ -83,13 +98,18 @@ export const ClipartList = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('name', values.name);
-    formData.append('category', values.category || '');
-    formData.append('tags', values.tags || '');
-    formData.append('file', fileList[0] as RcFile);
+    const file = fileList[0].originFileObj as File;
+    if (!file) {
+      message.error('파일을 다시 선택해주세요.');
+      return;
+    }
 
-    uploadMutation.mutate(formData);
+    uploadMutation.mutate({
+      name: values.name,
+      category: values.category,
+      tags: values.tags,
+      file,
+    });
   };
 
   const handleDelete = (id: string) => {
