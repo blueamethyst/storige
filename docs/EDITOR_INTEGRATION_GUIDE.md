@@ -7,9 +7,11 @@
 1. [개요](#1-개요)
 2. [에디터 URL 파라미터](#2-에디터-url-파라미터)
 3. [책등(Spine) API](#3-책등spine-api)
-4. [용지/제본 코드 참조](#4-용지제본-코드-참조)
-5. [연동 시나리오](#5-연동-시나리오)
-6. [에러 처리](#6-에러-처리)
+4. [PDF 병합 API](#4-pdf-병합-api)
+5. [용지/제본 코드 참조](#5-용지제본-코드-참조)
+6. [연동 시나리오](#6-연동-시나리오)
+7. [에러 처리](#7-에러-처리)
+8. [부록: 변경 이력](#부록-변경-이력)
 
 ---
 
@@ -230,9 +232,229 @@ API는 계산 결과와 함께 경고 메시지를 반환할 수 있습니다:
 
 ---
 
-## 4. 용지/제본 코드 참조
+## 4. PDF 병합 API
 
-### 4.1 용지 종류 (paper_types)
+에디터에서 편집한 표지 PDF와 북모아에서 업로드한 내지 PDF를 병합하는 API입니다.
+
+### 4.1 워크플로우
+
+```
+저장 시                              주문 시
+┌──────────────────────┐            ┌──────────────────────────────┐
+│ POST /check-mergeable │            │ POST /synthesize/external    │
+│ • 파일 존재/접근 확인  │            │ • Bull Queue에 작업 추가     │
+│ • 병합 가능 여부 반환  │            │ • 완료 시 웹훅 콜백          │
+└──────────────────────┘            └──────────────────────────────┘
+```
+
+### 4.2 API 엔드포인트 목록
+
+| Method | Endpoint | 설명 | 인증 |
+|--------|----------|------|------|
+| POST | `/api/worker-jobs/check-mergeable/external` | 병합 가능 여부 체크 (dry-run) | API Key |
+| POST | `/api/worker-jobs/synthesize/external` | 병합 작업 트리거 | API Key |
+| GET | `/api/worker-jobs/external/:id` | 작업 상태 조회 | API Key |
+
+### 4.3 인증
+
+모든 외부 API는 `X-API-Key` 헤더로 인증합니다:
+
+```http
+X-API-Key: {YOUR_API_KEY}
+```
+
+### 4.4 병합 가능 여부 체크
+
+에디터 저장 시점에 호출하여 병합 가능 여부를 사전 확인합니다.
+
+```http
+POST /api/worker-jobs/check-mergeable/external
+Content-Type: application/json
+X-API-Key: {API_KEY}
+```
+
+**Request Body**
+```json
+{
+  "editSessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "coverFileId": "cover-file-uuid",
+  "contentFileId": "content-file-uuid",
+  "spineWidth": 5.5
+}
+```
+
+| 필드 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `editSessionId` | ✅ | string (UUID) | 편집 세션 ID |
+| `coverFileId` | ❌ | string (UUID) | 표지 파일 ID (coverUrl 대신 사용 가능) |
+| `coverUrl` | ❌ | string | 표지 파일 URL |
+| `contentFileId` | ❌ | string (UUID) | 내지 파일 ID (contentUrl 대신 사용 가능) |
+| `contentUrl` | ❌ | string | 내지 파일 URL |
+| `spineWidth` | ✅ | number | 책등 폭 (mm) |
+
+**Response (201 - 병합 가능)**
+```json
+{
+  "mergeable": true
+}
+```
+
+**Response (201 - 병합 불가)**
+```json
+{
+  "mergeable": false,
+  "issues": [
+    {
+      "code": "CONTENT_FILE_INACCESSIBLE",
+      "message": "내지 파일에 접근할 수 없습니다."
+    }
+  ]
+}
+```
+
+### 4.5 병합 작업 트리거
+
+주문 시점에 호출하여 실제 PDF 병합 작업을 시작합니다.
+
+```http
+POST /api/worker-jobs/synthesize/external
+Content-Type: application/json
+X-API-Key: {API_KEY}
+```
+
+**Request Body**
+```json
+{
+  "editSessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "coverFileId": "cover-file-uuid",
+  "contentFileId": "content-file-uuid",
+  "spineWidth": 5.5,
+  "orderId": "ORD-2024-12345",
+  "priority": "high",
+  "callbackUrl": "https://bookmoa.com/api/webhook/synthesis"
+}
+```
+
+| 필드 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `editSessionId` | ❌ | string (UUID) | 편집 세션 ID |
+| `coverFileId` | ✅* | string (UUID) | 표지 파일 ID |
+| `coverUrl` | ✅* | string | 표지 파일 URL |
+| `contentFileId` | ✅* | string (UUID) | 내지 파일 ID |
+| `contentUrl` | ✅* | string | 내지 파일 URL |
+| `spineWidth` | ✅ | number | 책등 폭 (mm) |
+| `orderId` | ❌ | string | 북모아 주문 번호 |
+| `priority` | ❌ | string | 우선순위 (`high`, `normal`, `low`) |
+| `callbackUrl` | ❌ | string | 완료 시 콜백 URL |
+
+> *표지: `coverFileId` 또는 `coverUrl` 중 하나 필수
+> *내지: `contentFileId` 또는 `contentUrl` 중 하나 필수
+
+**Response (201 Created)**
+```json
+{
+  "id": "job-uuid",
+  "jobType": "SYNTHESIZE",
+  "status": "PENDING",
+  "options": {
+    "orderId": "ORD-2024-12345",
+    "callbackUrl": "https://bookmoa.com/api/webhook/synthesis"
+  },
+  "createdAt": "2024-12-20T10:00:00Z"
+}
+```
+
+### 4.6 작업 상태 조회
+
+```http
+GET /api/worker-jobs/external/{jobId}
+X-API-Key: {API_KEY}
+```
+
+**Response (200 OK)**
+```json
+{
+  "id": "job-uuid",
+  "jobType": "SYNTHESIZE",
+  "status": "COMPLETED",
+  "outputFileUrl": "/storage/temp/synthesized_xxx.pdf",
+  "result": {
+    "totalPages": 52,
+    "spineWidth": 5.5,
+    "previewUrl": "/storage/temp/synthesized_xxx_preview.png"
+  },
+  "options": {
+    "orderId": "ORD-2024-12345"
+  },
+  "createdAt": "2024-12-20T10:00:00Z",
+  "completedAt": "2024-12-20T10:00:30Z"
+}
+```
+
+**작업 상태**
+
+| status | 설명 |
+|--------|------|
+| `PENDING` | 대기 중 |
+| `PROCESSING` | 처리 중 |
+| `COMPLETED` | 완료 |
+| `FAILED` | 실패 |
+
+### 4.7 웹훅 콜백
+
+병합 완료 또는 실패 시 `callbackUrl`로 자동 전송됩니다.
+
+```http
+POST {callbackUrl}
+Content-Type: application/json
+X-Storige-Event: synthesis.completed
+```
+
+**Payload (완료 시)**
+```json
+{
+  "event": "synthesis.completed",
+  "jobId": "job-uuid",
+  "orderId": "ORD-2024-12345",
+  "status": "completed",
+  "outputFileUrl": "/storage/temp/synthesized_xxx.pdf",
+  "result": {
+    "totalPages": 52,
+    "previewUrl": "/storage/temp/synthesized_xxx_preview.png"
+  },
+  "timestamp": "2024-12-20T10:00:30Z"
+}
+```
+
+**Payload (실패 시)**
+```json
+{
+  "event": "synthesis.failed",
+  "jobId": "job-uuid",
+  "orderId": "ORD-2024-12345",
+  "status": "failed",
+  "errorMessage": "Cover PDF is corrupted",
+  "timestamp": "2024-12-20T10:00:30Z"
+}
+```
+
+### 4.8 병합 가능 여부 에러 코드
+
+| code | 메시지 | 설명 |
+|------|--------|------|
+| `COVER_FILE_NOT_FOUND` | 표지 파일을 찾을 수 없습니다. | DB에 파일 레코드 없음 |
+| `CONTENT_FILE_NOT_FOUND` | 내지 파일을 찾을 수 없습니다. | DB에 파일 레코드 없음 |
+| `COVER_URL_REQUIRED` | 표지 URL 또는 파일 ID가 필요합니다. | 둘 다 없음 |
+| `CONTENT_URL_REQUIRED` | 내지 URL 또는 파일 ID가 필요합니다. | 둘 다 없음 |
+| `COVER_FILE_INACCESSIBLE` | 표지 파일에 접근할 수 없습니다. | 파일 삭제/접근 불가 |
+| `CONTENT_FILE_INACCESSIBLE` | 내지 파일에 접근할 수 없습니다. | 파일 삭제/접근 불가 |
+| `INVALID_SPINE_WIDTH` | 책등 폭은 0 이상이어야 합니다. | spineWidth < 0 |
+
+---
+
+## 5. 용지/제본 코드 참조
+
+### 5.1 용지 종류 (paper_types)
 
 #### 본문용 (body)
 
@@ -252,7 +474,7 @@ API는 계산 결과와 함께 경고 메시지를 반환할 수 있습니다:
 | `card_300g` | 카드지 300g | 0.35 | 두꺼운 표지 |
 | `kraft_120g` | 크라프트지 120g | 0.16 | 자연스러운 질감 |
 
-### 4.2 제본 방식 (binding_types)
+### 5.2 제본 방식 (binding_types)
 
 | code | name | margin (mm) | minPages | maxPages | pageMultiple |
 |------|------|-------------|----------|----------|--------------|
@@ -261,7 +483,7 @@ API는 계산 결과와 함께 경고 메시지를 반환할 수 있습니다:
 | `spiral` | 스프링제본 | 3.0 | - | - | - |
 | `hardcover` | 양장제본 | 2.0 | - | - | - |
 
-### 4.3 책등 폭 계산 공식
+### 5.3 책등 폭 계산 공식
 
 ```
 책등 폭 (mm) = (페이지수 / 2) × 용지 두께 + 제본 여유분
@@ -278,9 +500,9 @@ API는 계산 결과와 함께 경고 메시지를 반환할 수 있습니다:
 
 ---
 
-## 5. 연동 시나리오
+## 6. 연동 시나리오
 
-### 5.1 북모아 주문 페이지 → 에디터 호출
+### 6.1 북모아 주문 페이지 → 에디터 호출
 
 ```php
 <?php
@@ -304,7 +526,7 @@ $editorUrl = sprintf(
 header("Location: $editorUrl");
 ```
 
-### 5.2 용지/제본 선택 UI 구현
+### 6.2 용지/제본 선택 UI 구현
 
 ```php
 <?php
@@ -355,7 +577,7 @@ $bindingTypes = json_decode(
 </form>
 ```
 
-### 5.3 책등 폭 미리보기 (JavaScript)
+### 6.3 책등 폭 미리보기 (JavaScript)
 
 ```javascript
 async function calculateSpineWidth(pageCount, paperType, bindingType) {
@@ -391,9 +613,9 @@ document.getElementById('page_count').addEventListener('change', async (e) => {
 
 ---
 
-## 6. 에러 처리
+## 7. 에러 처리
 
-### 6.1 에디터 에러
+### 7.1 에디터 에러
 
 | 에러 | 원인 | 대응 |
 |------|------|------|
@@ -401,14 +623,14 @@ document.getElementById('page_count').addEventListener('change', async (e) => {
 | "페이지 수는 최대 N페이지를 초과할 수 없습니다." | `pageCount` > `pageCountRange` 최대값 | 페이지수 조정 |
 | "요청된 페이지 수(N)가 템플릿의 최소 내지 수(M)보다 적습니다." | `pageCount` < 템플릿 내지수 | 페이지수 증가 필요 |
 
-### 6.2 API 에러
+### 7.2 API 에러
 
 | Status | 원인 | 응답 예시 |
 |--------|------|----------|
 | 400 | 유효성 검증 실패 | `{"message": ["pageCount must be a positive number"]}` |
 | 404 | 존재하지 않는 용지/제본 코드 | `{"message": "종이 타입 'invalid'을(를) 찾을 수 없습니다."}` |
 
-### 6.3 에러 처리 예시 (PHP)
+### 7.3 에러 처리 예시 (PHP)
 
 ```php
 <?php
@@ -454,6 +676,7 @@ function callSpineApi($pageCount, $paperType, $bindingType) {
 
 | 버전 | 날짜 | 변경 내용 |
 |------|------|----------|
+| 1.1 | 2025-12-20 | PDF 병합 API 섹션 추가 |
 | 1.0 | 2025-12-20 | 최초 작성 |
 
 ---
