@@ -11,36 +11,65 @@ import {
   Modal,
   Form,
   Input,
-  Select,
   Switch,
+  Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import type { UploadFile } from 'antd/es/upload';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import { LibraryFont } from '@storige/types';
 import { libraryApi, CreateFontDto } from '../../api/library';
 
 const { Title } = Typography;
+
+// 파일 확장자에서 폰트 형식 추출
+const getFileFormat = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (['ttf', 'otf', 'woff', 'woff2'].includes(ext)) {
+    return ext;
+  }
+  return 'ttf';
+};
 
 export const FontList = () => {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFont, setEditingFont] = useState<LibraryFont | null>(null);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   const { data: fonts, isLoading } = useQuery({
     queryKey: ['fonts'],
     queryFn: () => libraryApi.getFonts(),
   });
 
+  // 폰트 생성 mutation (파일 업로드 포함)
   const createMutation = useMutation({
-    mutationFn: libraryApi.createFont,
+    mutationFn: async (data: { name: string; isActive: boolean; file: File }) => {
+      // 1. 파일 업로드
+      const uploadResult = await libraryApi.uploadFile(data.file);
+
+      // 2. 파일 형식 추출
+      const fileFormat = getFileFormat(data.file.name);
+
+      // 3. 폰트 정보 저장
+      const font = await libraryApi.createFont({
+        name: data.name,
+        fileUrl: uploadResult.url,
+        fileFormat,
+        isActive: data.isActive,
+      });
+
+      return font;
+    },
     onSuccess: () => {
       message.success('폰트가 추가되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['fonts'] });
       handleCloseModal();
     },
-    onError: () => {
-      message.error('폰트 추가에 실패했습니다.');
+    onError: (error: any) => {
+      console.error('Font upload error:', error);
+      message.error(error?.response?.data?.message || '폰트 추가에 실패했습니다.');
     },
   });
 
@@ -70,8 +99,12 @@ export const FontList = () => {
 
   const handleOpenModal = (font?: LibraryFont) => {
     setEditingFont(font || null);
+    setFileList([]);
     if (font) {
-      form.setFieldsValue(font);
+      form.setFieldsValue({
+        name: font.name,
+        isActive: font.isActive,
+      });
     } else {
       form.resetFields();
       form.setFieldsValue({ isActive: true });
@@ -82,14 +115,38 @@ export const FontList = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingFont(null);
+    setFileList([]);
     form.resetFields();
   };
 
   const handleSubmit = async (values: any) => {
     if (editingFont) {
-      updateMutation.mutate({ id: editingFont.id, data: values });
+      // 수정 시에는 이름과 활성 상태만 변경 가능
+      updateMutation.mutate({
+        id: editingFont.id,
+        data: {
+          name: values.name,
+          isActive: values.isActive,
+        },
+      });
     } else {
-      createMutation.mutate(values);
+      // 새 폰트 추가 시 파일 필수
+      if (fileList.length === 0) {
+        message.error('폰트 파일을 선택해주세요.');
+        return;
+      }
+
+      const file = fileList[0].originFileObj as File;
+      if (!file) {
+        message.error('폰트 파일을 다시 선택해주세요.');
+        return;
+      }
+
+      createMutation.mutate({
+        name: values.name,
+        isActive: values.isActive ?? true,
+        file,
+      });
     }
   };
 
@@ -112,15 +169,11 @@ export const FontList = () => {
       render: (format: string) => <Tag>{format.toUpperCase()}</Tag>,
     },
     {
-      title: '파일 URL',
+      title: '파일 경로',
       dataIndex: 'fileUrl',
       key: 'fileUrl',
       ellipsis: true,
-      render: (url: string) => (
-        <a href={url} target="_blank" rel="noopener noreferrer">
-          {url}
-        </a>
-      ),
+      render: (url: string) => url,
     },
     {
       title: '상태',
@@ -167,7 +220,7 @@ export const FontList = () => {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <Title level={2}>폰트 관리</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
-          폰트 추가
+          폰트 업로드
         </Button>
       </div>
 
@@ -184,7 +237,7 @@ export const FontList = () => {
       />
 
       <Modal
-        title={editingFont ? '폰트 수정' : '폰트 추가'}
+        title={editingFont ? '폰트 수정' : '폰트 업로드'}
         open={isModalOpen}
         onOk={() => form.submit()}
         onCancel={handleCloseModal}
@@ -199,28 +252,31 @@ export const FontList = () => {
             <Input placeholder="예: Noto Sans KR" />
           </Form.Item>
 
-          <Form.Item
-            name="fileUrl"
-            label="파일 URL"
-            rules={[{ required: true, message: '파일 URL을 입력해주세요' }]}
-          >
-            <Input placeholder="/storage/library/fonts/font.ttf" />
-          </Form.Item>
+          {!editingFont && (
+            <Form.Item
+              label="폰트 파일"
+              required
+              extra="TTF, OTF, WOFF, WOFF2 파일 지원"
+            >
+              <Upload
+                fileList={fileList}
+                onChange={({ fileList }) => setFileList(fileList)}
+                beforeUpload={() => false}
+                maxCount={1}
+                accept=".ttf,.otf,.woff,.woff2"
+              >
+                {fileList.length < 1 && (
+                  <Button icon={<UploadOutlined />}>파일 선택</Button>
+                )}
+              </Upload>
+            </Form.Item>
+          )}
 
-          <Form.Item
-            name="fileFormat"
-            label="파일 형식"
-            rules={[{ required: true, message: '파일 형식을 선택해주세요' }]}
-          >
-            <Select
-              options={[
-                { label: 'TTF', value: 'ttf' },
-                { label: 'OTF', value: 'otf' },
-                { label: 'WOFF', value: 'woff' },
-                { label: 'WOFF2', value: 'woff2' },
-              ]}
-            />
-          </Form.Item>
+          {editingFont && (
+            <Form.Item label="현재 파일">
+              <Input value={editingFont.fileUrl} disabled />
+            </Form.Item>
+          )}
 
           <Form.Item name="isActive" label="활성 상태" valuePropName="checked">
             <Switch />

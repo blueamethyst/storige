@@ -45,6 +45,13 @@ Thumbs.db
 # Storage (uploaded files)
 storage/*
 !storage/.gitkeep
+**/storage/uploads/
+**/storage/thumbnails/
+**/storage/library/
+**/storage/library_fonts/
+
+# Example projects (submodules)
+example/
 
 # Docker
 docker-compose.override.yml
