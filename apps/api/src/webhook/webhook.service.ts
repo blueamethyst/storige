@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
-export interface WebhookPayload {
+export interface SessionWebhookPayload {
   event: 'session.validated' | 'session.failed';
   sessionId: string;
   orderSeqno: number;
@@ -11,6 +11,19 @@ export interface WebhookPayload {
   result?: any;
   timestamp: string;
 }
+
+export interface SynthesisWebhookPayload {
+  event: 'synthesis.completed' | 'synthesis.failed';
+  jobId: string;
+  orderId?: string;
+  status: 'completed' | 'failed';
+  outputFileUrl?: string;
+  result?: any;
+  errorMessage?: string;
+  timestamp: string;
+}
+
+export type WebhookPayload = SessionWebhookPayload | SynthesisWebhookPayload;
 
 @Injectable()
 export class WebhookService {
@@ -74,7 +87,15 @@ export class WebhookService {
    * 간단한 시그니처 생성 (실제 환경에서는 HMAC 등 사용)
    */
   private generateSignature(payload: WebhookPayload): string {
-    const data = `${payload.sessionId}:${payload.event}:${payload.timestamp}`;
+    let identifier: string;
+    if ('sessionId' in payload) {
+      identifier = payload.sessionId;
+    } else if ('jobId' in payload) {
+      identifier = payload.jobId;
+    } else {
+      identifier = 'unknown';
+    }
+    const data = `${identifier}:${payload.event}:${payload.timestamp}`;
     return Buffer.from(data).toString('base64');
   }
 }

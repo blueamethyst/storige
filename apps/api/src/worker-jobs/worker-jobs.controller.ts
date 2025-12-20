@@ -16,6 +16,7 @@ import {
   CreateSynthesisJobDto,
   UpdateJobStatusDto,
 } from './dto/worker-job.dto';
+import { CheckMergeableDto, CheckMergeableResponseDto } from './dto/check-mergeable.dto';
 import { WorkerJob } from './entities/worker-job.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -85,6 +86,57 @@ export class WorkerJobsController {
     @Body() createSynthesisJobDto: CreateSynthesisJobDto,
   ): Promise<WorkerJob> {
     return await this.workerJobsService.createSynthesisJob(createSynthesisJobDto);
+  }
+
+  /**
+   * 외부 연동용 병합 작업 생성 (API Key 인증)
+   * 북모아 주문 시점에 호출
+   */
+  @Post('synthesize/external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Create a PDF synthesis job (external API key auth)' })
+  @ApiResponse({ status: 201, description: 'Synthesis job created and queued', type: WorkerJob })
+  @ApiResponse({ status: 400, description: 'Invalid input' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  async createSynthesisJobExternal(
+    @Body() createSynthesisJobDto: CreateSynthesisJobDto,
+  ): Promise<WorkerJob> {
+    return await this.workerJobsService.createSynthesisJob(createSynthesisJobDto);
+  }
+
+  // ============================================================================
+  // Merge Check (Dry-run)
+  // ============================================================================
+
+  /**
+   * 병합 가능 여부 체크 (에디터 저장 시 호출)
+   */
+  @Post('check-mergeable')
+  @ApiOperation({ summary: 'Check if PDFs can be merged (dry-run)' })
+  @ApiResponse({ status: 200, description: 'Merge check result', type: CheckMergeableResponseDto })
+  async checkMergeable(
+    @Body() checkMergeableDto: CheckMergeableDto,
+  ): Promise<CheckMergeableResponseDto> {
+    return await this.workerJobsService.checkMergeable(checkMergeableDto);
+  }
+
+  /**
+   * 병합 가능 여부 체크 - 외부용 (API Key 인증)
+   * 에디터 저장 시점에 호출하여 병합 가능 여부를 사전 확인
+   */
+  @Post('check-mergeable/external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Check if PDFs can be merged (external API key auth)' })
+  @ApiResponse({ status: 200, description: 'Merge check result', type: CheckMergeableResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  async checkMergeableExternal(
+    @Body() checkMergeableDto: CheckMergeableDto,
+  ): Promise<CheckMergeableResponseDto> {
+    return await this.workerJobsService.checkMergeable(checkMergeableDto);
   }
 
   // ============================================================================

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsObject, IsEnum, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsObject, IsEnum, IsOptional, IsUUID, ValidateIf, IsNumber, IsIn, IsUrl } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WorkerJobType } from '@storige/types';
 
@@ -70,6 +70,11 @@ export class CreateConversionJobDto {
 }
 
 export class CreateSynthesisJobDto {
+  @ApiPropertyOptional({ example: 'uuid', description: '편집 세션 ID' })
+  @IsOptional()
+  @IsUUID()
+  editSessionId?: string;
+
   @ApiPropertyOptional({ example: 'uuid', description: '표지 파일 ID (coverUrl 대신 사용 가능)' })
   @IsOptional()
   @IsUUID()
@@ -92,9 +97,25 @@ export class CreateSynthesisJobDto {
   @IsNotEmpty()
   contentUrl?: string;
 
-  @ApiProperty({ example: 3.5 })
+  @ApiProperty({ example: 3.5, description: '책등 폭 (mm)' })
+  @IsNumber()
   @IsNotEmpty()
   spineWidth: number;
+
+  @ApiPropertyOptional({ example: 'ORD-2024-12345', description: '북모아 주문 번호' })
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @ApiPropertyOptional({ example: 'high', enum: ['high', 'normal', 'low'], description: '우선순위' })
+  @IsOptional()
+  @IsIn(['high', 'normal', 'low'])
+  priority?: 'high' | 'normal' | 'low';
+
+  @ApiPropertyOptional({ example: 'https://bookmoa.com/api/webhook/synthesis', description: '완료 시 콜백 URL' })
+  @IsOptional()
+  @IsString()
+  callbackUrl?: string;
 }
 
 export class UpdateJobStatusDto {

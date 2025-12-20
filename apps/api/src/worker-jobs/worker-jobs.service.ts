@@ -11,8 +11,15 @@ import {
   CreateSynthesisJobDto,
   UpdateJobStatusDto,
 } from './dto/worker-job.dto';
+import {
+  CheckMergeableDto,
+  CheckMergeableResponseDto,
+  MergeIssueDto,
+} from './dto/check-mergeable.dto';
+import * as fs from 'fs/promises';
+import axios from 'axios';
 import { FilesService } from '../files/files.service';
-import { WebhookService } from '../webhook/webhook.service';
+import { WebhookService, SynthesisWebhookPayload } from '../webhook/webhook.service';
 import { EditSessionEntity, WorkerStatus } from '../edit-sessions/entities/edit-session.entity';
 
 @Injectable()
@@ -30,6 +37,118 @@ export class WorkerJobsService {
     private filesService: FilesService,
     private webhookService: WebhookService,
   ) {}
+
+  // ============================================================================
+  // Merge Check (Dry-run)
+  // ============================================================================
+
+  /**
+   * 병합 가능 여부 체크 (dry-run)
+   * 실제 파일 생성 없이 병합 가능 여부만 확인
+   */
+  async checkMergeable(dto: CheckMergeableDto): Promise<CheckMergeableResponseDto> {
+    const issues: MergeIssueDto[] = [];
+
+    // 1. 표지 파일 존재 확인
+    let coverUrl = dto.coverUrl;
+    if (dto.coverFileId) {
+      try {
+        const coverFile = await this.filesService.findById(dto.coverFileId);
+        coverUrl = coverFile.filePath;
+      } catch {
+        issues.push({
+          code: 'COVER_FILE_NOT_FOUND',
+          message: '표지 파일을 찾을 수 없습니다.',
+        });
+      }
+    }
+
+    // 2. 내지 파일 존재 확인
+    let contentUrl = dto.contentUrl;
+    if (dto.contentFileId) {
+      try {
+        const contentFile = await this.filesService.findById(dto.contentFileId);
+        contentUrl = contentFile.filePath;
+      } catch {
+        issues.push({
+          code: 'CONTENT_FILE_NOT_FOUND',
+          message: '내지 파일을 찾을 수 없습니다.',
+        });
+      }
+    }
+
+    // 3. 파일 URL 필수 체크
+    if (!coverUrl && !dto.coverFileId) {
+      issues.push({
+        code: 'COVER_URL_REQUIRED',
+        message: '표지 URL 또는 파일 ID가 필요합니다.',
+      });
+    }
+
+    if (!contentUrl && !dto.contentFileId) {
+      issues.push({
+        code: 'CONTENT_URL_REQUIRED',
+        message: '내지 URL 또는 파일 ID가 필요합니다.',
+      });
+    }
+
+    // 4. 파일 접근 가능 여부 확인 (실제 존재 여부)
+    if (coverUrl && issues.filter(i => i.code.startsWith('COVER_')).length === 0) {
+      const coverAccessible = await this.checkFileAccessible(coverUrl);
+      if (!coverAccessible) {
+        issues.push({
+          code: 'COVER_FILE_INACCESSIBLE',
+          message: '표지 파일에 접근할 수 없습니다.',
+        });
+      }
+    }
+
+    if (contentUrl && issues.filter(i => i.code.startsWith('CONTENT_')).length === 0) {
+      const contentAccessible = await this.checkFileAccessible(contentUrl);
+      if (!contentAccessible) {
+        issues.push({
+          code: 'CONTENT_FILE_INACCESSIBLE',
+          message: '내지 파일에 접근할 수 없습니다.',
+        });
+      }
+    }
+
+    // 5. 책등 폭 유효성 체크
+    if (dto.spineWidth < 0) {
+      issues.push({
+        code: 'INVALID_SPINE_WIDTH',
+        message: '책등 폭은 0 이상이어야 합니다.',
+      });
+    }
+
+    this.logger.log(
+      `Check mergeable for session ${dto.editSessionId}: ${issues.length === 0 ? 'OK' : issues.map(i => i.code).join(', ')}`,
+    );
+
+    return {
+      mergeable: issues.length === 0,
+      issues: issues.length > 0 ? issues : undefined,
+    };
+  }
+
+  /**
+   * 파일 접근 가능 여부 확인
+   */
+  private async checkFileAccessible(url: string): Promise<boolean> {
+    try {
+      if (url.startsWith('/') || url.startsWith('./')) {
+        // 로컬 파일
+        await fs.access(url);
+        return true;
+      } else {
+        // 원격 URL
+        const response = await axios.head(url, { timeout: 5000 });
+        return response.status === 200;
+      }
+    } catch {
+      return false;
+    }
+  }
 
   // ============================================================================
   // Validation Jobs
@@ -162,6 +281,7 @@ export class WorkerJobsService {
     const job = this.workerJobRepository.create({
       jobType: WorkerJobType.SYNTHESIZE,
       status: WorkerJobStatus.PENDING,
+      editSessionId: createSynthesisJobDto.editSessionId || null,
       fileId: coverFileId, // 대표 파일로 표지 사용
       inputFileUrl: coverUrl,
       options: {
@@ -170,19 +290,41 @@ export class WorkerJobsService {
         coverUrl,
         contentUrl,
         spineWidth: createSynthesisJobDto.spineWidth,
+        orderId: createSynthesisJobDto.orderId,
+        callbackUrl: createSynthesisJobDto.callbackUrl,
       },
     });
 
     const savedJob = await this.workerJobRepository.save(job);
 
-    await this.synthesisQueue.add('synthesize-pdf', {
-      jobId: savedJob.id,
-      coverFileId,
-      contentFileId,
-      coverUrl,
-      contentUrl,
-      spineWidth: createSynthesisJobDto.spineWidth,
-    });
+    // 우선순위 설정
+    const jobOptions: { priority?: number } = {};
+    if (createSynthesisJobDto.priority === 'high') {
+      jobOptions.priority = 1;
+    } else if (createSynthesisJobDto.priority === 'low') {
+      jobOptions.priority = 10;
+    } else {
+      jobOptions.priority = 5; // normal
+    }
+
+    await this.synthesisQueue.add(
+      'synthesize-pdf',
+      {
+        jobId: savedJob.id,
+        coverFileId,
+        contentFileId,
+        coverUrl,
+        contentUrl,
+        spineWidth: createSynthesisJobDto.spineWidth,
+        orderId: createSynthesisJobDto.orderId,
+        callbackUrl: createSynthesisJobDto.callbackUrl,
+      },
+      jobOptions,
+    );
+
+    this.logger.log(
+      `Synthesis job created: ${savedJob.id}, orderId: ${createSynthesisJobDto.orderId || 'N/A'}, priority: ${createSynthesisJobDto.priority || 'normal'}`,
+    );
 
     return savedJob;
   }
@@ -241,7 +383,51 @@ export class WorkerJobsService {
       await this.updateEditSessionWorkerStatus(job, updateJobStatusDto);
     }
 
+    // Synthesis 작업 완료/실패 시 콜백 전송
+    if (
+      job.jobType === WorkerJobType.SYNTHESIZE &&
+      job.options?.callbackUrl &&
+      (updateJobStatusDto.status === WorkerJobStatus.COMPLETED ||
+        updateJobStatusDto.status === WorkerJobStatus.FAILED)
+    ) {
+      await this.sendSynthesisCallback(savedJob);
+    }
+
     return savedJob;
+  }
+
+  /**
+   * Synthesis 작업 완료/실패 시 콜백 전송
+   */
+  private async sendSynthesisCallback(job: WorkerJob): Promise<void> {
+    const callbackUrl = job.options?.callbackUrl;
+    if (!callbackUrl) {
+      return;
+    }
+
+    try {
+      const isCompleted = job.status === WorkerJobStatus.COMPLETED;
+      const payload: SynthesisWebhookPayload = {
+        event: isCompleted ? 'synthesis.completed' : 'synthesis.failed',
+        jobId: job.id,
+        orderId: job.options?.orderId,
+        status: isCompleted ? 'completed' : 'failed',
+        outputFileUrl: isCompleted ? (job.outputFileUrl ?? undefined) : undefined,
+        result: isCompleted ? job.result : undefined,
+        errorMessage: !isCompleted ? (job.errorMessage ?? undefined) : undefined,
+        timestamp: new Date().toISOString(),
+      };
+
+      const success = await this.webhookService.sendCallback(callbackUrl, payload);
+
+      if (success) {
+        this.logger.log(`Synthesis callback sent successfully for job ${job.id}`);
+      } else {
+        this.logger.warn(`Synthesis callback failed for job ${job.id}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send synthesis callback: ${error.message}`);
+    }
   }
 
   /**
