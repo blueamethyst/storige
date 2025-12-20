@@ -70,8 +70,8 @@ export class TemplateSetsController {
   }
 
   @Get(':id/with-templates')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '템플릿셋과 템플릿 상세 정보 조회' })
+  @Public()
+  @ApiOperation({ summary: '템플릿셋과 템플릿 상세 정보 조회 (에디터용 - 공개)' })
   @ApiResponse({ status: 200, description: '조회 성공' })
   @ApiResponse({ status: 404, description: '템플릿셋 없음' })
   async findOneWithTemplates(@Param('id') id: string) {

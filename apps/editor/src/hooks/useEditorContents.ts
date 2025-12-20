@@ -878,8 +878,8 @@ export function useEditorContents(): UseEditorContentsReturn {
       const requestedPageCount = config.pageCount
 
       if (requestedPageCount !== undefined) {
-        // 내지(page) 템플릿만 필터링
-        const pageTemplates = templateDetails.filter(t => t.pageType === 'page')
+        // 내지(page) 템플릿만 필터링 (API는 type 필드 사용)
+        const pageTemplates = templateDetails.filter(t => (t as any).type === 'page')
         const currentPageCount = pageTemplates.length
 
         console.log(`[EditorContents] Page adjustment: requested=${requestedPageCount}, current=${currentPageCount}`)
@@ -943,7 +943,7 @@ export function useEditorContents(): UseEditorContentsReturn {
         id: t.id,
         type: 'template',
         name: t.name || `Page ${index + 1}`,
-        pageType: t.pageType,
+        pageType: (t as any).type,  // API는 type 필드 사용
         order: t.order ?? index,
       })) as any[]
       setEditorTemplates(templateMetadata)
@@ -1193,11 +1193,11 @@ export function useEditorContents(): UseEditorContentsReturn {
         // 책등 자동 리사이징 (paperType, bindingType 파라미터가 있는 경우)
         if (config.paperType && config.bindingType) {
           // templateMetadata에서 spine 템플릿 인덱스 찾기
-          const spineTemplateIndex = templateDetails.findIndex(t => t.pageType === 'spine')
+          const spineTemplateIndex = templateDetails.findIndex(t => (t as any).type === 'spine')
 
           if (spineTemplateIndex !== -1) {
             // 내지 페이지 수 계산 (양면 인쇄이므로 × 2)
-            const pageTemplateCount = templateDetails.filter(t => t.pageType === 'page').length
+            const pageTemplateCount = templateDetails.filter(t => (t as any).type === 'page').length
             const pageCount = pageTemplateCount * 2
 
             console.log(`[EditorContents] Calculating spine width: pageCount=${pageCount}, paperType=${config.paperType}, bindingType=${config.bindingType}`)
