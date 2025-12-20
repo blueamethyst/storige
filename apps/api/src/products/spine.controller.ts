@@ -22,7 +22,7 @@ export class SpineController {
     description: '계산 성공',
     type: SpineCalculationResultDto,
   })
-  calculate(@Body() dto: CalculateSpineDto): SpineCalculationResultDto {
+  async calculate(@Body() dto: CalculateSpineDto): Promise<SpineCalculationResultDto> {
     return this.spineService.calculate(dto);
   }
 
@@ -34,7 +34,7 @@ export class SpineController {
     description: '용지 목록',
     type: [PaperInfoDto],
   })
-  getPaperTypes() {
+  async getPaperTypes() {
     return this.spineService.getPaperTypes();
   }
 
@@ -46,7 +46,7 @@ export class SpineController {
     description: '제본 방식 목록',
     type: [BindingInfoDto],
   })
-  getBindingTypes() {
+  async getBindingTypes() {
     return this.spineService.getBindingTypes();
   }
 }

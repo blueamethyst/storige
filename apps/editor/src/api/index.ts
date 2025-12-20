@@ -15,3 +15,4 @@ export * from './products';
 export * from './edit-sessions'
 export * from './files';
 export * from './ai';
+export * from './spine';

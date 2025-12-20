@@ -3,10 +3,8 @@ import {
   IsString,
   IsOptional,
   Min,
-  IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PaperType, BindingType } from '@storige/types';
 
 /**
  * Spine 계산 요청 DTO
@@ -21,20 +19,18 @@ export class CalculateSpineDto {
   pageCount: number;
 
   @ApiProperty({
-    enum: PaperType,
-    example: PaperType.MOJO_80G,
-    description: '용지 종류',
+    example: 'mojo_80g',
+    description: '용지 종류 코드 (DB에서 조회)',
   })
-  @IsEnum(PaperType)
-  paperType: PaperType;
+  @IsString()
+  paperType: string;
 
   @ApiProperty({
-    enum: BindingType,
-    example: BindingType.PERFECT,
-    description: '제본 방식',
+    example: 'perfect',
+    description: '제본 방식 코드 (DB에서 조회)',
   })
-  @IsEnum(BindingType)
-  bindingType: BindingType;
+  @IsString()
+  bindingType: string;
 
   @ApiPropertyOptional({
     example: 0.5,
@@ -93,13 +89,16 @@ export class SpineCalculationResultDto {
  */
 export class PaperInfoDto {
   @ApiProperty({ example: 'mojo_80g' })
-  type: string;
+  code: string;
 
   @ApiProperty({ example: '모조지 80g' })
   name: string;
 
   @ApiProperty({ example: 0.1 })
   thickness: number;
+
+  @ApiProperty({ example: 'body', description: 'body (본문용) | cover (표지용)' })
+  category: string;
 }
 
 /**
@@ -107,11 +106,20 @@ export class PaperInfoDto {
  */
 export class BindingInfoDto {
   @ApiProperty({ example: 'perfect' })
-  type: string;
+  code: string;
 
   @ApiProperty({ example: '무선제본' })
   name: string;
 
-  @ApiProperty({ example: 2.5 })
+  @ApiProperty({ example: 0.5 })
   margin: number;
+
+  @ApiPropertyOptional({ example: 32, description: '최소 페이지 수' })
+  minPages?: number;
+
+  @ApiPropertyOptional({ example: 64, description: '최대 페이지 수' })
+  maxPages?: number;
+
+  @ApiPropertyOptional({ example: 4, description: '페이지 배수' })
+  pageMultiple?: number;
 }

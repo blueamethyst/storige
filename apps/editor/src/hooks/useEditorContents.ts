@@ -11,7 +11,7 @@ import {
   type GeneralSetupConfig,
 } from '@/stores/useSettingsStore'
 import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay } from '@storige/canvas-core'
-import { contentsApi, storageApi, templateSetsApi, templatesApi } from '@/api'
+import { contentsApi, storageApi, templateSetsApi, templatesApi, spineApi } from '@/api'
 import { createCanvas } from '@/utils/createCanvas'
 import type {
   EditorContent,
@@ -30,6 +30,9 @@ interface ExtendedFabricObject extends fabric.Object {
 // 템플릿셋 기반 에디터 설정 타입
 export interface TemplateSetBasedSetupConfig {
   templateSetId: string
+  pageCount?: number      // 요청된 페이지 수 (내지 자동 조정용)
+  paperType?: string      // 용지 종류 코드 (책등 계산용)
+  bindingType?: string    // 제본 방식 코드 (책등 계산용)
 }
 
 // 사용 케이스별 설정 타입 매핑
@@ -865,10 +868,62 @@ export function useEditorContents(): UseEditorContentsReturn {
 
       // 1. 템플릿셋과 템플릿 상세 정보 조회
       const result = await templateSetsApi.getTemplateSetWithTemplates(config.templateSetId)
-      const { templateSet, templateDetails } = result
+      const { templateSet, templateDetails: originalTemplateDetails } = result
 
       console.log('[EditorContents] Template set loaded:', templateSet.name)
-      console.log('[EditorContents] Template details count:', templateDetails.length)
+      console.log('[EditorContents] Original template details count:', originalTemplateDetails.length)
+
+      // 2. 페이지수 조정 (pageCount 파라미터가 있는 경우)
+      let templateDetails = [...originalTemplateDetails]
+      const requestedPageCount = config.pageCount
+
+      if (requestedPageCount !== undefined) {
+        // 내지(page) 템플릿만 필터링
+        const pageTemplates = templateDetails.filter(t => t.pageType === 'page')
+        const currentPageCount = pageTemplates.length
+
+        console.log(`[EditorContents] Page adjustment: requested=${requestedPageCount}, current=${currentPageCount}`)
+
+        // pageCountRange 검증
+        const pageCountRange = (templateSet as any).pageCountRange || []
+        if (pageCountRange.length > 0) {
+          const minPages = Math.min(...pageCountRange)
+          const maxPages = Math.max(...pageCountRange)
+
+          if (requestedPageCount < minPages) {
+            throw new Error(`페이지 수는 최소 ${minPages}페이지 이상이어야 합니다.`)
+          }
+          if (requestedPageCount > maxPages) {
+            throw new Error(`페이지 수는 최대 ${maxPages}페이지를 초과할 수 없습니다.`)
+          }
+        }
+
+        // 페이지수가 템플릿 내지수보다 적으면 에러
+        if (requestedPageCount < currentPageCount) {
+          throw new Error(
+            `요청된 페이지 수(${requestedPageCount})가 템플릿의 최소 내지 수(${currentPageCount})보다 적습니다.`
+          )
+        }
+
+        // 페이지수가 더 많으면 마지막 내지 템플릿 복제
+        if (requestedPageCount > currentPageCount && pageTemplates.length > 0) {
+          const lastPageTemplate = pageTemplates[pageTemplates.length - 1]
+          const pagesToAdd = requestedPageCount - currentPageCount
+
+          console.log(`[EditorContents] Adding ${pagesToAdd} pages by cloning last page template`)
+
+          for (let i = 0; i < pagesToAdd; i++) {
+            templateDetails.push({
+              ...lastPageTemplate,
+              id: uuid(),  // 새 ID 생성
+              name: `${lastPageTemplate.name || '내지'} (${currentPageCount + i + 1})`,
+              order: templateDetails.length,
+            })
+          }
+
+          console.log(`[EditorContents] Template details after page adjustment: ${templateDetails.length}`)
+        }
+      }
 
       // 2. 설정 스토어에 크기 정보 설정
       await setupEmptyEditorStore({
@@ -1134,6 +1189,88 @@ export function useEditorContents(): UseEditorContentsReturn {
         latestSetPage(0)
 
         console.log(`[EditorContents] All ${templateDetails.length} templates loaded successfully`)
+
+        // 책등 자동 리사이징 (paperType, bindingType 파라미터가 있는 경우)
+        if (config.paperType && config.bindingType) {
+          // templateMetadata에서 spine 템플릿 인덱스 찾기
+          const spineTemplateIndex = templateDetails.findIndex(t => t.pageType === 'spine')
+
+          if (spineTemplateIndex !== -1) {
+            // 내지 페이지 수 계산 (양면 인쇄이므로 × 2)
+            const pageTemplateCount = templateDetails.filter(t => t.pageType === 'page').length
+            const pageCount = pageTemplateCount * 2
+
+            console.log(`[EditorContents] Calculating spine width: pageCount=${pageCount}, paperType=${config.paperType}, bindingType=${config.bindingType}`)
+
+            try {
+              // API로 책등 폭 계산
+              const spineResult = await spineApi.calculate({
+                pageCount,
+                paperType: config.paperType,
+                bindingType: config.bindingType,
+              })
+
+              console.log(`[EditorContents] Calculated spine width: ${spineResult.spineWidth}mm`)
+
+              // 경고 메시지 출력
+              if (spineResult.warnings.length > 0) {
+                spineResult.warnings.forEach(warning => {
+                  console.warn(`[EditorContents] Spine warning: ${warning.message}`)
+                })
+              }
+
+              // 책등 캔버스 크기 업데이트
+              const latestAllEditors = useAppStore.getState().allEditors
+              const latestAllCanvas = useAppStore.getState().allCanvas
+              const spineEditor = latestAllEditors[spineTemplateIndex]
+              const spineCanvas = latestAllCanvas[spineTemplateIndex]
+
+              if (spineEditor && spineCanvas) {
+                const workspacePlugin = spineEditor.getPlugin<any>('WorkspacePlugin')
+                if (workspacePlugin) {
+                  const newWidthPx = mmToPxDisplay(spineResult.spineWidth)
+                  const currentHeight = workspacePlugin._options?.size?.height || templateSet.height
+
+                  console.log(`[EditorContents] Resizing spine workspace: width=${newWidthPx}px (${spineResult.spineWidth}mm)`)
+
+                  // workspace 객체 찾아서 크기 변경
+                  const workspaceObj = spineCanvas.getObjects().find((obj: any) =>
+                    (obj as ExtendedFabricObject).id === 'workspace'
+                  )
+
+                  if (workspaceObj) {
+                    const heightPx = mmToPxDisplay(currentHeight)
+
+                    // workspace 객체 크기 업데이트
+                    workspaceObj.set({
+                      width: newWidthPx,
+                      height: heightPx,
+                      scaleX: 1,
+                      scaleY: 1
+                    })
+                    workspaceObj.setCoords()
+
+                    // 플러그인 내부 옵션 업데이트
+                    if (workspacePlugin._options?.size) {
+                      workspacePlugin._options.size.width = spineResult.spineWidth
+                    }
+
+                    // 렌더링 및 줌 조정
+                    spineCanvas.requestRenderAll()
+                    if (workspacePlugin.setZoomAuto) {
+                      workspacePlugin.setZoomAuto()
+                    }
+
+                    console.log('[EditorContents] Spine workspace resized successfully')
+                  }
+                }
+              }
+            } catch (spineError) {
+              console.error('[EditorContents] Spine calculation error:', spineError)
+              // 책등 계산 실패해도 에디터 로딩은 계속 진행
+            }
+          }
+        }
       } else {
         // 템플릿이 없으면 워크스페이스만 초기화
         console.log('[EditorContents] No templates, initializing workspace only')

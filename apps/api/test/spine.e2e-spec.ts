@@ -1,0 +1,407 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
+import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { Repository } from 'typeorm';
+
+import { SpineController } from '../src/products/spine.controller';
+import { SpineService } from '../src/products/spine.service';
+import { PaperTypeEntity } from '../src/products/entities/paper-type.entity';
+import { BindingTypeEntity } from '../src/products/entities/binding-type.entity';
+
+describe('SpineController (e2e)', () => {
+  let app: INestApplication;
+  let paperTypeRepository: Repository<PaperTypeEntity>;
+  let bindingTypeRepository: Repository<BindingTypeEntity>;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+        }),
+        TypeOrmModule.forRoot({
+          type: 'better-sqlite3',
+          database: ':memory:',
+          entities: [PaperTypeEntity, BindingTypeEntity],
+          synchronize: true,
+          dropSchema: true,
+        }),
+        TypeOrmModule.forFeature([PaperTypeEntity, BindingTypeEntity]),
+      ],
+      controllers: [SpineController],
+      providers: [SpineService],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+
+    paperTypeRepository = moduleFixture.get<Repository<PaperTypeEntity>>(
+      getRepositoryToken(PaperTypeEntity),
+    );
+    bindingTypeRepository = moduleFixture.get<Repository<BindingTypeEntity>>(
+      getRepositoryToken(BindingTypeEntity),
+    );
+
+    // 테스트용 시드 데이터 생성
+    await seedTestData();
+  });
+
+  async function seedTestData() {
+    // 용지 타입 시드
+    await paperTypeRepository.save([
+      {
+        code: 'mojo_70g',
+        name: '모조지 70g',
+        thickness: 0.09,
+        category: 'body',
+        isActive: true,
+        sortOrder: 1,
+      },
+      {
+        code: 'mojo_80g',
+        name: '모조지 80g',
+        thickness: 0.1,
+        category: 'body',
+        isActive: true,
+        sortOrder: 2,
+      },
+      {
+        code: 'art_200g',
+        name: '아트지 200g',
+        thickness: 0.18,
+        category: 'cover',
+        isActive: true,
+        sortOrder: 10,
+      },
+      {
+        code: 'inactive_paper',
+        name: '비활성 용지',
+        thickness: 0.1,
+        category: 'body',
+        isActive: false,
+        sortOrder: 99,
+      },
+    ]);
+
+    // 제본 타입 시드
+    await bindingTypeRepository.save([
+      {
+        code: 'perfect',
+        name: '무선제본',
+        margin: 0.5,
+        minPages: 32,
+        isActive: true,
+        sortOrder: 1,
+      },
+      {
+        code: 'saddle',
+        name: '중철제본',
+        margin: 0.3,
+        maxPages: 64,
+        pageMultiple: 4,
+        isActive: true,
+        sortOrder: 2,
+      },
+      {
+        code: 'spiral',
+        name: '스프링제본',
+        margin: 3.0,
+        isActive: true,
+        sortOrder: 3,
+      },
+      {
+        code: 'hardcover',
+        name: '양장제본',
+        margin: 2.0,
+        isActive: true,
+        sortOrder: 4,
+      },
+    ]);
+  }
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  describe('/products/spine/paper-types (GET)', () => {
+    it('should return all active paper types', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/products/spine/paper-types')
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(3); // 활성화된 용지만
+
+      // 비활성 용지가 포함되지 않았는지 확인
+      const codes = response.body.map((p: any) => p.code);
+      expect(codes).not.toContain('inactive_paper');
+
+      // 첫 번째 용지 구조 확인
+      expect(response.body[0]).toHaveProperty('code');
+      expect(response.body[0]).toHaveProperty('name');
+      expect(response.body[0]).toHaveProperty('thickness');
+      expect(response.body[0]).toHaveProperty('category');
+    });
+
+    it('should return paper types sorted by category and sortOrder', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/products/spine/paper-types')
+        .expect(200);
+
+      // body 카테고리가 먼저 오고, 그 다음 cover
+      const categories = response.body.map((p: any) => p.category);
+      const bodyIndex = categories.indexOf('body');
+      const coverIndex = categories.indexOf('cover');
+      expect(bodyIndex).toBeLessThan(coverIndex);
+    });
+  });
+
+  describe('/products/spine/binding-types (GET)', () => {
+    it('should return all active binding types', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/products/spine/binding-types')
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(4);
+
+      // 첫 번째 제본 방식 구조 확인
+      expect(response.body[0]).toHaveProperty('code');
+      expect(response.body[0]).toHaveProperty('name');
+      expect(response.body[0]).toHaveProperty('margin');
+    });
+
+    it('should include page constraints for binding types', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/products/spine/binding-types')
+        .expect(200);
+
+      // 무선제본: minPages 있음
+      const perfect = response.body.find((b: any) => b.code === 'perfect');
+      expect(perfect.minPages).toBe(32);
+
+      // 중철제본: maxPages, pageMultiple 있음
+      const saddle = response.body.find((b: any) => b.code === 'saddle');
+      expect(saddle.maxPages).toBe(64);
+      expect(saddle.pageMultiple).toBe(4);
+    });
+  });
+
+  describe('/products/spine/calculate (POST)', () => {
+    it('should calculate spine width correctly', async () => {
+      const dto = {
+        pageCount: 100,
+        paperType: 'mojo_80g',
+        bindingType: 'perfect',
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/products/spine/calculate')
+        .send(dto)
+        .expect(201);
+
+      // 계산: (100 / 2) * 0.1 + 0.5 = 5.5mm
+      expect(response.body.spineWidth).toBe(5.5);
+      expect(response.body.paperThickness).toBe(0.1);
+      expect(response.body.bindingMargin).toBe(0.5);
+      expect(response.body.formula).toContain('100');
+      expect(response.body.warnings).toEqual([]);
+    });
+
+    it('should calculate with different paper and binding types', async () => {
+      const dto = {
+        pageCount: 100,
+        paperType: 'art_200g',
+        bindingType: 'hardcover',
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/products/spine/calculate')
+        .send(dto)
+        .expect(201);
+
+      // 계산: (100 / 2) * 0.18 + 2.0 = 11mm
+      expect(response.body.spineWidth).toBe(11);
+      expect(response.body.paperThickness).toBe(0.18);
+      expect(response.body.bindingMargin).toBe(2);
+    });
+
+    it('should use custom thickness when provided', async () => {
+      const dto = {
+        pageCount: 100,
+        paperType: 'mojo_80g',
+        bindingType: 'perfect',
+        customPaperThickness: 0.15,
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/products/spine/calculate')
+        .send(dto)
+        .expect(201);
+
+      // 계산: (100 / 2) * 0.15 + 0.5 = 8mm
+      expect(response.body.spineWidth).toBe(8);
+      expect(response.body.paperThickness).toBe(0.15);
+    });
+
+    it('should use custom margin when provided', async () => {
+      const dto = {
+        pageCount: 100,
+        paperType: 'mojo_80g',
+        bindingType: 'perfect',
+        customBindingMargin: 1.0,
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/products/spine/calculate')
+        .send(dto)
+        .expect(201);
+
+      // 계산: (100 / 2) * 0.1 + 1.0 = 6mm
+      expect(response.body.spineWidth).toBe(6);
+      expect(response.body.bindingMargin).toBe(1.0);
+    });
+
+    describe('warnings', () => {
+      it('should warn when spine is too narrow (< 5mm)', async () => {
+        const dto = {
+          pageCount: 50,
+          paperType: 'mojo_80g',
+          bindingType: 'perfect',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(201);
+
+        // 계산: (50 / 2) * 0.1 + 0.5 = 3mm
+        expect(response.body.spineWidth).toBe(3);
+        expect(response.body.warnings).toContainEqual({
+          code: 'SPINE_TOO_NARROW',
+          message: '책등 폭이 5mm 미만입니다. 텍스트 배치에 주의하세요.',
+        });
+      });
+
+      it('should warn when page count is below minimum', async () => {
+        const dto = {
+          pageCount: 20,
+          paperType: 'mojo_80g',
+          bindingType: 'perfect', // minPages: 32
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(201);
+
+        expect(response.body.warnings).toContainEqual({
+          code: 'BINDING_PAGE_LIMIT',
+          message: '무선제본은 최소 32페이지 이상이어야 합니다.',
+        });
+      });
+
+      it('should warn when page count exceeds maximum', async () => {
+        const dto = {
+          pageCount: 100,
+          paperType: 'mojo_80g',
+          bindingType: 'saddle', // maxPages: 64
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(201);
+
+        expect(response.body.warnings).toContainEqual({
+          code: 'BINDING_PAGE_LIMIT',
+          message: '중철제본은 최대 64페이지까지 가능합니다.',
+        });
+      });
+
+      it('should warn when page count is not a multiple', async () => {
+        const dto = {
+          pageCount: 50, // 4의 배수가 아님
+          paperType: 'mojo_80g',
+          bindingType: 'saddle', // pageMultiple: 4
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(201);
+
+        expect(response.body.warnings).toContainEqual({
+          code: 'BINDING_PAGE_MULTIPLE',
+          message: '중철제본은 4의 배수여야 합니다.',
+        });
+      });
+    });
+
+    describe('error cases', () => {
+      it('should return 404 for non-existent paper type', async () => {
+        const dto = {
+          pageCount: 100,
+          paperType: 'non_existent',
+          bindingType: 'perfect',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(404);
+
+        expect(response.body.message).toContain('non_existent');
+      });
+
+      it('should return 404 for non-existent binding type', async () => {
+        const dto = {
+          pageCount: 100,
+          paperType: 'mojo_80g',
+          bindingType: 'non_existent',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(404);
+
+        expect(response.body.message).toContain('non_existent');
+      });
+
+      it('should return 400 for invalid page count', async () => {
+        const dto = {
+          pageCount: 0, // 최소 1 이상
+          paperType: 'mojo_80g',
+          bindingType: 'perfect',
+        };
+
+        await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(400);
+      });
+
+      it('should return 400 for missing required fields', async () => {
+        const dto = {
+          pageCount: 100,
+          // paperType 누락
+          // bindingType 누락
+        };
+
+        await request(app.getHttpServer())
+          .post('/products/spine/calculate')
+          .send(dto)
+          .expect(400);
+      });
+    });
+  });
+});

@@ -23,6 +23,9 @@ interface QueryParams {
   editMode: string | null
   size: string | null
   templateSetId: string | null
+  pageCount: string | null
+  paperType: string | null
+  bindingType: string | null
 }
 
 const MOBILE_BREAKPOINT = 768
@@ -53,6 +56,9 @@ export default function EditorView() {
   const token = searchParams.get('token')
   const size = searchParams.get('size')
   const templateSetId = searchParams.get('templateSetId')
+  const pageCount = searchParams.get('pageCount')
+  const paperType = searchParams.get('paperType')
+  const bindingType = searchParams.get('bindingType')
 
   // Stores
   const { setToken, initializeFromStorage } = useAuthStore()
@@ -93,7 +99,7 @@ export default function EditorView() {
 
   // 매 렌더링마다 최신 함수를 ref에 저장
   loadContentRef.current = async (params: QueryParams) => {
-    const { productId, contentId, contentType, editMode, size, templateSetId } = params
+    const { productId, contentId, contentType, editMode, size, templateSetId, pageCount, paperType, bindingType } = params
 
     // 캔버스 유효성 검사
     const currentCanvas = useAppStore.getState().canvas
@@ -109,7 +115,12 @@ export default function EditorView() {
       setLoadingMessage('템플릿셋을 불러오는 중...')
 
       try {
-        await loadTemplateSetEditor({ templateSetId })
+        await loadTemplateSetEditor({
+          templateSetId,
+          pageCount: pageCount ? parseInt(pageCount, 10) : undefined,
+          paperType: paperType || undefined,
+          bindingType: bindingType || undefined,
+        })
       } catch (error) {
         console.error('[EditorView] Template set load error:', error)
       } finally {
@@ -312,6 +323,9 @@ export default function EditorView() {
           editMode,
           size,
           templateSetId,
+          pageCount,
+          paperType,
+          bindingType,
         }
 
         await loadContentRef.current?.(params)
@@ -408,11 +422,14 @@ export default function EditorView() {
       editMode,
       size,
       templateSetId,
+      pageCount,
+      paperType,
+      bindingType,
     }
 
     // ref를 통해 최신 함수 호출
     loadContentRef.current?.(params)
-  }, [productId, contentId, contentType, editMode, size, templateSetId, ready])
+  }, [productId, contentId, contentType, editMode, size, templateSetId, pageCount, paperType, bindingType, ready])
 
   // Toggle side panel
   const toggleSidePanel = () => {
