@@ -14,7 +14,7 @@ import {
   Image,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { UploadFile, RcFile } from 'antd/es/upload';
+import type { UploadFile } from 'antd/es/upload';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -58,7 +58,7 @@ export const BackgroundList = () => {
       // 2. 배경 정보 저장
       const background = await libraryApi.createBackground({
         name: data.name,
-        category: data.category || null,
+        category: data.category || undefined,
         fileUrl: uploadResult.url,
         thumbnailUrl: uploadResult.url, // 썸네일도 동일한 URL 사용
         isActive: true,

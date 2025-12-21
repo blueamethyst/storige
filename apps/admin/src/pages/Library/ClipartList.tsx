@@ -15,7 +15,7 @@ import {
   Tag,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { UploadFile, RcFile } from 'antd/es/upload';
+import type { UploadFile } from 'antd/es/upload';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -62,7 +62,7 @@ export const ClipartList = () => {
       // 3. 클립아트 정보 저장
       const clipart = await libraryApi.createClipart({
         name: data.name,
-        category: data.category || null,
+        category: data.category || undefined,
         fileUrl: uploadResult.url,
         thumbnailUrl: uploadResult.url,
         tags,
