@@ -105,10 +105,10 @@ echo "  - Created logs and storage directories"
 echo -e "\n${GREEN}[7/8] Copying editor embed bundle to bookmoa...${NC}"
 
 # bookmoa 경로 설정
-# 서버 환경: /var/www/html (nginx 기본 경로)
+# 서버 환경: /var/www/html/front (bookmoa front 경로)
 # 로컬 환경: ../bookmoa (storige와 같은 레벨)
-if [ -d "/var/www/html" ]; then
-    DEFAULT_BOOKMOA_PATH="/var/www/html"
+if [ -d "/var/www/html/front" ]; then
+    DEFAULT_BOOKMOA_PATH="/var/www/html/front"
 else
     DEFAULT_BOOKMOA_PATH="../bookmoa"
 fi
