@@ -66,6 +66,12 @@ export interface EditorConfig {
   options?: {
     /** 페이지 수 */
     pages?: number
+    /** 요청된 내지 페이지 수 (자동 맞춤용) */
+    pageCount?: number
+    /** 종이 타입 (책등 계산용) */
+    paperType?: string
+    /** 제본 방식 코드 (책등 계산용) */
+    bindingType?: string
     /** 판형 크기 */
     size?: { width: number; height: number }
     /** 제본 방식 */
@@ -197,7 +203,7 @@ function EmbeddedEditor({
     canvas,
   } = useAppStore()
 
-  const { loadEmptyEditor } = useEditorContents()
+  const { loadEmptyEditor, loadTemplateSetEditor } = useEditorContents()
 
   // Auto-save hook integration
   const { saveNow, markDirty } = useEmbedAutoSave({
@@ -396,15 +402,17 @@ function EmbeddedEditor({
 
         // 3. Load content based on template set
         setLoadingMessage('콘텐츠를 불러오는 중...')
-        await loadEmptyEditor({
-          name: templateSet.name,
-          size: {
-            width: templateSet.width,
-            height: templateSet.height,
-            cutSize: 3,
-            safeSize: 3,
-          },
-          unit: 'mm',
+        console.log('[EmbeddedEditor] Loading template set with options:', {
+          templateSetId,
+          pageCount: options?.pageCount,
+          paperType: options?.paperType,
+          bindingType: options?.bindingType,
+        })
+        await loadTemplateSetEditor({
+          templateSetId,
+          pageCount: options?.pageCount,
+          paperType: options?.paperType,
+          bindingType: options?.bindingType,
         })
 
         if (!isMounted) return
