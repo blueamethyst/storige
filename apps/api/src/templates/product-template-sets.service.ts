@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Optional,
+  Inject,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRepository, getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, IsNull, In } from 'typeorm';
 import { ProductTemplateSet } from './entities/product-template-set.entity';
 import { TemplateSet } from './entities/template-set.entity';
-import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
 import {
   CreateProductTemplateSetDto,
   UpdateProductTemplateSetDto,
@@ -18,16 +19,30 @@ import {
   ProductTemplateSetListResponseDto,
 } from './dto/product-template-set.dto';
 
+// Bookmoa 엔티티 타입 (조건부 import)
+interface BookmoaCategoryLike {
+  sortcode: string;
+  cateName: string;
+}
+
 @Injectable()
 export class ProductTemplateSetsService {
+  private categoryRepository: Repository<BookmoaCategoryLike> | null = null;
+
   constructor(
     @InjectRepository(ProductTemplateSet)
     private ptsRepository: Repository<ProductTemplateSet>,
     @InjectRepository(TemplateSet)
     private templateSetRepository: Repository<TemplateSet>,
-    @InjectRepository(BookmoaCategoryEntity, 'bookmoa')
-    private categoryRepository: Repository<BookmoaCategoryEntity>,
-  ) {}
+    @Optional()
+    @Inject('BOOKMOA_CATEGORY_REPOSITORY')
+    categoryRepository?: Repository<BookmoaCategoryLike>,
+  ) {
+    // 조건부로 주입된 repository 저장
+    if (categoryRepository) {
+      this.categoryRepository = categoryRepository;
+    }
+  }
 
   /**
    * 상품-템플릿셋 연결 생성
@@ -178,7 +193,7 @@ export class ProductTemplateSetsService {
     const sortcodes = [...new Set(items.map((item) => item.sortcode))];
     const categoryMap = new Map<string, string>();
 
-    if (sortcodes.length > 0) {
+    if (sortcodes.length > 0 && this.categoryRepository) {
       try {
         const categories = await this.categoryRepository.find({
           where: { sortcode: In(sortcodes) },

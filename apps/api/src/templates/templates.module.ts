@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module, DynamicModule, Provider } from '@nestjs/common';
+import { TypeOrmModule, getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { TemplatesService } from './templates.service';
 import { TemplatesController } from './templates.controller';
 import { TemplateSetsService } from './template-sets.service';
@@ -13,7 +14,23 @@ import { Category } from './entities/category.entity';
 import { TemplateSet, TemplateSetItem } from './entities/template-set.entity';
 import { ProductTemplateSet } from './entities/product-template-set.entity';
 import { Product } from '../products/entities/product.entity';
-import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
+
+// Bookmoa 카테고리 조건부 import
+const bookmoaImports: DynamicModule[] = [];
+const bookmoaProviders: Provider[] = [];
+
+if (process.env.BOOKMOA_DB_PASSWORD) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { BookmoaCategoryEntity } = require('../bookmoa-entities/category.entity');
+  bookmoaImports.push(TypeOrmModule.forFeature([BookmoaCategoryEntity], 'bookmoa'));
+
+  // Repository provider for ProductTemplateSetsService
+  bookmoaProviders.push({
+    provide: 'BOOKMOA_CATEGORY_REPOSITORY',
+    useFactory: (dataSource: DataSource) => dataSource.getRepository(BookmoaCategoryEntity),
+    inject: [getDataSourceToken('bookmoa')],
+  });
+}
 
 @Module({
   imports: [
@@ -25,8 +42,8 @@ import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
       ProductTemplateSet,
       Product,
     ]),
-    // Bookmoa 카테고리 (상품명 조회용)
-    TypeOrmModule.forFeature([BookmoaCategoryEntity], 'bookmoa'),
+    // Bookmoa 카테고리 (상품명 조회용) - 조건부 로드
+    ...bookmoaImports,
   ],
   controllers: [
     TemplatesController,
@@ -39,6 +56,8 @@ import { BookmoaCategoryEntity } from '../bookmoa-entities/category.entity';
     TemplateSetsService,
     CategoriesService,
     ProductTemplateSetsService,
+    // Bookmoa category repository (조건부)
+    ...bookmoaProviders,
   ],
   exports: [
     TemplatesService,
