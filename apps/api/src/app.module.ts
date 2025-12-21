@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
@@ -13,9 +13,19 @@ import { EditorContentsModule } from './editor-contents/editor-contents.module';
 import { ProductsModule } from './products/products.module';
 import { HealthModule } from './health/health.module';
 import { SeedModule } from './database/seeds/seed.module';
-import { BookmoaModule } from './bookmoa/bookmoa.module';
 import { FilesModule } from './files/files.module';
 import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
+
+// Bookmoa 모듈 조건부 로드 (BOOKMOA_DB_PASSWORD가 설정된 경우에만)
+const conditionalModules: DynamicModule[] = [];
+if (process.env.BOOKMOA_DB_PASSWORD) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { BookmoaModule } = require('./bookmoa/bookmoa.module');
+  conditionalModules.push(BookmoaModule);
+  console.log('[AppModule] Bookmoa integration enabled');
+} else {
+  console.log('[AppModule] Bookmoa integration disabled (BOOKMOA_DB_PASSWORD not set)');
+}
 
 @Module({
   imports: [
@@ -72,14 +82,14 @@ import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
     // Database seeding
     SeedModule,
 
-    // Bookmoa integration (read-only)
-    BookmoaModule,
-
     // File management
     FilesModule,
 
     // Edit sessions
     EditSessionsModule,
+
+    // Bookmoa integration (conditionally loaded)
+    ...conditionalModules,
   ],
   controllers: [],
   providers: [],
