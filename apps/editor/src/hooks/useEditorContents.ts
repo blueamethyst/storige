@@ -958,40 +958,56 @@ export function useEditorContents(): UseEditorContentsReturn {
             ? JSON.parse(firstTemplate.canvasData)
             : firstTemplate.canvasData
 
-          // 첫 번째 템플릿의 canvasData에서 workspace 크기를 템플릿셋 크기로 수정
-          // (템플릿의 원본 크기가 템플릿셋 크기와 다를 수 있으므로)
-          const latestSettings = useSettingsStore.getState().currentSettings
-          const targetSize = latestSettings.size
-          const targetWidth = mmToPxDisplay(targetSize.width + targetSize.cutSize)
-          const targetHeight = mmToPxDisplay(targetSize.height + targetSize.cutSize)
+          // canvasData에 실제 객체가 있는지 확인
+          const hasObjects = canvasData?.objects && Array.isArray(canvasData.objects) && canvasData.objects.length > 0
+          const hasWorkspace = hasObjects && canvasData.objects.some((obj: any) => obj.id === 'workspace')
 
-          // canvasData의 workspace 객체 크기 수정
-          const modifyWorkspaceInData = (data: any) => {
-            if (data && data.objects && Array.isArray(data.objects)) {
-              data.objects.forEach((obj: any) => {
-                if (obj.id === 'workspace') {
-                  console.log('[EditorContents] Modifying workspace in canvasData:', {
-                    original: { width: obj.width, height: obj.height },
-                    target: { width: targetWidth, height: targetHeight }
-                  })
-                  obj.width = targetWidth
-                  obj.height = targetHeight
-                  obj.scaleX = 1
-                  obj.scaleY = 1
-                }
-              })
+          console.log('[EditorContents] First template canvasData analysis:', {
+            hasObjects,
+            hasWorkspace,
+            objectCount: canvasData?.objects?.length || 0
+          })
+
+          // canvasData가 비어있거나 workspace가 없으면 initWorkspace만 호출
+          if (!hasObjects || !hasWorkspace) {
+            console.log('[EditorContents] No objects or workspace in canvasData, initializing workspace only')
+            await initWorkspace()
+          } else {
+            // 첫 번째 템플릿의 canvasData에서 workspace 크기를 템플릿셋 크기로 수정
+            // (템플릿의 원본 크기가 템플릿셋 크기와 다를 수 있으므로)
+            const latestSettings = useSettingsStore.getState().currentSettings
+            const targetSize = latestSettings.size
+            const targetWidth = mmToPxDisplay(targetSize.width + targetSize.cutSize)
+            const targetHeight = mmToPxDisplay(targetSize.height + targetSize.cutSize)
+
+            // canvasData의 workspace 객체 크기 수정
+            const modifyWorkspaceInData = (data: any) => {
+              if (data && data.objects && Array.isArray(data.objects)) {
+                data.objects.forEach((obj: any) => {
+                  if (obj.id === 'workspace') {
+                    console.log('[EditorContents] Modifying workspace in canvasData:', {
+                      original: { width: obj.width, height: obj.height },
+                      target: { width: targetWidth, height: targetHeight }
+                    })
+                    obj.width = targetWidth
+                    obj.height = targetHeight
+                    obj.scaleX = 1
+                    obj.scaleY = 1
+                  }
+                })
+              }
+              // top-level width/height도 업데이트 (mm 단위)
+              data.width = targetSize.width + targetSize.cutSize
+              data.height = targetSize.height + targetSize.cutSize
+              return data
             }
-            // top-level width/height도 업데이트 (mm 단위)
-            data.width = targetSize.width + targetSize.cutSize
-            data.height = targetSize.height + targetSize.cutSize
-            return data
+
+            const canvases = Array.isArray(canvasData)
+              ? canvasData.map(modifyWorkspaceInData)
+              : [modifyWorkspaceInData(canvasData)]
+
+            await loadCanvasData(canvases)
           }
-
-          const canvases = Array.isArray(canvasData)
-            ? canvasData.map(modifyWorkspaceInData)
-            : [modifyWorkspaceInData(canvasData)]
-
-          await loadCanvasData(canvases)
 
           // 첫 번째 페이지 workspace 크기 재조정 (setupEmptyEditorStore 후 크기가 변경되었으므로)
           const firstCanvas = useAppStore.getState().allCanvas[0]
@@ -1119,15 +1135,24 @@ export function useEditorContents(): UseEditorContentsReturn {
               ? JSON.parse(template.canvasData)
               : template.canvasData
 
-            // 새 페이지에 canvasData 로드
+            // canvasData에 실제 객체가 있는지 확인 (workspace 제외)
+            const dataToCheck = Array.isArray(canvasData) ? canvasData[0] : canvasData
+            const hasNonWorkspaceObjects = dataToCheck?.objects && Array.isArray(dataToCheck.objects) &&
+              dataToCheck.objects.some((obj: any) => obj.id !== 'workspace')
+
+            // 새 페이지에 canvasData 로드 (실제 객체가 있는 경우에만)
             const targetEditor = latestAllEditors[newPageIndex]
             const servicePlugin = targetEditor.getPlugin<ServicePlugin>('ServicePlugin')
             console.log(`[EditorContents] Loading canvasData to page ${newPageIndex}:`, {
               hasServicePlugin: !!servicePlugin,
               canvasDataType: typeof canvasData,
               isArray: Array.isArray(canvasData),
+              hasNonWorkspaceObjects,
             })
-            if (servicePlugin) {
+
+            // canvasData에 workspace 외의 객체가 있는 경우에만 loadJSON 호출
+            // (빈 canvasData를 로드하면 createCanvas에서 생성된 workspace가 사라짐)
+            if (servicePlugin && hasNonWorkspaceObjects) {
               // canvasData가 배열인 경우 첫 번째 요소 사용, 아니면 그대로 사용
               const dataToLoad = Array.isArray(canvasData) ? canvasData[0] : canvasData
               await new Promise<void>((resolve) => {
@@ -1178,6 +1203,8 @@ export function useEditorContents(): UseEditorContentsReturn {
                   resolve()
                 })
               })
+            } else {
+              console.log(`[EditorContents] Skipping loadJSON for page ${newPageIndex} - no non-workspace objects`)
             }
           } else {
             console.log(`[EditorContents] Skipping canvasData load for page ${newPageIndex}: hasCanvasData=${!!template.canvasData}, hasEditor=${!!latestAllEditors[newPageIndex]}`)
