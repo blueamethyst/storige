@@ -36,7 +36,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider locale={koKR}>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter basename={import.meta.env.VITE_ROUTER_BASE || '/'}>
           <Routes>
             <Route path="/login" element={<Login />} />
 

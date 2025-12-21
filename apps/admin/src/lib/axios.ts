@@ -52,7 +52,7 @@ axiosInstance.interceptors.response.use(
         // Refresh failed, logout user
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = `${import.meta.env.BASE_URL}login`;
+        window.location.href = `${import.meta.env.VITE_ROUTER_BASE || '/'}login`;
         return Promise.reject(refreshError);
       }
     }
