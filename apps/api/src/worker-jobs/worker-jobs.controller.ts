@@ -35,8 +35,6 @@ export class WorkerJobsController {
   // ============================================================================
 
   @Post('validate')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a PDF validation job' })
   @ApiResponse({ status: 201, description: 'Validation job created and queued', type: WorkerJob })
   @ApiResponse({ status: 400, description: 'Invalid input' })
