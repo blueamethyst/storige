@@ -2,6 +2,13 @@ import { spawn } from 'child_process';
 import { Logger } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { VALIDATION_CONFIG } from '../config/validation.config';
+import {
+  InkCoverageResult,
+  InkCoveragePageResult,
+  SpotColorResult,
+  TransparencyResult,
+} from '../dto/validation-result.dto';
 
 const logger = new Logger('GhostscriptUtil');
 
@@ -232,5 +239,375 @@ export async function isGhostscriptAvailable(): Promise<boolean> {
   } catch {
     logger.warn('Ghostscript not available');
     return false;
+  }
+}
+
+// ============================================================
+// WBS 3.0: CMYK 2단계 검증
+// @see docs/PDF_VALIDATION_WBS.md
+// ============================================================
+
+/**
+ * WBS 3.2: Ghostscript 명령 실행 (타임아웃 포함)
+ * GS 실행 시간이 길어지면 폴백 처리를 위해 타임아웃 적용
+ */
+export async function runGhostscriptWithTimeout(
+  args: string[],
+  timeoutMs: number = VALIDATION_CONFIG.GS_TIMEOUT,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const gs = spawn(GS_PATH, args);
+    let stdout = '';
+    let stderr = '';
+    let killed = false;
+
+    const timeout = setTimeout(() => {
+      killed = true;
+      gs.kill('SIGTERM');
+      reject(new Error('Ghostscript timeout'));
+    }, timeoutMs);
+
+    gs.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    gs.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    gs.on('close', (code) => {
+      clearTimeout(timeout);
+      if (killed) return; // 이미 타임아웃으로 reject됨
+
+      if (code === 0) {
+        resolve(stdout);
+      } else {
+        logger.error(`Ghostscript error: ${stderr}`);
+        reject(new Error(`Ghostscript exited with code ${code}: ${stderr}`));
+      }
+    });
+
+    gs.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(new Error(`Failed to start Ghostscript: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * WBS 3.2: Ghostscript inkcov 디바이스로 잉크 커버리지 분석
+ * CMYK 각 채널의 사용량을 페이지별로 측정
+ */
+export async function detectCmykUsage(
+  inputPath: string,
+  maxPages?: number,
+): Promise<InkCoverageResult> {
+  const effectiveMaxPages = maxPages ?? VALIDATION_CONFIG.GS_MAX_PAGES;
+
+  const args = [
+    '-q',
+    '-dBATCH',
+    '-dNOPAUSE',
+    '-dSAFER',
+    '-sDEVICE=inkcov',
+    `-dLastPage=${effectiveMaxPages}`,
+    '-o', '-',
+    inputPath,
+  ];
+
+  try {
+    const output = await runGhostscriptWithTimeout(args);
+    return parseInkCoverage(output);
+  } catch (error) {
+    logger.warn(`inkcov analysis failed: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * inkcov 출력 파싱
+ * 출력 형식: "0.00000  0.00000  0.00000  0.12345 CMYK OK"
+ *            (Cyan    Magenta  Yellow   Black)
+ */
+function parseInkCoverage(output: string): InkCoverageResult {
+  const pages: InkCoveragePageResult[] = [];
+  const lines = output.trim().split('\n');
+
+  for (const line of lines) {
+    // inkcov 출력 패턴: C M Y K 값 (0.0 ~ 1.0)
+    const match = line.match(
+      /^\s*(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)/,
+    );
+    if (match) {
+      const [, c, m, y, k] = match;
+      const cyan = parseFloat(c);
+      const magenta = parseFloat(m);
+      const yellow = parseFloat(y);
+      const black = parseFloat(k);
+
+      // CMY 중 하나라도 0.001 이상이면 CMYK 사용으로 판정
+      const hasCmykUsage = cyan > 0.001 || magenta > 0.001 || yellow > 0.001;
+
+      pages.push({
+        page: pages.length + 1,
+        cyan,
+        magenta,
+        yellow,
+        black,
+        hasCmykUsage,
+      });
+    }
+  }
+
+  // 전체 분석 결과
+  const totalCmykUsage = pages.some((p) => p.hasCmykUsage);
+  const onlyBlack = pages.every((p) => !p.hasCmykUsage && p.black > 0.001);
+  const hasAnyInk = pages.some(
+    (p) => p.cyan > 0.001 || p.magenta > 0.001 || p.yellow > 0.001 || p.black > 0.001,
+  );
+
+  let colorMode: 'CMYK' | 'RGB' | 'GRAY' | 'MIXED';
+  if (totalCmykUsage) {
+    colorMode = 'CMYK';
+  } else if (onlyBlack) {
+    colorMode = 'GRAY';
+  } else if (!hasAnyInk) {
+    colorMode = 'RGB'; // 잉크 사용량이 없으면 RGB로 추정
+  } else {
+    colorMode = 'MIXED';
+  }
+
+  logger.debug(
+    `inkcov result: ${pages.length} pages, colorMode=${colorMode}, cmykUsage=${totalCmykUsage}`,
+  );
+
+  return {
+    pages,
+    totalCmykUsage,
+    colorMode,
+  };
+}
+
+// ============================================================
+// WBS 4.0: Ghostscript 전용 분석
+// @see docs/PDF_VALIDATION_WBS.md
+// ============================================================
+
+/**
+ * WBS 4.1: 별색(Spot Color) 감지
+ * PDF의 ColorSpace에서 Separation/DeviceN 컬러를 탐색
+ *
+ * PostScript 기반 분석이 복잡하므로, PDF 바이너리 파싱 방식 사용
+ * - /Separation 컬러스페이스 감지
+ * - /DeviceN 컬러스페이스 감지
+ * - 별색 이름 추출
+ */
+export async function detectSpotColors(
+  inputPath: string,
+  pdfBytes?: Uint8Array,
+): Promise<SpotColorResult> {
+  const spotColorNames: string[] = [];
+  const pages: { page: number; colors: string[] }[] = [];
+
+  try {
+    // PDF 바이너리에서 별색 정보 추출 (PostScript보다 안정적)
+    let pdfContent: string;
+
+    if (pdfBytes) {
+      pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+    } else {
+      const fileBuffer = await fs.readFile(inputPath);
+      pdfContent = new TextDecoder('latin1').decode(fileBuffer);
+    }
+
+    // Separation 컬러스페이스에서 별색 이름 추출
+    // 패턴: /ColorSpace [/Separation /SpotColorName ...]
+    const separationPattern = /\/Separation\s*\/([^\s\/\[\]]+)/g;
+    let match;
+    while ((match = separationPattern.exec(pdfContent)) !== null) {
+      const colorName = decodeSpotColorName(match[1]);
+      if (!isSystemColor(colorName) && !spotColorNames.includes(colorName)) {
+        spotColorNames.push(colorName);
+      }
+    }
+
+    // DeviceN 컬러스페이스에서 별색 이름 추출
+    // 패턴: /DeviceN [/Color1 /Color2 ...] ...
+    const deviceNPattern = /\/DeviceN\s*\[\s*([^\]]+)\]/g;
+    while ((match = deviceNPattern.exec(pdfContent)) !== null) {
+      const colorList = match[1];
+      const colorNames = colorList.match(/\/([^\s\/\[\]]+)/g);
+      if (colorNames) {
+        for (const name of colorNames) {
+          const colorName = decodeSpotColorName(name.substring(1)); // Remove leading /
+          if (!isSystemColor(colorName) && !spotColorNames.includes(colorName)) {
+            spotColorNames.push(colorName);
+          }
+        }
+      }
+    }
+
+    // 페이지별 정보는 단순화 (전체 PDF에서 발견된 별색)
+    if (spotColorNames.length > 0) {
+      pages.push({
+        page: 1,
+        colors: spotColorNames,
+      });
+    }
+
+    logger.debug(
+      `Spot color detection: found ${spotColorNames.length} colors: ${spotColorNames.join(', ')}`,
+    );
+
+    return {
+      hasSpotColors: spotColorNames.length > 0,
+      spotColorNames,
+      pages,
+    };
+  } catch (error) {
+    logger.warn(`Spot color detection failed: ${error.message}`);
+    return {
+      hasSpotColors: false,
+      spotColorNames: [],
+      pages: [],
+    };
+  }
+}
+
+/**
+ * 별색 이름 디코딩
+ * PDF에서 특수문자는 #XX 형식으로 인코딩됨
+ */
+function decodeSpotColorName(encoded: string): string {
+  return encoded.replace(/#([0-9A-Fa-f]{2})/g, (_, hex) => {
+    return String.fromCharCode(parseInt(hex, 16));
+  });
+}
+
+/**
+ * 시스템/프로세스 컬러 여부 확인
+ * CMYK 프로세스 컬러는 별색으로 취급하지 않음
+ */
+function isSystemColor(colorName: string): boolean {
+  const systemColors = [
+    'Cyan',
+    'Magenta',
+    'Yellow',
+    'Black',
+    'None',
+    'All',
+    'Registration',
+    // CMYK 변형
+    'Process Cyan',
+    'Process Magenta',
+    'Process Yellow',
+    'Process Black',
+  ];
+  return systemColors.some(
+    (sys) => colorName.toLowerCase() === sys.toLowerCase(),
+  );
+}
+
+/**
+ * WBS 4.2: 투명도/오버프린트 감지
+ * PDF의 ExtGState(Graphics State)에서 투명도와 오버프린트 설정 탐색
+ *
+ * 감지 항목:
+ * - /ca (fill alpha, 투명도)
+ * - /CA (stroke alpha, 투명도)
+ * - /SMask (soft mask, 투명도)
+ * - /OP (overprint for stroke)
+ * - /op (overprint for fill)
+ * - /BM (blend mode, 투명도)
+ */
+export async function detectTransparencyAndOverprint(
+  inputPath: string,
+  pdfBytes?: Uint8Array,
+): Promise<TransparencyResult> {
+  const pages: { page: number; transparency: boolean; overprint: boolean }[] = [];
+  let hasTransparency = false;
+  let hasOverprint = false;
+
+  try {
+    let pdfContent: string;
+
+    if (pdfBytes) {
+      pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+    } else {
+      const fileBuffer = await fs.readFile(inputPath);
+      pdfContent = new TextDecoder('latin1').decode(fileBuffer);
+    }
+
+    // ExtGState 딕셔너리 탐색
+    // 패턴: << /Type /ExtGState ... >>
+
+    // 투명도 감지 패턴들
+    const transparencyPatterns = [
+      /\/ca\s+([0-9.]+)/g, // Fill alpha (0-1, 1=불투명)
+      /\/CA\s+([0-9.]+)/g, // Stroke alpha
+      /\/SMask\s*(?!\/None)/g, // Soft mask (None이 아닌 경우)
+      /\/BM\s*\/(?!Normal)[A-Za-z]+/g, // Blend mode (Normal이 아닌 경우)
+    ];
+
+    // 투명도 검사
+    for (const pattern of transparencyPatterns) {
+      const matches = pdfContent.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          // /ca 또는 /CA 값 확인 (1.0 미만이면 투명도 있음)
+          const alphaMatch = match.match(/\/[cC][aA]\s+([0-9.]+)/);
+          if (alphaMatch) {
+            const alphaValue = parseFloat(alphaMatch[1]);
+            if (alphaValue < 0.999) {
+              hasTransparency = true;
+              break;
+            }
+          } else {
+            // SMask 또는 BlendMode가 있으면 투명도
+            hasTransparency = true;
+            break;
+          }
+        }
+        if (hasTransparency) break;
+      }
+    }
+
+    // 오버프린트 감지 패턴
+    const overprintPatterns = [
+      /\/OP\s+true/gi, // Stroke overprint
+      /\/op\s+true/gi, // Fill overprint
+      /\/OPM\s+1/g, // Overprint mode
+    ];
+
+    for (const pattern of overprintPatterns) {
+      if (pattern.test(pdfContent)) {
+        hasOverprint = true;
+        break;
+      }
+    }
+
+    // 페이지별 정보 (단순화: 전체 PDF 기준)
+    pages.push({
+      page: 1,
+      transparency: hasTransparency,
+      overprint: hasOverprint,
+    });
+
+    logger.debug(
+      `Transparency/Overprint detection: transparency=${hasTransparency}, overprint=${hasOverprint}`,
+    );
+
+    return {
+      hasTransparency,
+      hasOverprint,
+      pages,
+    };
+  } catch (error) {
+    logger.warn(`Transparency/Overprint detection failed: ${error.message}`);
+    return {
+      hasTransparency: false,
+      hasOverprint: false,
+      pages: [],
+    };
   }
 }

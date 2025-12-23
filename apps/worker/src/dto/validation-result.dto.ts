@@ -1,6 +1,7 @@
 /**
  * 검증 에러 코드
  * 기획 문서와 통일된 코드
+ * @see docs/PDF_VALIDATION_WBS.md - WBS 1.2
  */
 export enum ErrorCode {
   /** 지원하지 않는 파일 형식 */
@@ -17,10 +18,17 @@ export enum ErrorCode {
   SIZE_MISMATCH = 'SIZE_MISMATCH',
   /** 책등 사이즈 불일치 */
   SPINE_SIZE_MISMATCH = 'SPINE_SIZE_MISMATCH',
+  /** 사철 제본 규격 오류 (4의 배수 아님) */
+  SADDLE_STITCH_INVALID = 'SADDLE_STITCH_INVALID',
+  /** 후가공 파일에 CMYK 색상 사용 */
+  POST_PROCESS_CMYK = 'POST_PROCESS_CMYK',
+  /** 스프레드 사이즈 불일치 */
+  SPREAD_SIZE_MISMATCH = 'SPREAD_SIZE_MISMATCH',
 }
 
 /**
  * 검증 경고 코드
+ * @see docs/PDF_VALIDATION_WBS.md - WBS 1.2
  */
 export enum WarningCode {
   /** 페이지 수 불일치 (주문과 다름) */
@@ -29,6 +37,18 @@ export enum WarningCode {
   BLEED_MISSING = 'BLEED_MISSING',
   /** 해상도 낮음 */
   RESOLUTION_LOW = 'RESOLUTION_LOW',
+  /** 가로형 페이지 감지 */
+  LANDSCAPE_PAGE = 'LANDSCAPE_PAGE',
+  /** 사철 제본 중앙부 객체 확인 필요 */
+  CENTER_OBJECT_CHECK = 'CENTER_OBJECT_CHECK',
+  /** CMYK 구조 감지 (GS 미확정) */
+  CMYK_STRUCTURE_DETECTED = 'CMYK_STRUCTURE_DETECTED',
+  /** 혼합 PDF (표지+내지 다른 규격) */
+  MIXED_PDF = 'MIXED_PDF',
+  /** 투명도 감지 */
+  TRANSPARENCY_DETECTED = 'TRANSPARENCY_DETECTED',
+  /** 오버프린트 감지 */
+  OVERPRINT_DETECTED = 'OVERPRINT_DETECTED',
 }
 
 /**
@@ -39,12 +59,8 @@ export interface ValidationError {
   code: ErrorCode;
   /** 사용자 표시 메시지 */
   message: string;
-  /** 상세 정보 */
-  details: {
-    expected?: any;
-    actual?: any;
-    page?: number;
-  };
+  /** 상세 정보 (유연한 구조) */
+  details: Record<string, any>;
   /** 자동 수정 가능 여부 */
   autoFixable: boolean;
   /** 수정 방법 */
@@ -130,4 +146,135 @@ export interface ValidationOptions {
   maxFileSize?: number;
   /** 최대 허용 페이지 수 */
   maxPages?: number;
+}
+
+// ============================================================
+// 스프레드(펼침면) 감지 관련 타입
+// @see docs/PDF_VALIDATION_WBS.md - WBS 1.2
+// ============================================================
+
+/**
+ * 페이지 그룹 정보 (혼합 PDF용)
+ */
+export interface PageGroup {
+  /** 시작 페이지 인덱스 */
+  startIndex: number;
+  /** 종료 페이지 인덱스 */
+  endIndex: number;
+  /** 그룹 타입 */
+  type: 'single' | 'spread';
+  /** 페이지 너비 (mm) */
+  widthMm: number;
+  /** 페이지 높이 (mm) */
+  heightMm: number;
+}
+
+/**
+ * 스프레드 감지 결과
+ */
+export interface SpreadDetectionResult {
+  /** 스프레드 형식 여부 */
+  isSpread: boolean;
+  /** 감지 점수 (0-100) */
+  score: number;
+  /** 신뢰도 */
+  confidence: 'high' | 'medium' | 'low';
+  /** 감지된 PDF 타입 */
+  detectedType: 'single' | 'spread' | 'mixed';
+  /** 페이지 그룹 (혼합 PDF용) */
+  pageGroups?: PageGroup[];
+  /** 경고 메시지 */
+  warnings: string[];
+}
+
+// ============================================================
+// CMYK 감지 관련 타입
+// @see docs/PDF_VALIDATION_WBS.md - WBS 1.2
+// ============================================================
+
+/**
+ * 1차 구조적 CMYK 감지 결과
+ */
+export interface CmykStructureResult {
+  /** CMYK 시그니처 존재 여부 */
+  hasCmykSignature: boolean;
+  /** CMYK 의심 여부 (DeviceCMYK, ICC Profile, CMYK Image) */
+  suspectedCmyk: boolean;
+  /** 감지된 시그니처 목록 */
+  signatures: string[];
+}
+
+/**
+ * Ghostscript inkcov 분석 결과 (페이지별)
+ */
+export interface InkCoveragePageResult {
+  /** 페이지 번호 */
+  page: number;
+  /** Cyan 사용량 (0-1) */
+  cyan: number;
+  /** Magenta 사용량 (0-1) */
+  magenta: number;
+  /** Yellow 사용량 (0-1) */
+  yellow: number;
+  /** Black(K) 사용량 (0-1) */
+  black: number;
+  /** CMY 색상 사용 여부 (K 제외) */
+  hasCmykUsage: boolean;
+}
+
+/**
+ * Ghostscript inkcov 분석 결과
+ */
+export interface InkCoverageResult {
+  /** 페이지별 잉크 커버리지 */
+  pages: InkCoveragePageResult[];
+  /** 전체 CMYK 사용 여부 */
+  totalCmykUsage: boolean;
+  /** 감지된 컬러 모드 */
+  colorMode: 'CMYK' | 'RGB' | 'GRAY' | 'MIXED';
+}
+
+/**
+ * 통합 컬러 모드 감지 결과
+ */
+export interface ColorModeResult {
+  /** 최종 컬러 모드 */
+  colorMode: 'CMYK' | 'RGB' | 'GRAY' | 'MIXED' | 'UNKNOWN';
+  /** 신뢰도 */
+  confidence: 'high' | 'medium' | 'low';
+  /** 1차 구조적 감지 결과 */
+  cmykStructure: CmykStructureResult;
+  /** 2차 GS inkcov 결과 (선택적) */
+  inkCoverage?: InkCoverageResult;
+  /** 경고 메시지 */
+  warnings: string[];
+}
+
+// ============================================================
+// 별색/투명도/오버프린트 감지 관련 타입
+// @see docs/PDF_VALIDATION_WBS.md - WBS 1.2
+// ============================================================
+
+/**
+ * 별색(Spot Color) 감지 결과
+ */
+export interface SpotColorResult {
+  /** 별색 존재 여부 */
+  hasSpotColors: boolean;
+  /** 별색 이름 목록 */
+  spotColorNames: string[];
+  /** 페이지별 별색 정보 */
+  pages: { page: number; colors: string[] }[];
+}
+
+/**
+ * 투명도/오버프린트 감지 결과
+ */
+export interface TransparencyResult {
+  /** 투명도 사용 여부 */
+  hasTransparency: boolean;
+  /** 오버프린트 사용 여부 */
+  hasOverprint: boolean;
+  /** 페이지별 정보 */
+  pages: { page: number; transparency: boolean; overprint: boolean }[];
 }

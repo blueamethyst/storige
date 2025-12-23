@@ -155,10 +155,21 @@ export const MainLayout = () => {
       ],
     },
     {
-      key: '/worker-jobs',
+      key: '/worker',
       icon: <CloudServerOutlined />,
-      label: '워커작업관리',
-      onClick: () => navigate('/worker-jobs'),
+      label: '워커관리',
+      children: [
+        {
+          key: '/worker-jobs',
+          label: '작업 목록',
+          onClick: () => navigate('/worker-jobs'),
+        },
+        {
+          key: '/worker-test',
+          label: '테스트',
+          onClick: () => navigate('/worker-test'),
+        },
+      ],
     },
   ];
 

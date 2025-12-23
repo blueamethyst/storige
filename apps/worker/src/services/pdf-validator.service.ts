@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFPage } from 'pdf-lib';
 import * as fs from 'fs/promises';
 import axios from 'axios';
 import {
@@ -10,10 +10,20 @@ import {
   ValidationResultDto,
   ValidationOptions,
   PdfMetadata,
+  SpreadDetectionResult,
+  CmykStructureResult,
+  ColorModeResult,
 } from '../dto/validation-result.dto';
+import { VALIDATION_CONFIG } from '../config/validation.config';
+import {
+  detectCmykUsage,
+  isGhostscriptAvailable,
+  detectSpotColors,
+  detectTransparencyAndOverprint,
+} from '../utils/ghostscript';
 
-// 기본 설정
-const DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+// 기본 설정 (VALIDATION_CONFIG에서 가져오거나 폴백)
+const DEFAULT_MAX_FILE_SIZE = VALIDATION_CONFIG.MAX_FILE_SIZE;
 const DEFAULT_MAX_PAGES = 1000;
 const DEFAULT_BLEED = 3; // mm
 
@@ -104,6 +114,60 @@ export class PdfValidatorService {
       // 8. 책등 크기 검증 (표지인 경우)
       if (options.fileType === 'cover') {
         this.validateSpine(widthMm, options, errors, metadata);
+      }
+
+      // 9. 가로형 페이지 감지 (WBS 2.1)
+      this.validatePageOrientation(pages, warnings);
+
+      // 10. 사철 제본 검증 (WBS 2.2)
+      if (options.orderOptions.binding === 'saddle') {
+        this.validateSaddleStitch(pages.length, errors, warnings);
+      }
+
+      // 11. 스프레드(펼침면) 감지 (WBS 2.3)
+      const spreadResult = this.detectSpreadFormat(
+        pages,
+        options.orderOptions.size.width,
+        options.orderOptions.size.height,
+        options.orderOptions.bleed ?? DEFAULT_BLEED,
+      );
+      if (spreadResult.warnings.length > 0) {
+        spreadResult.warnings.forEach((msg) => {
+          warnings.push({
+            code: WarningCode.MIXED_PDF,
+            message: msg,
+            autoFixable: false,
+          });
+        });
+      }
+
+      // 12. 별색(Spot Color) 감지 (WBS 4.1)
+      const spotColorResult = await detectSpotColors('', pdfBytes);
+      if (spotColorResult.hasSpotColors) {
+        this.logger.debug(
+          `Spot colors detected: ${spotColorResult.spotColorNames.join(', ')}`,
+        );
+        // 별색은 후가공 파일에서는 정상, 일반 파일에서는 경고
+        // 현재는 메타데이터에 기록만 함
+      }
+
+      // 13. 투명도/오버프린트 감지 (WBS 4.2)
+      const transparencyResult = await detectTransparencyAndOverprint('', pdfBytes);
+      if (transparencyResult.hasTransparency) {
+        warnings.push({
+          code: WarningCode.TRANSPARENCY_DETECTED,
+          message: '투명도 효과가 포함되어 있습니다. 인쇄 시 예상과 다른 결과가 나올 수 있습니다.',
+          details: { pages: transparencyResult.pages },
+          autoFixable: false,
+        });
+      }
+      if (transparencyResult.hasOverprint) {
+        warnings.push({
+          code: WarningCode.OVERPRINT_DETECTED,
+          message: '오버프린트 설정이 포함되어 있습니다. 인쇄 시 색상이 혼합될 수 있습니다.',
+          details: { pages: transparencyResult.pages },
+          autoFixable: false,
+        });
       }
 
       this.logger.log(
@@ -377,5 +441,341 @@ export class PdfValidatorService {
     });
 
     return new Uint8Array(response.data);
+  }
+
+  // ============================================================
+  // WBS 2.0: pdf-lib 기반 기능
+  // @see docs/PDF_VALIDATION_WBS.md
+  // ============================================================
+
+  /**
+   * WBS 2.1: 가로형 페이지 감지
+   * 모든 페이지를 검사하여 가로형(landscape) 페이지가 있으면 경고
+   */
+  private validatePageOrientation(
+    pages: PDFPage[],
+    warnings: ValidationWarning[],
+  ): void {
+    const { PT_TO_MM } = VALIDATION_CONFIG;
+
+    pages.forEach((page, index) => {
+      const { width, height } = page.getSize();
+      const widthMm = width * PT_TO_MM;
+      const heightMm = height * PT_TO_MM;
+
+      const isLandscape = widthMm > heightMm;
+
+      if (isLandscape) {
+        warnings.push({
+          code: WarningCode.LANDSCAPE_PAGE,
+          message: `${index + 1}페이지가 가로형입니다.`,
+          details: {
+            page: index + 1,
+            width: Math.round(widthMm * 10) / 10,
+            height: Math.round(heightMm * 10) / 10,
+            orientation: 'landscape',
+          },
+          autoFixable: false,
+        });
+      }
+    });
+  }
+
+  /**
+   * WBS 2.2: 사철 제본 검증
+   * 사철 제본은 4의 배수, 최대 64페이지
+   */
+  private validateSaddleStitch(
+    pageCount: number,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
+  ): void {
+    const { SADDLE_STITCH_MAX_PAGES } = VALIDATION_CONFIG;
+
+    // 4의 배수 검증
+    if (pageCount % 4 !== 0) {
+      errors.push({
+        code: ErrorCode.SADDLE_STITCH_INVALID,
+        message: `사철 제본은 페이지 수가 4의 배수여야 합니다. (현재: ${pageCount}페이지)`,
+        details: {
+          pageCount,
+          required: 'multiple of 4',
+          suggestion: Math.ceil(pageCount / 4) * 4,
+        },
+        autoFixable: true,
+        fixMethod: 'addBlankPages',
+      });
+    }
+
+    // 최대 페이지 수 검증
+    if (pageCount > SADDLE_STITCH_MAX_PAGES) {
+      errors.push({
+        code: ErrorCode.PAGE_COUNT_EXCEEDED,
+        message: `사철 제본은 최대 ${SADDLE_STITCH_MAX_PAGES}페이지까지 가능합니다. (현재: ${pageCount}페이지)`,
+        details: {
+          pageCount,
+          maxAllowed: SADDLE_STITCH_MAX_PAGES,
+        },
+        autoFixable: false,
+      });
+    }
+
+    // 중앙부 객체 확인 경고
+    warnings.push({
+      code: WarningCode.CENTER_OBJECT_CHECK,
+      message: '사철 제본 시 중앙부(접지 부분)에 중요 객체가 배치되어 있는지 확인해주세요.',
+      autoFixable: false,
+    });
+  }
+
+  /**
+   * WBS 2.3: 스프레드(펼침면) 감지
+   * 점수 기반으로 스프레드 형식 여부를 판별
+   */
+  private detectSpreadFormat(
+    pages: PDFPage[],
+    expectedSingleWidthMm?: number,
+    expectedHeightMm?: number,
+    bleedMm: number = 3,
+  ): SpreadDetectionResult {
+    const { PT_TO_MM, SPREAD_SCORE_THRESHOLD, SIZE_TOLERANCE_MM } = VALIDATION_CONFIG;
+
+    let score = 0;
+    const warnings: string[] = [];
+    const tolerance = bleedMm + SIZE_TOLERANCE_MM;
+
+    // 페이지별 크기 수집
+    const pageSizes = pages.map((page, idx) => {
+      const { width, height } = page.getSize();
+      return {
+        index: idx,
+        widthMm: width * PT_TO_MM,
+        heightMm: height * PT_TO_MM,
+        ratio: width / height,
+      };
+    });
+
+    // 1차: 규격 기반 판별 (+60점)
+    if (expectedSingleWidthMm && expectedHeightMm) {
+      const expectedSpreadWidth = expectedSingleWidthMm * 2;
+      const matchingPages = pageSizes.filter(
+        (p) =>
+          Math.abs(p.widthMm - expectedSpreadWidth) <= tolerance &&
+          Math.abs(p.heightMm - expectedHeightMm) <= tolerance,
+      );
+
+      if (matchingPages.length === pageSizes.length) {
+        score += 60;
+      } else if (matchingPages.length / pageSizes.length >= 0.9) {
+        score += 50;
+      }
+
+      // 높이 일치 (+20점)
+      const heightMatch = pageSizes.filter(
+        (p) => Math.abs(p.heightMm - expectedHeightMm) <= tolerance,
+      );
+      if (heightMatch.length === pageSizes.length) {
+        score += 20;
+      }
+    }
+
+    // 2차: 비율 기반 판별 (+15점)
+    const avgRatio =
+      pageSizes.reduce((sum, p) => sum + p.ratio, 0) / pageSizes.length;
+    if (avgRatio > 1.25) {
+      score += 15;
+    }
+
+    // 3차: 페이지 일관성 (+10점)
+    const widths = pageSizes.map((p) => p.widthMm);
+    const widthStd = this.standardDeviation(widths);
+    if (widthStd < 1) {
+      score += 10;
+    }
+
+    // 판정
+    const isSpread = score >= SPREAD_SCORE_THRESHOLD;
+    const confidence: 'high' | 'medium' | 'low' =
+      score >= 80 ? 'high' : score >= 60 ? 'medium' : 'low';
+
+    // 혼합 PDF 감지
+    let detectedType: 'single' | 'spread' | 'mixed' = isSpread
+      ? 'spread'
+      : 'single';
+    if (widthStd > 10) {
+      detectedType = 'mixed';
+      warnings.push('표지/내지 혼합 PDF로 감지되었습니다.');
+    }
+
+    this.logger.debug(
+      `Spread detection: score=${score}, isSpread=${isSpread}, type=${detectedType}, confidence=${confidence}`,
+    );
+
+    return {
+      isSpread,
+      score,
+      confidence,
+      detectedType,
+      warnings,
+    };
+  }
+
+  /**
+   * 표준편차 계산 유틸리티
+   */
+  private standardDeviation(arr: number[]): number {
+    if (arr.length === 0) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return Math.sqrt(
+      arr.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / arr.length,
+    );
+  }
+
+  // ============================================================
+  // WBS 3.0: CMYK 2단계 검증
+  // @see docs/PDF_VALIDATION_WBS.md
+  // ============================================================
+
+  /**
+   * WBS 3.1: 1차 구조적 CMYK 감지
+   * PDF 바이너리에서 CMYK 관련 시그니처를 검색
+   */
+  private detectCmykStructure(pdfBytes: Uint8Array): CmykStructureResult {
+    const signatures: string[] = [];
+
+    // PDF를 latin1 문자열로 디코딩 (바이너리 안전)
+    const pdfString = new TextDecoder('latin1').decode(pdfBytes);
+
+    // DeviceCMYK 검색 - 직접 CMYK 색상 공간 사용
+    if (pdfString.includes('/DeviceCMYK')) {
+      signatures.push('DeviceCMYK');
+    }
+
+    // CMYK ICC 프로파일 검색 (/ICCBased + /N 4)
+    if (pdfString.includes('/ICCBased') && pdfString.includes('/N 4')) {
+      signatures.push('CMYK_ICC_Profile');
+    }
+
+    // CMYK 이미지 검색
+    if (/\/ColorSpace\s*\/DeviceCMYK/.test(pdfString)) {
+      signatures.push('CMYK_Image');
+    }
+
+    // 별색(Separation) 검색
+    if (pdfString.includes('/Separation')) {
+      signatures.push('Separation_SpotColor');
+    }
+
+    // DeviceN (다중 색상) 검색
+    if (pdfString.includes('/DeviceN')) {
+      signatures.push('DeviceN');
+    }
+
+    const hasCmykSignature = signatures.length > 0;
+    const suspectedCmyk = signatures.some(
+      (s) =>
+        s === 'DeviceCMYK' || s === 'CMYK_ICC_Profile' || s === 'CMYK_Image',
+    );
+
+    this.logger.debug(
+      `CMYK structure detection: signatures=${signatures.join(', ')}, suspected=${suspectedCmyk}`,
+    );
+
+    return {
+      hasCmykSignature,
+      suspectedCmyk,
+      signatures,
+    };
+  }
+
+  /**
+   * WBS 3.3: 통합 컬러 모드 감지
+   * 1차 구조 감지 → 조건부 2차 GS inkcov 분석
+   */
+  async detectColorMode(
+    pdfBytes: Uint8Array,
+    inputPath: string,
+    fileType?: string,
+  ): Promise<ColorModeResult> {
+    const warnings: string[] = [];
+
+    // 1차: 구조적 CMYK 감지
+    const cmykStructure = this.detectCmykStructure(pdfBytes);
+
+    // CMYK 시그니처가 없으면 RGB로 판정 (GS 호출 생략)
+    if (!cmykStructure.suspectedCmyk) {
+      this.logger.debug('No CMYK structure detected, assuming RGB');
+      return {
+        colorMode: 'RGB',
+        confidence: 'medium',
+        cmykStructure,
+        warnings: ['CMYK 구조가 감지되지 않았습니다.'],
+      };
+    }
+
+    // 2차: Ghostscript inkcov 분석
+    try {
+      // GS 사용 가능 여부 확인
+      const gsAvailable = await isGhostscriptAvailable();
+      if (!gsAvailable) {
+        warnings.push('Ghostscript를 사용할 수 없어 구조 기반으로 추정합니다.');
+        return {
+          colorMode: 'CMYK',
+          confidence: 'low',
+          cmykStructure,
+          warnings,
+        };
+      }
+
+      // 파일 크기 확인 - 대형 파일은 GS 분석 생략
+      const fileSize = pdfBytes.length;
+      if (fileSize > VALIDATION_CONFIG.LARGE_FILE_THRESHOLD) {
+        warnings.push(
+          `파일이 ${Math.round(fileSize / 1024 / 1024)}MB로 대형 파일입니다. 구조 기반으로 추정합니다.`,
+        );
+        return {
+          colorMode: 'CMYK',
+          confidence: 'low',
+          cmykStructure,
+          warnings,
+        };
+      }
+
+      // inkcov 분석 실행
+      const inkCoverage = await detectCmykUsage(inputPath);
+
+      // 후가공 파일 + CMYK 사용 = 오류 (별도 처리 필요시 여기서 throw)
+      if (fileType === 'post_process' && inkCoverage.totalCmykUsage) {
+        this.logger.warn('Post-process file contains CMYK colors');
+        // 에러는 호출자에서 처리하도록 결과에 포함
+        warnings.push(
+          '후가공 파일에 CMYK 색상이 감지되었습니다. 별색(Spot Color)만 사용해주세요.',
+        );
+      }
+
+      // 별색 포함 여부 확인
+      if (cmykStructure.signatures.includes('Separation_SpotColor')) {
+        warnings.push('별색(Spot Color)이 포함되어 있습니다.');
+      }
+
+      return {
+        colorMode: inkCoverage.colorMode,
+        confidence: 'high',
+        cmykStructure,
+        inkCoverage,
+        warnings,
+      };
+    } catch (error) {
+      // GS 실패 시 폴백
+      this.logger.warn(`Ghostscript analysis failed: ${error.message}`);
+      warnings.push('Ghostscript 분석 실패, 구조 기반 추정');
+
+      return {
+        colorMode: cmykStructure.suspectedCmyk ? 'CMYK' : 'RGB',
+        confidence: 'low',
+        cmykStructure,
+        warnings,
+      };
+    }
   }
 }

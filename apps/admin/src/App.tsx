@@ -22,6 +22,7 @@ import {
 } from './pages/Library';
 import { EditSessionList } from './pages/EditSessions';
 import { WorkerJobList } from './pages/WorkerJobs';
+import { WorkerTestPage } from './pages/WorkerTest';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,7 @@ function App() {
               <Route path="reviews/:id" element={<ReviewDetail />} />
               {/* 기타 */}
               <Route path="worker-jobs" element={<WorkerJobList />} />
+              <Route path="worker-test" element={<WorkerTestPage />} />
               <Route path="products" element={<ProductList />} />
             </Route>
 
