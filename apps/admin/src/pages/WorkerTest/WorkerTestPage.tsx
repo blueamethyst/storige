@@ -33,7 +33,6 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface';
 import type { ColumnsType } from 'antd/es/table';
 import { workerJobsApi, CreateValidationJobDto, ValidationError, ValidationWarning } from '../../api/worker-jobs';
-import { WorkerJob, WorkerJobStatus } from '@storige/types';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -99,7 +98,8 @@ export const WorkerTestPage = () => {
 
   // Stop polling when job is complete
   useEffect(() => {
-    if (currentJob?.status === 'COMPLETED' || currentJob?.status === 'FAILED' || currentJob?.status === 'FIXABLE') {
+    const status = currentJob?.status as string;
+    if (status === 'COMPLETED' || status === 'FAILED' || status === 'FIXABLE') {
       setPollingEnabled(false);
     }
   }, [currentJob?.status]);
@@ -472,7 +472,7 @@ export const WorkerTestPage = () => {
                   </Descriptions.Item>
                   <Descriptions.Item label="입력 파일">
                     <Text ellipsis style={{ maxWidth: 300 }}>
-                      {currentJob.inputFileUrl || currentJob.inputFileId}
+                      {currentJob.inputFileUrl || '-'}
                     </Text>
                   </Descriptions.Item>
                   <Descriptions.Item label="생성 시간">
@@ -486,7 +486,7 @@ export const WorkerTestPage = () => {
                 </Descriptions>
 
                 {/* Validation Result */}
-                {(currentJob.status === 'COMPLETED' || currentJob.status === 'FIXABLE') && renderValidationResult()}
+                {((currentJob.status as string) === 'COMPLETED' || (currentJob.status as string) === 'FIXABLE') && renderValidationResult()}
               </div>
             ) : null}
           </Card>
