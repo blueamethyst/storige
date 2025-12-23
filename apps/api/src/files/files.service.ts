@@ -184,6 +184,7 @@ export class FilesService {
       fileName: file.fileName,
       originalName: file.originalName,
       fileUrl: file.fileUrl,
+      filePath: file.filePath,
       thumbnailUrl: file.thumbnailUrl,
       fileSize: Number(file.fileSize),
       mimeType: file.mimeType,

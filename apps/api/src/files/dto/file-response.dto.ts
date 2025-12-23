@@ -14,6 +14,9 @@ export class FileResponseDto {
   @ApiProperty({ description: '파일 URL' })
   fileUrl: string;
 
+  @ApiProperty({ description: '파일 시스템 경로' })
+  filePath: string;
+
   @ApiPropertyOptional({ description: '썸네일 URL' })
   thumbnailUrl: string | null;
 
