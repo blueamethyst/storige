@@ -2,316 +2,269 @@
  * 테스트용 PDF 파일 생성 스크립트
  *
  * 실행: node generate-test-pdfs.js
- *
- * 생성되는 파일:
- * - cmyk/*.pdf: CMYK 관련 테스트
- * - spot-color/*.pdf: 별색 관련 테스트
- * - transparency/*.pdf: 투명도/오버프린트 테스트
  */
 
-const { PDFDocument, rgb, PDFName, PDFArray, PDFDict, PDFNumber, PDFStream, PDFRef } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
+
+/**
+ * 올바른 xref 테이블을 포함한 PDF 생성
+ */
+function buildPdf(objects) {
+  let pdf = '%PDF-1.4\n%\xFF\xFF\xFF\xFF\n';
+  const offsets = [];
+
+  // 객체들 추가
+  for (let i = 0; i < objects.length; i++) {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+
+  // xref 테이블
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+
+  for (const offset of offsets) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+
+  // 트레일러
+  pdf += `trailer\n<<\n/Size ${objects.length + 1}\n/Root 1 0 R\n>>\n`;
+  pdf += `startxref\n${xrefOffset}\n%%EOF\n`;
+
+  return pdf;
+}
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
 
 /**
- * 기본 PDF 생성 후 특정 패턴 삽입
+ * CMYK PDF - DeviceCMYK 사용
  */
-async function createPdfWithPattern(patterns) {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-
-  // RGB 사각형 그리기 (기본)
-  page.drawRectangle({
-    x: 50,
-    y: 50,
-    width: 100,
-    height: 100,
-    color: rgb(1, 0, 0),
-  });
-
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-
-  // 패턴 삽입 (PDF 바이너리에 직접 추가)
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  for (const pattern of patterns) {
-    // Resources 딕셔너리에 패턴 삽입
-    const resourcesMatch = pdfString.match(/\/Resources\s*<<([^>]*)>>/);
-    if (resourcesMatch) {
-      const newResources = `/Resources <<${resourcesMatch[1]} ${pattern.resource || ''}>>`;
-      pdfString = pdfString.replace(resourcesMatch[0], newResources);
-    }
-
-    // 추가 객체 삽입 (xref 전에)
-    if (pattern.object) {
-      const startxrefMatch = pdfString.match(/startxref/);
-      if (startxrefMatch) {
-        pdfString = pdfString.replace('startxref', `${pattern.object}\nstartxref`);
-      }
-    }
-  }
-
-  return Buffer.from(pdfString, 'latin1');
-}
-
-/**
- * DeviceCMYK를 사용하는 PDF 생성
- */
-async function createCmykPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-
-  // 기본 사각형
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(0.5, 0.5, 0.5),
-  });
-
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // DeviceCMYK 컬러스페이스 삽입
-  // Resources에 ColorSpace 추가
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    '/Resources <<$1 /ColorSpace << /CS1 /DeviceCMYK >> >>'
-  );
-
-  // Content stream에 CMYK 명령어 추가
-  const streamMatch = pdfString.match(/stream\r?\n([\s\S]*?)\r?\nendstream/);
-  if (streamMatch) {
-    const newContent = `q
+function createCmykPdf() {
+  const contentStream = `q
 /CS1 cs
 0.8 0.3 0.2 0.1 scn
-200 200 150 150 re f
+100 100 200 200 re
+f
 Q
-${streamMatch[1]}`;
-    pdfString = pdfString.replace(
-      /stream\r?\n[\s\S]*?\r?\nendstream/,
-      `stream\n${newContent}\nendstream`
-    );
-    // Length 업데이트
-    pdfString = pdfString.replace(
-      /\/Length \d+/,
-      `/Length ${newContent.length}`
-    );
-  }
+`;
 
-  return Buffer.from(pdfString, 'latin1');
+  const objects = [
+    // 1: Catalog
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    // 2: Pages
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    // 3: Page
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ColorSpace << /CS1 /DeviceCMYK >> >> >>`,
+    // 4: Content stream
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+  ];
+
+  return buildPdf(objects);
 }
 
 /**
- * RGB만 사용하는 PDF
+ * RGB PDF
  */
-async function createRgbPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createRgbPdf() {
+  const contentStream = `q
+1 0 0 rg
+100 100 100 100 re f
+0 1 0 rg
+250 100 100 100 re f
+0 0 1 rg
+400 100 100 100 re f
+Q
+`;
 
-  page.drawRectangle({ x: 50, y: 50, width: 100, height: 100, color: rgb(1, 0, 0) });
-  page.drawRectangle({ x: 200, y: 50, width: 100, height: 100, color: rgb(0, 1, 0) });
-  page.drawRectangle({ x: 350, y: 50, width: 100, height: 100, color: rgb(0, 0, 1) });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+  ];
 
-  return await pdfDoc.save({ useObjectStreams: false });
+  return buildPdf(objects);
 }
 
 /**
- * Separation 별색 PDF 생성
+ * Separation (별색) PDF
  */
-async function createSpotColorPdf(spotColors = ['PANTONE#20485#20C']) {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createSpotColorPdf(spotColorName = 'PANTONE#20485#20C') {
+  const contentStream = `q
+/CS1 cs
+1 scn
+100 100 200 200 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(0.5, 0.5, 0.5),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ColorSpace << /CS1 [/Separation /${spotColorName} /DeviceCMYK 5 0 R] >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+    // 5: Tint transform function
+    `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.91 0.76 0] /N 1 >>`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // Separation 컬러스페이스 삽입
-  const separationDefs = spotColors.map((name, i) =>
-    `/CS${i + 1} [/Separation /${name} /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 1 0.9 0] /N 1 >>]`
-  ).join(' ');
-
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    `/Resources <<$1 /ColorSpace << ${separationDefs} >> >>`
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 /**
- * DeviceN (CutContour 등) 포함 PDF
+ * DeviceN (CutContour 등) PDF
  */
-async function createDeviceNPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createDeviceNPdf() {
+  const contentStream = `q
+/CS1 cs
+1 scn
+100 100 150 150 re f
+/CS2 cs
+0 0 1 scn
+300 100 150 150 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(0.5, 0.5, 0.5),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ColorSpace << /CS1 [/Separation /PANTONE#20Red#20032#20C /DeviceCMYK 5 0 R] /CS2 [/DeviceN [/Cyan /Magenta /CutContour] /DeviceCMYK 6 0 R] >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+    // 5: Tint function for Separation
+    `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0.05 1 0.91 0] /N 1 >>`,
+    // 6: Tint function for DeviceN
+    `<< /FunctionType 4 /Domain [0 1 0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 24 >>\nstream\n{pop pop pop 0 0 0 0}\nendstream`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // Separation + DeviceN 컬러스페이스 삽입
-  const colorSpaces = `
-    /CS1 [/Separation /PANTONE#20Red#20032#20C /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0.05 1 0.91 0] /N 1 >>]
-    /CS2 [/DeviceN [/Cyan /Magenta /CutContour] /DeviceCMYK << /FunctionType 4 /Domain [0 1 0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 20 >> stream
-{pop pop pop 0}
-endstream]
-  `.trim();
-
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    `/Resources <<$1 /ColorSpace << ${colorSpaces} >> >>`
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 /**
- * 투명도 포함 PDF (ExtGState /ca /CA)
+ * Transparency PDF (/ca /CA)
  */
-async function createTransparencyPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createTransparencyPdf() {
+  const contentStream = `q
+/GS1 gs
+1 0 0 rg
+100 100 200 200 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(1, 0, 0),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ExtGState << /GS1 << /Type /ExtGState /ca 0.5 /CA 0.5 >> >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // ExtGState with transparency 추가
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    '/Resources <<$1 /ExtGState << /GS1 << /Type /ExtGState /ca 0.5 /CA 0.5 >> >> >>'
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 /**
- * 오버프린트 포함 PDF (ExtGState /OP /op)
+ * Overprint PDF (/OP /op)
  */
-async function createOverprintPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createOverprintPdf() {
+  const contentStream = `q
+/GS1 gs
+0.8 0.2 0.1 0.0 k
+100 100 200 200 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(1, 0, 0),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ExtGState << /GS1 << /Type /ExtGState /OP true /op true /OPM 1 >> >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // ExtGState with overprint 추가
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    '/Resources <<$1 /ExtGState << /GS1 << /Type /ExtGState /OP true /op true /OPM 1 >> >> >>'
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 /**
- * 투명도 + 오버프린트 모두 포함
+ * Transparency + Overprint PDF
  */
-async function createBothTransOverprintPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createBothTransOverprintPdf() {
+  const contentStream = `q
+/GS1 gs
+0.8 0.2 0.1 0.0 k
+100 100 200 200 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(1, 0, 0),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ExtGState << /GS1 << /Type /ExtGState /ca 0.5 /CA 0.5 /OP true /op true /OPM 1 >> >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    '/Resources <<$1 /ExtGState << /GS1 << /Type /ExtGState /ca 0.5 /CA 0.5 /OP true /op true /OPM 1 >> >> >>'
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 /**
- * 별색 + CMYK 혼합
+ * Spot + CMYK 혼합 PDF
  */
-async function createSpotWithCmykPdf() {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+function createSpotWithCmykPdf() {
+  const contentStream = `q
+/CS1 cs
+1 scn
+100 100 150 150 re f
+/CS2 cs
+0.5 0.3 0.1 0.0 scn
+300 100 150 150 re f
+Q
+`;
 
-  page.drawRectangle({
-    x: 50, y: 50, width: 100, height: 100,
-    color: rgb(0.5, 0.5, 0.5),
-  });
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ColorSpace << /CS1 [/Separation /PANTONE#20485#20C /DeviceCMYK 5 0 R] /CS2 /DeviceCMYK >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+    `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.91 0.76 0] /N 1 >>`,
+  ];
 
-  let pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-  let pdfString = Buffer.from(pdfBytes).toString('latin1');
-
-  // Separation + DeviceCMYK 모두 추가
-  pdfString = pdfString.replace(
-    /\/Resources\s*<<([^>]*)>>/,
-    `/Resources <<$1 /ColorSpace << /CS1 /DeviceCMYK /CS2 [/Separation /PANTONE#20485#20C /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.91 0.76 0] /N 1 >>] >> >>`
-  );
-
-  return Buffer.from(pdfString, 'latin1');
+  return buildPdf(objects);
 }
 
 // 메인 실행
-async function main() {
-  const baseDir = __dirname;
+const baseDir = __dirname;
 
-  const files = [
-    // CMYK
-    { path: 'cmyk/cmyk-print-file.pdf', generator: createCmykPdf },
-    { path: 'cmyk/fail-cmyk-for-postprocess.pdf', generator: createCmykPdf },
-    { path: 'cmyk/success-rgb-only.pdf', generator: createRgbPdf },
+const files = [
+  // CMYK
+  { path: 'cmyk/cmyk-print-file.pdf', generator: createCmykPdf },
+  { path: 'cmyk/fail-cmyk-for-postprocess.pdf', generator: createCmykPdf },
+  { path: 'cmyk/success-rgb-only.pdf', generator: createRgbPdf },
 
-    // Spot Color
-    { path: 'spot-color/spot-only.pdf', generator: createDeviceNPdf },
-    { path: 'spot-color/success-spot-only.pdf', generator: () => createSpotColorPdf(['CutContour']) },
-    { path: 'spot-color/spot-with-cmyk.pdf', generator: createSpotWithCmykPdf },
-    { path: 'spot-color/warn-cmyk-spot-mixed.pdf', generator: createSpotWithCmykPdf },
+  // Spot Color
+  { path: 'spot-color/spot-only.pdf', generator: createDeviceNPdf },
+  { path: 'spot-color/success-spot-only.pdf', generator: () => createSpotColorPdf('CutContour') },
+  { path: 'spot-color/spot-with-cmyk.pdf', generator: createSpotWithCmykPdf },
+  { path: 'spot-color/warn-cmyk-spot-mixed.pdf', generator: createSpotWithCmykPdf },
 
-    // Transparency
-    { path: 'transparency/with-transparency.pdf', generator: createTransparencyPdf },
-    { path: 'transparency/warn-with-transparency.pdf', generator: createTransparencyPdf },
-    { path: 'transparency/with-overprint.pdf', generator: createOverprintPdf },
-    { path: 'transparency/warn-with-overprint.pdf', generator: createOverprintPdf },
-    { path: 'transparency/success-no-transparency.pdf', generator: createRgbPdf },
-    { path: 'transparency/warn-both-trans-overprint.pdf', generator: createBothTransOverprintPdf },
-  ];
+  // Transparency
+  { path: 'transparency/with-transparency.pdf', generator: createTransparencyPdf },
+  { path: 'transparency/warn-with-transparency.pdf', generator: createTransparencyPdf },
+  { path: 'transparency/with-overprint.pdf', generator: createOverprintPdf },
+  { path: 'transparency/warn-with-overprint.pdf', generator: createOverprintPdf },
+  { path: 'transparency/success-no-transparency.pdf', generator: createRgbPdf },
+  { path: 'transparency/warn-both-trans-overprint.pdf', generator: createBothTransOverprintPdf },
+];
 
-  console.log('테스트 PDF 파일 생성 중...\n');
+console.log('테스트 PDF 파일 생성 중...\n');
 
-  for (const file of files) {
-    const filePath = path.join(baseDir, file.path);
-    const dir = path.dirname(filePath);
+for (const file of files) {
+  const filePath = path.join(baseDir, file.path);
+  const dir = path.dirname(filePath);
 
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    const pdfContent = await file.generator();
-    fs.writeFileSync(filePath, pdfContent);
-    console.log(`✓ ${file.path} (${pdfContent.length} bytes)`);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 
-  console.log('\n완료!');
+  const pdfContent = file.generator();
+  fs.writeFileSync(filePath, pdfContent, 'binary');
+  console.log(`✓ ${file.path} (${pdfContent.length} bytes)`);
 }
 
-main().catch(console.error);
+console.log('\n완료!');
