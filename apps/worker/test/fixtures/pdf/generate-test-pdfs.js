@@ -239,7 +239,7 @@ const files = [
 
   // Spot Color
   { path: 'spot-color/spot-only.pdf', generator: createDeviceNPdf },
-  { path: 'spot-color/success-spot-only.pdf', generator: () => createSpotColorPdf('CutContour') },
+  { path: 'spot-color/success-spot-only.pdf', generator: createDeviceNPdf },  // PANTONE + CutContour 포함
   { path: 'spot-color/spot-with-cmyk.pdf', generator: createSpotWithCmykPdf },
   { path: 'spot-color/warn-cmyk-spot-mixed.pdf', generator: createSpotWithCmykPdf },
 
