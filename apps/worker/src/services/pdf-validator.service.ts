@@ -181,16 +181,21 @@ export class PdfValidatorService {
 
       // 13. 별색(Spot Color) 감지 (WBS 4.1)
       const spotColorResult = await detectSpotColors('', pdfBytes);
+      metadata.hasSpotColors = spotColorResult.hasSpotColors;
+      metadata.spotColors = spotColorResult.spotColorNames;
+
       if (spotColorResult.hasSpotColors) {
         this.logger.debug(
           `Spot colors detected: ${spotColorResult.spotColorNames.join(', ')}`,
         );
-        // 별색은 후가공 파일에서는 정상, 일반 파일에서는 경고
-        // 현재는 메타데이터에 기록만 함
+        // 별색은 후가공 파일에서는 정상, 일반 파일에서는 정보성 메시지
       }
 
       // 14. 투명도/오버프린트 감지 (WBS 4.2)
       const transparencyResult = await detectTransparencyAndOverprint('', pdfBytes);
+      metadata.hasTransparency = transparencyResult.hasTransparency;
+      metadata.hasOverprint = transparencyResult.hasOverprint;
+
       if (transparencyResult.hasTransparency) {
         warnings.push({
           code: WarningCode.TRANSPARENCY_DETECTED,
@@ -215,6 +220,7 @@ export class PdfValidatorService {
       );
 
       // 메타데이터에 해상도 정보 업데이트
+      metadata.imageCount = resolutionResult.imageCount;
       if (resolutionResult.imageCount > 0) {
         metadata.resolution = resolutionResult.minResolution;
 

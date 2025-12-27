@@ -115,6 +115,16 @@ export interface PdfMetadata {
     /** 감지된 PDF 타입 */
     detectedType: 'single' | 'spread' | 'mixed';
   };
+  /** 별색 포함 여부 */
+  hasSpotColors?: boolean;
+  /** 별색 이름 목록 */
+  spotColors?: string[];
+  /** 투명도 포함 여부 */
+  hasTransparency?: boolean;
+  /** 오버프린트 포함 여부 */
+  hasOverprint?: boolean;
+  /** 이미지 개수 */
+  imageCount?: number;
 }
 
 /**
