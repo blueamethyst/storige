@@ -551,7 +551,12 @@ export class PdfValidatorService {
 
     let score = 0;
     const warnings: string[] = [];
-    const tolerance = bleedMm + SIZE_TOLERANCE_MM;
+
+    // 스프레드는 양쪽 페이지에 각각 재단여백이 적용되므로 허용 오차 계산 수정
+    // 높이: 상하 재단여백 (bleed * 2) + 허용오차
+    const heightTolerance = bleedMm * 2 + SIZE_TOLERANCE_MM;
+    // 너비: 스프레드의 경우 좌우 각 페이지에 재단여백 (bleed * 4) + 허용오차
+    const spreadWidthTolerance = bleedMm * 4 + SIZE_TOLERANCE_MM;
 
     // 페이지별 크기 수집
     const pageSizes = pages.map((page, idx) => {
@@ -569,8 +574,8 @@ export class PdfValidatorService {
       const expectedSpreadWidth = expectedSingleWidthMm * 2;
       const matchingPages = pageSizes.filter(
         (p) =>
-          Math.abs(p.widthMm - expectedSpreadWidth) <= tolerance &&
-          Math.abs(p.heightMm - expectedHeightMm) <= tolerance,
+          Math.abs(p.widthMm - expectedSpreadWidth) <= spreadWidthTolerance &&
+          Math.abs(p.heightMm - expectedHeightMm) <= heightTolerance,
       );
 
       if (matchingPages.length === pageSizes.length) {
@@ -581,7 +586,7 @@ export class PdfValidatorService {
 
       // 높이 일치 (+20점)
       const heightMatch = pageSizes.filter(
-        (p) => Math.abs(p.heightMm - expectedHeightMm) <= tolerance,
+        (p) => Math.abs(p.heightMm - expectedHeightMm) <= heightTolerance,
       );
       if (heightMatch.length === pageSizes.length) {
         score += 20;
