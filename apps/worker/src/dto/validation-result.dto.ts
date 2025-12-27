@@ -104,6 +104,17 @@ export interface PdfMetadata {
   resolution?: number;
   /** 컬러 모드 */
   colorMode?: string;
+  /** 스프레드 감지 정보 */
+  spreadInfo?: {
+    /** 스프레드 형식 여부 */
+    isSpread: boolean;
+    /** 감지 점수 (0-100) */
+    score: number;
+    /** 신뢰도 */
+    confidence: 'high' | 'medium' | 'low';
+    /** 감지된 PDF 타입 */
+    detectedType: 'single' | 'spread' | 'mixed';
+  };
 }
 
 /**

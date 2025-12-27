@@ -131,6 +131,15 @@ export class PdfValidatorService {
         options.orderOptions.size.height,
         options.orderOptions.bleed ?? DEFAULT_BLEED,
       );
+
+      // 스프레드 정보를 메타데이터에 추가
+      metadata.spreadInfo = {
+        isSpread: spreadResult.isSpread,
+        score: spreadResult.score,
+        confidence: spreadResult.confidence,
+        detectedType: spreadResult.detectedType,
+      };
+
       if (spreadResult.warnings.length > 0) {
         spreadResult.warnings.forEach((msg) => {
           warnings.push({
