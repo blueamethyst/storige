@@ -7,7 +7,7 @@
 | 완료일 | 2025-12-27 |
 | 총 WBS 항목 | 6개 |
 | 완료 항목 | 6개 (100%) |
-| 테스트 | 97개 통과 |
+| 테스트 | 104개 통과 |
 
 ---
 
@@ -43,17 +43,18 @@
 |------|------|------|
 | **4.1 별색 감지** | Separation, DeviceN 탐지 | ✅ |
 | **4.2 투명도/오버프린트** | ExtGState에서 ca, CA, OP 감지 | ✅ |
+| **4.3 이미지 해상도** | PDF 바이너리 파싱으로 유효 DPI 분석 | ✅ |
 
 ### WBS 5.0: 테스트 및 QA ✅
 
 | 테스트 스위트 | 테스트 수 | 상태 |
 |--------------|----------|------|
-| ghostscript.spec.ts | 별색/투명도/오버프린트 | ✅ PASS |
+| ghostscript.spec.ts | 별색/투명도/오버프린트/해상도 | ✅ PASS |
 | validation.processor.spec.ts | 검증 프로세서 | ✅ PASS |
 | pdf-validator.service.spec.ts | PDF 검증 서비스 | ✅ PASS |
 | pdf-validation.e2e-spec.ts | E2E 통합 테스트 | ✅ PASS |
 
-**총 테스트: 97개, 통과: 97개, 실행 시간: 2.58초**
+**총 테스트: 104개, 통과: 104개, 실행 시간: ~3초**
 
 ### WBS 6.0: 문서화 ✅
 
@@ -151,6 +152,10 @@ export const VALIDATION_CONFIG = {
   // 사철 제본
   SADDLE_STITCH_MAX_PAGES: 64,
 
+  // 해상도 감지
+  RECOMMENDED_DPI: 300,                // 인쇄 품질 권장 해상도
+  MIN_ACCEPTABLE_DPI: 150,             // 최소 허용 해상도
+
   // 단위 변환
   PT_TO_MM: 0.352778,
 };
@@ -190,9 +195,14 @@ docker logs storige-worker-1 -f
 
 ## 향후 개선 사항
 
+### 완료된 항목
+
+- [x] **이미지 해상도 감지** - PDF 바이너리 파싱으로 이미지 유효 해상도(Effective DPI) 분석 구현
+  - 150 DPI 미만 시 RESOLUTION_LOW 경고 발생
+  - 이미지별 픽셀 크기, 표시 크기, DPI 정보 제공
+
 ### 단기 (선택)
 
-- [ ] 해상도 감지 기능 강화 (현재 구조적 감지만)
 - [ ] 별색 이름 추출 및 경고 표시 개선
 - [ ] 혼합 PDF 페이지 그룹 정보 상세화
 

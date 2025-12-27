@@ -317,6 +317,98 @@ interface TransparencyResult {
 
 ---
 
+## 이미지 해상도 감지
+
+PDF 내 이미지의 유효 해상도(Effective DPI)를 분석하여 인쇄 품질 문제를 사전에 감지합니다.
+
+### ImageResolutionResult
+
+```typescript
+interface ImageResolutionResult {
+  /** 감지된 이미지 수 */
+  imageCount: number;
+  /** 저해상도 이미지 존재 여부 */
+  hasLowResolution: boolean;
+  /** 최소 해상도 (DPI) */
+  minResolution: number;
+  /** 평균 해상도 (DPI) */
+  avgResolution: number;
+  /** 저해상도 이미지 목록 */
+  lowResImages: ImageInfo[];
+  /** 모든 이미지 정보 */
+  images: ImageInfo[];
+}
+```
+
+### ImageInfo
+
+```typescript
+interface ImageInfo {
+  /** 이미지 인덱스 */
+  index: number;
+  /** 이미지 픽셀 너비 */
+  pixelWidth: number;
+  /** 이미지 픽셀 높이 */
+  pixelHeight: number;
+  /** 페이지에서 표시되는 너비 (mm) */
+  displayWidthMm: number;
+  /** 페이지에서 표시되는 높이 (mm) */
+  displayHeightMm: number;
+  /** 수평 유효 해상도 (DPI) */
+  effectiveDpiX: number;
+  /** 수직 유효 해상도 (DPI) */
+  effectiveDpiY: number;
+  /** 최소 유효 해상도 (DPI) */
+  minEffectiveDpi: number;
+}
+```
+
+### 해상도 기준
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| `RECOMMENDED_DPI` | 300 | 인쇄 품질 권장 해상도 |
+| `MIN_ACCEPTABLE_DPI` | 150 | 최소 허용 해상도 (이 값 미만 시 경고) |
+
+### DPI 계산 공식
+
+```
+Effective DPI = (픽셀 크기 × 25.4) / 표시 크기(mm)
+```
+
+예: 2480×3508 픽셀 이미지가 A4(210×297mm)에 표시되는 경우
+- DPI X = (2480 × 25.4) / 210 ≈ 300 DPI
+- DPI Y = (3508 × 25.4) / 297 ≈ 300 DPI
+
+### RESOLUTION_LOW 경고 예시
+
+```json
+{
+  "code": "RESOLUTION_LOW",
+  "message": "2개의 이미지가 권장 해상도(300DPI) 미만입니다. 인쇄 품질이 저하될 수 있습니다.",
+  "details": {
+    "minResolution": 72,
+    "avgResolution": 120,
+    "recommendedDpi": 300,
+    "lowResImages": [
+      {
+        "index": 1,
+        "pixelSize": "800x600",
+        "effectiveDpi": 72
+      },
+      {
+        "index": 3,
+        "pixelSize": "1024x768",
+        "effectiveDpi": 96
+      }
+    ]
+  },
+  "autoFixable": false
+}
+```
+
+---
+
 ## 사용 예시
 
 ### 기본 검증
