@@ -113,7 +113,7 @@ Q
 }
 
 /**
- * DeviceN (CutContour 등) PDF
+ * DeviceN (CutContour 등) PDF - CMYK 잉크 사용
  */
 function createDeviceNPdf() {
   const contentStream = `q
@@ -135,6 +135,36 @@ Q
     `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0.05 1 0.91 0] /N 1 >>`,
     // 6: Tint function for DeviceN
     `<< /FunctionType 4 /Domain [0 1 0 1 0 1] /Range [0 1 0 1 0 1 0 1] /Length 24 >>\nstream\n{pop pop pop 0 0 0 0}\nendstream`,
+  ];
+
+  return buildPdf(objects);
+}
+
+/**
+ * 순수 별색만 있는 PDF (CMYK 잉크 0%)
+ * 후가공 파일 테스트용 - CutContour, Crease 등 인쇄되지 않는 별색만 사용
+ */
+function createPureSpotColorPdf() {
+  const contentStream = `q
+/CS1 cs
+1 scn
+100 100 200 200 re f
+/CS2 cs
+1 scn
+350 100 150 150 re f
+Q
+`;
+
+  const objects = [
+    `<< /Type /Catalog /Pages 2 0 R >>`,
+    `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`,
+    // CutContour와 Crease - 모두 CMYK 출력 없음 (Tint function이 0 0 0 0 반환)
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${A4_WIDTH} ${A4_HEIGHT}] /Contents 4 0 R /Resources << /ColorSpace << /CS1 [/Separation /CutContour /DeviceCMYK 5 0 R] /CS2 [/Separation /Crease /DeviceCMYK 6 0 R] >> >> >>`,
+    `<< /Length ${contentStream.length} >>\nstream\n${contentStream}endstream`,
+    // 5: CutContour tint function - CMYK 출력 없음
+    `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0 0 0] /N 1 >>`,
+    // 6: Crease tint function - CMYK 출력 없음
+    `<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0 0 0] /N 1 >>`,
   ];
 
   return buildPdf(objects);
@@ -238,8 +268,8 @@ const files = [
   { path: 'cmyk/success-rgb-only.pdf', generator: createRgbPdf },
 
   // Spot Color
-  { path: 'spot-color/spot-only.pdf', generator: createDeviceNPdf },
-  { path: 'spot-color/success-spot-only.pdf', generator: createDeviceNPdf },  // PANTONE + CutContour 포함
+  { path: 'spot-color/spot-only.pdf', generator: createDeviceNPdf },  // PANTONE + CutContour (CMYK 잉크 사용)
+  { path: 'spot-color/success-spot-only.pdf', generator: createPureSpotColorPdf },  // 순수 별색만 (CMYK 잉크 0%)
   { path: 'spot-color/spot-with-cmyk.pdf', generator: createSpotWithCmykPdf },
   { path: 'spot-color/warn-cmyk-spot-mixed.pdf', generator: createSpotWithCmykPdf },
 

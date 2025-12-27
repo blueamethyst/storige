@@ -35,11 +35,12 @@ describe('Ghostscript Utilities', () => {
   // ============================================================
   describe('detectSpotColors (WBS 4.1)', () => {
     describe('Success cases - spot colors detected', () => {
-      it('should detect spot colors from PDF with Separation colorspace', async () => {
-        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'success-spot-only.pdf');
+      it('should detect spot colors from PDF with Separation colorspace (PANTONE)', async () => {
+        // spot-only.pdf는 PANTONE Red 032 C + CutContour (DeviceN) 포함
+        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'spot-only.pdf');
 
         if (!await fileExists(spotColorPdfPath)) {
-          console.log('Skipping test: success-spot-only.pdf not found');
+          console.log('Skipping test: spot-only.pdf not found');
           return;
         }
 
@@ -55,10 +56,11 @@ describe('Ghostscript Utilities', () => {
       });
 
       it('should detect DeviceN colorspace colors', async () => {
-        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'success-spot-only.pdf');
+        // spot-only.pdf는 DeviceN [Cyan, Magenta, CutContour] 포함
+        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'spot-only.pdf');
 
         if (!await fileExists(spotColorPdfPath)) {
-          console.log('Skipping test: success-spot-only.pdf not found');
+          console.log('Skipping test: spot-only.pdf not found');
           return;
         }
 
@@ -74,10 +76,10 @@ describe('Ghostscript Utilities', () => {
       it('should decode hex-encoded spot color names', async () => {
         // #20 = space, #23 = #
         // 테스트 PDF에 PANTONE#20Red#20032#20C 가 있음
-        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'success-spot-only.pdf');
+        const spotColorPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'spot-only.pdf');
 
         if (!await fileExists(spotColorPdfPath)) {
-          console.log('Skipping test: success-spot-only.pdf not found');
+          console.log('Skipping test: spot-only.pdf not found');
           return;
         }
 
@@ -88,6 +90,25 @@ describe('Ghostscript Utilities', () => {
         expect(
           result.spotColorNames.some((name) => name.includes(' ')),
         ).toBe(true);
+      });
+
+      it('should detect pure spot colors (no CMYK ink)', async () => {
+        // success-spot-only.pdf는 CutContour + Crease (CMYK 잉크 0%)
+        // 후가공 파일 테스트용 - 실제 인쇄 잉크 없이 별색만 포함
+        const pureSpotPdfPath = path.join(FIXTURES_DIR, 'spot-color', 'success-spot-only.pdf');
+
+        if (!await fileExists(pureSpotPdfPath)) {
+          console.log('Skipping test: success-spot-only.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pureSpotPdfPath);
+        const result = await detectSpotColors(pureSpotPdfPath, pdfBytes);
+
+        expect(result.hasSpotColors).toBe(true);
+        // CutContour와 Crease 별색이 감지되어야 함
+        expect(result.spotColorNames.some((name) => name === 'CutContour')).toBe(true);
+        expect(result.spotColorNames.some((name) => name === 'Crease')).toBe(true);
       });
     });
 
