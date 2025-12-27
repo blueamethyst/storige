@@ -150,7 +150,35 @@ export class PdfValidatorService {
         });
       }
 
-      // 12. 별색(Spot Color) 감지 (WBS 4.1)
+      // 12. CMYK 2단계 검증 (WBS 3.0)
+      // 파일 경로 계산 (Ghostscript inkcov용)
+      let inputPath = fileUrl;
+      if (fileUrl.startsWith('storage/')) {
+        const storagePath = process.env.WORKER_STORAGE_PATH || '../api';
+        inputPath = `${storagePath}/${fileUrl}`;
+      }
+
+      const colorModeResult = await this.detectColorMode(
+        pdfBytes,
+        inputPath,
+        options.fileType,
+      );
+      metadata.colorMode = colorModeResult.colorMode;
+
+      // CMYK 관련 경고 추가
+      if (colorModeResult.colorMode === 'CMYK') {
+        warnings.push({
+          code: WarningCode.CMYK_STRUCTURE_DETECTED,
+          message: 'CMYK 색상 모드가 감지되었습니다. 인쇄 품질을 위해 확인해주세요.',
+          details: {
+            signatures: colorModeResult.cmykStructure?.signatures,
+            confidence: colorModeResult.confidence,
+          },
+          autoFixable: false,
+        });
+      }
+
+      // 13. 별색(Spot Color) 감지 (WBS 4.1)
       const spotColorResult = await detectSpotColors('', pdfBytes);
       if (spotColorResult.hasSpotColors) {
         this.logger.debug(
@@ -160,7 +188,7 @@ export class PdfValidatorService {
         // 현재는 메타데이터에 기록만 함
       }
 
-      // 13. 투명도/오버프린트 감지 (WBS 4.2)
+      // 14. 투명도/오버프린트 감지 (WBS 4.2)
       const transparencyResult = await detectTransparencyAndOverprint('', pdfBytes);
       if (transparencyResult.hasTransparency) {
         warnings.push({
