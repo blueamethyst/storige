@@ -27,6 +27,14 @@ jest.mock('../utils/ghostscript', () => ({
     hasOverprint: false,
     pages: [],
   }),
+  detectImageResolutionFromPdf: jest.fn().mockResolvedValue({
+    imageCount: 0,
+    hasLowResolution: false,
+    minResolution: 0,
+    avgResolution: 0,
+    lowResImages: [],
+    images: [],
+  }),
 }));
 
 const mockedFs = fs as jest.Mocked<typeof fs>;

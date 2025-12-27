@@ -8,6 +8,8 @@ import {
   InkCoveragePageResult,
   SpotColorResult,
   TransparencyResult,
+  ImageResolutionResult,
+  ImageInfo,
 } from '../dto/validation-result.dto';
 
 const logger = new Logger('GhostscriptUtil');
@@ -608,6 +610,303 @@ export async function detectTransparencyAndOverprint(
       hasTransparency: false,
       hasOverprint: false,
       pages: [],
+    };
+  }
+}
+
+// ============================================================
+// 해상도 감지
+// ============================================================
+
+/**
+ * PDF 내 이미지 해상도 감지
+ * XObject 이미지의 픽셀 크기와 페이지 표시 크기를 비교하여 effective DPI 계산
+ *
+ * @param pdfBytes PDF 바이너리 데이터
+ * @param pageWidthMm 페이지 너비 (mm)
+ * @param pageHeightMm 페이지 높이 (mm)
+ * @param minDpi 저해상도 판정 기준 (기본: 150 DPI)
+ */
+export async function detectImageResolution(
+  pdfBytes: Uint8Array,
+  pageWidthMm: number,
+  pageHeightMm: number,
+  minDpi: number = VALIDATION_CONFIG.MIN_ACCEPTABLE_DPI,
+): Promise<ImageResolutionResult> {
+  const images: ImageInfo[] = [];
+  const lowResImages: ImageInfo[] = [];
+
+  try {
+    const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+
+    // XObject 이미지 객체 찾기
+    // 패턴: /Subtype /Image ... /Width xxx /Height yyy
+    const imageObjectPattern =
+      /<<[^>]*\/Subtype\s*\/Image[^>]*\/Width\s+(\d+)[^>]*\/Height\s+(\d+)[^>]*>>/gi;
+
+    // 대체 패턴: Width, Height 순서가 다를 수 있음
+    const altImagePattern =
+      /<<[^>]*\/Height\s+(\d+)[^>]*\/Width\s+(\d+)[^>]*\/Subtype\s*\/Image[^>]*>>/gi;
+
+    // 이미지 크기 추출
+    const imageSizes: { width: number; height: number }[] = [];
+
+    let match;
+    while ((match = imageObjectPattern.exec(pdfContent)) !== null) {
+      const width = parseInt(match[1], 10);
+      const height = parseInt(match[2], 10);
+      if (width > 0 && height > 0) {
+        imageSizes.push({ width, height });
+      }
+    }
+
+    // 대체 패턴으로 추가 검색
+    while ((match = altImagePattern.exec(pdfContent)) !== null) {
+      const height = parseInt(match[1], 10);
+      const width = parseInt(match[2], 10);
+      if (width > 0 && height > 0) {
+        // 중복 제거
+        const exists = imageSizes.some(
+          (s) => s.width === width && s.height === height,
+        );
+        if (!exists) {
+          imageSizes.push({ width, height });
+        }
+      }
+    }
+
+    // 추가 패턴: DCTDecode (JPEG) 이미지
+    const dctPattern =
+      /\/Width\s+(\d+)\s*\/Height\s+(\d+)[^>]*\/Filter\s*\/DCTDecode/gi;
+    while ((match = dctPattern.exec(pdfContent)) !== null) {
+      const width = parseInt(match[1], 10);
+      const height = parseInt(match[2], 10);
+      if (width > 0 && height > 0) {
+        const exists = imageSizes.some(
+          (s) => s.width === width && s.height === height,
+        );
+        if (!exists) {
+          imageSizes.push({ width, height });
+        }
+      }
+    }
+
+    // 각 이미지의 effective DPI 계산
+    // 가정: 이미지가 페이지 전체를 채운다고 가정 (최악의 경우)
+    // 실제로는 transform matrix를 파싱해야 정확하지만, 복잡도가 높음
+    for (let i = 0; i < imageSizes.length; i++) {
+      const { width: pixelWidth, height: pixelHeight } = imageSizes[i];
+
+      // 이미지가 페이지 전체를 채운다고 가정
+      // 더 정확한 계산은 transform matrix 파싱 필요
+      const displayWidthMm = pageWidthMm;
+      const displayHeightMm = pageHeightMm;
+
+      // Effective DPI 계산
+      // DPI = (pixels / inches) = (pixels / (mm / 25.4))
+      const effectiveDpiX = (pixelWidth * 25.4) / displayWidthMm;
+      const effectiveDpiY = (pixelHeight * 25.4) / displayHeightMm;
+      const minEffectiveDpi = Math.min(effectiveDpiX, effectiveDpiY);
+
+      const imageInfo: ImageInfo = {
+        index: i + 1,
+        pixelWidth,
+        pixelHeight,
+        displayWidthMm: Math.round(displayWidthMm * 10) / 10,
+        displayHeightMm: Math.round(displayHeightMm * 10) / 10,
+        effectiveDpiX: Math.round(effectiveDpiX),
+        effectiveDpiY: Math.round(effectiveDpiY),
+        minEffectiveDpi: Math.round(minEffectiveDpi),
+      };
+
+      images.push(imageInfo);
+
+      if (minEffectiveDpi < minDpi) {
+        lowResImages.push(imageInfo);
+      }
+    }
+
+    // 결과 계산
+    const imageCount = images.length;
+    const hasLowResolution = lowResImages.length > 0;
+    const minResolution =
+      imageCount > 0
+        ? Math.min(...images.map((img) => img.minEffectiveDpi))
+        : 0;
+    const avgResolution =
+      imageCount > 0
+        ? Math.round(
+            images.reduce((sum, img) => sum + img.minEffectiveDpi, 0) /
+              imageCount,
+          )
+        : 0;
+
+    logger.debug(
+      `Image resolution detection: ${imageCount} images, min=${minResolution}DPI, avg=${avgResolution}DPI, lowRes=${lowResImages.length}`,
+    );
+
+    return {
+      imageCount,
+      hasLowResolution,
+      minResolution,
+      avgResolution,
+      lowResImages,
+      images,
+    };
+  } catch (error) {
+    logger.warn(`Image resolution detection failed: ${error.message}`);
+    return {
+      imageCount: 0,
+      hasLowResolution: false,
+      minResolution: 0,
+      avgResolution: 0,
+      lowResImages: [],
+      images: [],
+    };
+  }
+}
+
+/**
+ * 간소화된 해상도 감지 (페이지 크기 자동 계산)
+ * pdf-lib 없이 PDF에서 직접 페이지 크기를 추출하여 해상도 계산
+ */
+export async function detectImageResolutionFromPdf(
+  pdfBytes: Uint8Array,
+  minDpi: number = VALIDATION_CONFIG.MIN_ACCEPTABLE_DPI,
+): Promise<ImageResolutionResult> {
+  const images: ImageInfo[] = [];
+  const lowResImages: ImageInfo[] = [];
+
+  try {
+    const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+
+    // MediaBox에서 페이지 크기 추출 (points)
+    // 패턴: /MediaBox [0 0 width height]
+    const mediaBoxMatch = pdfContent.match(
+      /\/MediaBox\s*\[\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)\s*\]/,
+    );
+    let pageWidthPt = 595.28; // A4 기본값
+    let pageHeightPt = 841.89;
+
+    if (mediaBoxMatch) {
+      pageWidthPt = parseFloat(mediaBoxMatch[1]);
+      pageHeightPt = parseFloat(mediaBoxMatch[2]);
+    }
+
+    // Points to mm
+    const pageWidthMm = pageWidthPt * VALIDATION_CONFIG.PT_TO_MM;
+    const pageHeightMm = pageHeightPt * VALIDATION_CONFIG.PT_TO_MM;
+
+    // XObject 이미지에서 크기와 Matrix 정보 추출
+    // 이미지 스트림에서 Width/Height 추출
+    const imagePattern =
+      /<<[^>]*\/Subtype\s*\/Image[^>]*>>/gi;
+    const widthPattern = /\/Width\s+(\d+)/;
+    const heightPattern = /\/Height\s+(\d+)/;
+
+    let imageIndex = 0;
+    let match;
+    const seenImages = new Set<string>();
+
+    // 전체 PDF에서 이미지 객체 찾기
+    while ((match = imagePattern.exec(pdfContent)) !== null) {
+      const imageDict = match[0];
+      const widthMatch = imageDict.match(widthPattern);
+      const heightMatch = imageDict.match(heightPattern);
+
+      if (widthMatch && heightMatch) {
+        const pixelWidth = parseInt(widthMatch[1], 10);
+        const pixelHeight = parseInt(heightMatch[1], 10);
+
+        // 너무 작은 이미지는 무시 (아이콘 등)
+        if (pixelWidth < 50 || pixelHeight < 50) continue;
+
+        // 중복 이미지 제거
+        const key = `${pixelWidth}x${pixelHeight}`;
+        if (seenImages.has(key)) continue;
+        seenImages.add(key);
+
+        imageIndex++;
+
+        // 이미지 표시 크기 추정
+        // 실제 transform matrix 파싱은 복잡하므로,
+        // 이미지 비율에 맞춰 페이지에 맞춘다고 가정
+        const imageRatio = pixelWidth / pixelHeight;
+        const pageRatio = pageWidthMm / pageHeightMm;
+
+        let displayWidthMm: number;
+        let displayHeightMm: number;
+
+        if (imageRatio > pageRatio) {
+          // 이미지가 더 넓음 - 너비에 맞춤
+          displayWidthMm = pageWidthMm;
+          displayHeightMm = pageWidthMm / imageRatio;
+        } else {
+          // 이미지가 더 좁음 - 높이에 맞춤
+          displayHeightMm = pageHeightMm;
+          displayWidthMm = pageHeightMm * imageRatio;
+        }
+
+        // Effective DPI 계산
+        const effectiveDpiX = (pixelWidth * 25.4) / displayWidthMm;
+        const effectiveDpiY = (pixelHeight * 25.4) / displayHeightMm;
+        const minEffectiveDpi = Math.min(effectiveDpiX, effectiveDpiY);
+
+        const imageInfo: ImageInfo = {
+          index: imageIndex,
+          pixelWidth,
+          pixelHeight,
+          displayWidthMm: Math.round(displayWidthMm * 10) / 10,
+          displayHeightMm: Math.round(displayHeightMm * 10) / 10,
+          effectiveDpiX: Math.round(effectiveDpiX),
+          effectiveDpiY: Math.round(effectiveDpiY),
+          minEffectiveDpi: Math.round(minEffectiveDpi),
+        };
+
+        images.push(imageInfo);
+
+        if (minEffectiveDpi < minDpi) {
+          lowResImages.push(imageInfo);
+        }
+      }
+    }
+
+    // 결과 계산
+    const imageCount = images.length;
+    const hasLowResolution = lowResImages.length > 0;
+    const minResolution =
+      imageCount > 0
+        ? Math.min(...images.map((img) => img.minEffectiveDpi))
+        : 0;
+    const avgResolution =
+      imageCount > 0
+        ? Math.round(
+            images.reduce((sum, img) => sum + img.minEffectiveDpi, 0) /
+              imageCount,
+          )
+        : 0;
+
+    logger.debug(
+      `Image resolution detection: ${imageCount} images, min=${minResolution}DPI, avg=${avgResolution}DPI, lowRes=${lowResImages.length}`,
+    );
+
+    return {
+      imageCount,
+      hasLowResolution,
+      minResolution,
+      avgResolution,
+      lowResImages,
+      images,
+    };
+  } catch (error) {
+    logger.warn(`Image resolution detection failed: ${error.message}`);
+    return {
+      imageCount: 0,
+      hasLowResolution: false,
+      minResolution: 0,
+      avgResolution: 0,
+      lowResImages: [],
+      images: [],
     };
   }
 }

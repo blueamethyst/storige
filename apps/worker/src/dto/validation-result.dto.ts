@@ -289,3 +289,47 @@ export interface TransparencyResult {
   /** 페이지별 정보 */
   pages: { page: number; transparency: boolean; overprint: boolean }[];
 }
+
+// ============================================================
+// 해상도 감지 관련 타입
+// ============================================================
+
+/**
+ * 이미지 정보
+ */
+export interface ImageInfo {
+  /** 이미지 인덱스 */
+  index: number;
+  /** 이미지 픽셀 너비 */
+  pixelWidth: number;
+  /** 이미지 픽셀 높이 */
+  pixelHeight: number;
+  /** 페이지에서 표시되는 너비 (mm) */
+  displayWidthMm: number;
+  /** 페이지에서 표시되는 높이 (mm) */
+  displayHeightMm: number;
+  /** 수평 유효 해상도 (DPI) */
+  effectiveDpiX: number;
+  /** 수직 유효 해상도 (DPI) */
+  effectiveDpiY: number;
+  /** 최소 유효 해상도 (DPI) */
+  minEffectiveDpi: number;
+}
+
+/**
+ * 해상도 감지 결과
+ */
+export interface ImageResolutionResult {
+  /** 감지된 이미지 수 */
+  imageCount: number;
+  /** 저해상도 이미지 존재 여부 */
+  hasLowResolution: boolean;
+  /** 최소 해상도 (DPI) */
+  minResolution: number;
+  /** 평균 해상도 (DPI) */
+  avgResolution: number;
+  /** 저해상도 이미지 목록 */
+  lowResImages: ImageInfo[];
+  /** 모든 이미지 정보 */
+  images: ImageInfo[];
+}

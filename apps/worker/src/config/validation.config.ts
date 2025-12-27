@@ -30,6 +30,12 @@ export const VALIDATION_CONFIG = {
   // 포인트 → mm 변환 계수
   /** 1 포인트 = 0.352778mm */
   PT_TO_MM: 0.352778,
+
+  // 해상도 감지
+  /** 인쇄 품질 권장 해상도 (DPI) */
+  RECOMMENDED_DPI: 300,
+  /** 최소 허용 해상도 (DPI) - 이 값 미만이면 경고 */
+  MIN_ACCEPTABLE_DPI: 150,
 } as const;
 
 export type ValidationConfig = typeof VALIDATION_CONFIG;

@@ -20,6 +20,7 @@ import {
   isGhostscriptAvailable,
   detectSpotColors,
   detectTransparencyAndOverprint,
+  detectImageResolutionFromPdf,
 } from '../utils/ghostscript';
 
 // 기본 설정 (VALIDATION_CONFIG에서 가져오거나 폴백)
@@ -205,6 +206,36 @@ export class PdfValidatorService {
           details: { pages: transparencyResult.pages },
           autoFixable: false,
         });
+      }
+
+      // 15. 이미지 해상도 감지
+      const resolutionResult = await detectImageResolutionFromPdf(
+        pdfBytes,
+        VALIDATION_CONFIG.MIN_ACCEPTABLE_DPI,
+      );
+
+      // 메타데이터에 해상도 정보 업데이트
+      if (resolutionResult.imageCount > 0) {
+        metadata.resolution = resolutionResult.minResolution;
+
+        if (resolutionResult.hasLowResolution) {
+          const lowResCount = resolutionResult.lowResImages.length;
+          warnings.push({
+            code: WarningCode.RESOLUTION_LOW,
+            message: `${lowResCount}개의 이미지가 권장 해상도(${VALIDATION_CONFIG.RECOMMENDED_DPI}DPI) 미만입니다. 인쇄 품질이 저하될 수 있습니다.`,
+            details: {
+              minResolution: resolutionResult.minResolution,
+              avgResolution: resolutionResult.avgResolution,
+              recommendedDpi: VALIDATION_CONFIG.RECOMMENDED_DPI,
+              lowResImages: resolutionResult.lowResImages.map((img) => ({
+                index: img.index,
+                pixelSize: `${img.pixelWidth}x${img.pixelHeight}`,
+                effectiveDpi: img.minEffectiveDpi,
+              })),
+            },
+            autoFixable: false,
+          });
+        }
       }
 
       this.logger.log(
