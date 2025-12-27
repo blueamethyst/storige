@@ -145,8 +145,8 @@ export interface ValidationResultDto {
  * 검증 옵션
  */
 export interface ValidationOptions {
-  /** 파일 타입 */
-  fileType: 'cover' | 'content';
+  /** 파일 타입 (cover: 표지, content: 내지, post_process: 후가공) */
+  fileType: 'cover' | 'content' | 'post_process';
   /** 주문 옵션 */
   orderOptions: {
     /** 판형 크기 (mm) */

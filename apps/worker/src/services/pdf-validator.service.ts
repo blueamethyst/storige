@@ -166,8 +166,19 @@ export class PdfValidatorService {
       );
       metadata.colorMode = colorModeResult.colorMode;
 
-      // CMYK 관련 경고 추가
-      if (colorModeResult.colorMode === 'CMYK') {
+      // 후가공 파일 + CMYK 사용 = 에러 (별색만 허용)
+      if (options.fileType === 'post_process' && colorModeResult.colorMode === 'CMYK') {
+        errors.push({
+          code: ErrorCode.POST_PROCESS_CMYK,
+          message: '후가공 파일에 CMYK 색상이 사용되었습니다. 별색(Spot Color)만 허용됩니다.',
+          details: {
+            colorMode: colorModeResult.colorMode,
+            signatures: colorModeResult.cmykStructure?.signatures,
+          },
+          autoFixable: false,
+        });
+      } else if (colorModeResult.colorMode === 'CMYK') {
+        // 일반 인쇄 파일의 CMYK는 경고만
         warnings.push({
           code: WarningCode.CMYK_STRUCTURE_DETECTED,
           message: 'CMYK 색상 모드가 감지되었습니다. 인쇄 품질을 위해 확인해주세요.',
