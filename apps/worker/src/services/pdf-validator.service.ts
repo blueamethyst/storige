@@ -571,7 +571,13 @@ export class PdfValidatorService {
 
     // 1차: 규격 기반 판별 (+60점)
     if (expectedSingleWidthMm && expectedHeightMm) {
-      const expectedSpreadWidth = expectedSingleWidthMm * 2;
+      // 이미 스프레드 너비로 전달된 경우 (너비 > 높이) 그대로 사용
+      // 단일 페이지 너비로 전달된 경우 2배로 계산
+      const isAlreadySpreadWidth = expectedSingleWidthMm > expectedHeightMm * 1.2;
+      const expectedSpreadWidth = isAlreadySpreadWidth
+        ? expectedSingleWidthMm
+        : expectedSingleWidthMm * 2;
+
       const matchingPages = pageSizes.filter(
         (p) =>
           Math.abs(p.widthMm - expectedSpreadWidth) <= spreadWidthTolerance &&
