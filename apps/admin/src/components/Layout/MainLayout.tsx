@@ -182,6 +182,24 @@ export const MainLayout = () => {
     return pathname;
   };
 
+  // Get open keys based on current pathname
+  const getOpenKeys = () => {
+    const { pathname } = location;
+    const openKeys: string[] = [];
+
+    if (pathname.startsWith('/library')) {
+      openKeys.push('/library');
+    } else if (pathname.startsWith('/templates') || pathname.startsWith('/template-sets') || pathname.startsWith('/categories') || pathname.startsWith('/product-template-sets')) {
+      openKeys.push('/templates-group');
+    } else if (pathname.startsWith('/edit-sessions') || pathname.startsWith('/reviews')) {
+      openKeys.push('/edit-management');
+    } else if (pathname.startsWith('/worker')) {
+      openKeys.push('/worker');
+    }
+
+    return openKeys;
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
@@ -194,6 +212,7 @@ export const MainLayout = () => {
           theme="dark"
           mode="inline"
           selectedKeys={[getSelectedKey()]}
+          defaultOpenKeys={getOpenKeys()}
           items={menuItems}
         />
       </Sider>
