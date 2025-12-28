@@ -35,9 +35,12 @@ const isLibraryBuild = process.env.BUILD_MODE === 'embed'
 console.log(`[vite.config] BUILD_MODE=${process.env.BUILD_MODE}, isLibraryBuild=${isLibraryBuild}`)
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, path.resolve(__dirname), '')
-  const base = isLibraryBuild ? './' : (env.VITE_ROUTER_BASE || './')
-  console.error(`[vite.config] mode=${mode}, cwd=${__dirname}, VITE_ROUTER_BASE=${env.VITE_ROUTER_BASE}, base=${base}`)
+  // loadEnv는 .env 파일에서 로드, process.env는 셸 환경변수
+  const envFile = loadEnv(mode, path.resolve(__dirname), '')
+  // 셸 환경변수 우선, 없으면 .env 파일에서 로드
+  const routerBase = process.env.VITE_ROUTER_BASE || envFile.VITE_ROUTER_BASE
+  const base = isLibraryBuild ? './' : (routerBase || './')
+  console.error(`[vite.config] mode=${mode}, envFile.VITE_ROUTER_BASE=${envFile.VITE_ROUTER_BASE}, process.env.VITE_ROUTER_BASE=${process.env.VITE_ROUTER_BASE}, base=${base}`)
   return {
     base,
     plugins: [
