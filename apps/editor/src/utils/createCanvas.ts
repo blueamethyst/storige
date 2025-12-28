@@ -44,15 +44,14 @@ export const createCanvas = async (
   initId?: string
 ): Promise<fabric.Canvas> => {
   const appStore = useAppStore.getState()
-  const settingsStore = useSettingsStore.getState()
 
   // 사용자 설정이 제공되면 스토어 업데이트
   if (Object.keys(customSettings).length > 0) {
-    settingsStore.updateSettings(customSettings)
+    useSettingsStore.getState().updateSettings(customSettings)
   }
 
-  // 현재 설정 가져오기
-  const settings = settingsStore.currentSettings
+  // 현재 설정 가져오기 (업데이트 후 fresh state에서 읽어야 함)
+  const settings = useSettingsStore.getState().currentSettings
 
   // 새 캔버스의 인덱스 계산
   const { allCanvas } = appStore

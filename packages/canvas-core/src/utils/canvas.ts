@@ -175,7 +175,7 @@ export namespace core {
   export async function fileToImage(
     canvas: fabric.Canvas,
     file: File,
-    imagePlugin: ImageProcessingPlugin
+    imagePlugin?: ImageProcessingPlugin | null
   ) {
     try {
       const src = await fileToURL(file)
@@ -245,14 +245,16 @@ export namespace core {
   export function createFabricImage(
     canvas: fabric.Canvas,
     src: string,
-    imagePlugin: ImageProcessingPlugin
+    imagePlugin?: ImageProcessingPlugin | null
   ): Promise<fabric.Image> {
     return new Promise((resolve, reject) => {
       try {
         const imgEl = document.createElement('img')
+        imgEl.crossOrigin = 'anonymous'
         imgEl.src = src
         imgEl.onload = () => {
-          if (imagePlugin.tellHasAlpha(imgEl as any)) {
+          // imagePlugin이 있고 알파 채널이 있는 경우에만 이미지 처리
+          if (imagePlugin && imagePlugin.tellHasAlpha && imagePlugin.tellHasAlpha(imgEl as any)) {
             const processImage = imagePlugin.processImage(imgEl as any)
             fabric.Image.fromURL(processImage, (img: fabric.Image) => {
               const scale = getScale(canvas, img.getElement())
@@ -271,6 +273,7 @@ export namespace core {
               resolve(img as any)
             })
           } else {
+            // imagePlugin이 없거나 알파 채널이 없는 경우 기본 처리
             const scale = getScale(canvas, imgEl)
             const img = new fabric.Image(imgEl, {
               top: canvas.getCenterPoint().y,
@@ -285,6 +288,9 @@ export namespace core {
             img.setCoords()
             return resolve(img)
           }
+        }
+        imgEl.onerror = (e) => {
+          reject(new Error('Failed to load image'))
         }
       } catch (e) {
         console.error(e)

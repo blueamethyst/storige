@@ -12,6 +12,7 @@ import Editor, {
   configureFabricDefaults
 } from '@storige/canvas-core'
 import type { AppMenu } from '@/types/menu'
+import { recalculateSpineWidth } from '@/utils/spineCalculator'
 
 // Fabric.js 타입 (실제 fabric 타입은 런타임에 로드됨)
  
@@ -448,6 +449,15 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       takeCanvasScreenshot()
 
       console.log(`새 페이지 추가됨: ${canvasId}`)
+
+      // 내지 추가 시 책등 너비 재계산
+      recalculateSpineWidth().then((result) => {
+        if (result.success) {
+          console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+        }
+      }).catch((error) => {
+        console.error('[AppStore] 책등 재계산 오류:', error)
+      })
     } catch (error) {
       console.error('새 페이지 추가 중 오류:', error)
     }
@@ -522,17 +532,31 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
     const newEditors = [...allEditors]
     const targetCanvas = newCanvases[indexOfCanvas]
 
-    // DOM에서 캔버스 컨테이너 요소 찾기
-    const containers = document.getElementById('canvas-containers')
-    if (containers && containers.children[indexOfCanvas]) {
-      const containerToRemove = containers.children[indexOfCanvas]
+    // DOM에서 캔버스 컨테이너 요소 찾기 - wrapperEl 사용
+    const containerToRemove = targetCanvas.wrapperEl
+    const parentNode = containerToRemove?.parentNode
+
+    // 캔버스 정리
+    try {
+      targetCanvas.clear()
+    } catch (err) {
+      console.error('캔버스 clear 중 오류:', err)
+    }
+
+    // DOM에서 제거 (dispose 전에 수행)
+    if (containerToRemove && parentNode) {
       try {
-        targetCanvas.clear()
-        targetCanvas.dispose()
+        parentNode.removeChild(containerToRemove)
       } catch (err) {
-        console.error('캔버스 정리 중 오류:', err)
+        console.error('DOM 컨테이너 제거 중 오류:', err)
       }
-      containers.removeChild(containerToRemove)
+    }
+
+    // dispose는 DOM 제거 후 수행
+    try {
+      targetCanvas.dispose()
+    } catch (err) {
+      // dispose 오류는 무시 (DOM이 이미 제거된 경우 발생할 수 있음)
     }
 
     // 배열에서 요소 제거
@@ -556,6 +580,15 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
     }
 
     updateObjects()
+
+    // 내지 삭제 시 책등 너비 재계산
+    recalculateSpineWidth().then((result) => {
+      if (result.success) {
+        console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+      }
+    }).catch((error) => {
+      console.error('[AppStore] 책등 재계산 오류:', error)
+    })
   },
 
   reorderPages: (oldIndex: number, newIndex: number) => {

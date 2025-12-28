@@ -196,12 +196,20 @@ export const USE_CASE_CONFIGS: Record<EditorUseCase, UseCaseConfig> = {
   },
 }
 
+// 책등 계산 설정 타입
+export interface SpineConfig {
+  paperType: string | null
+  bindingType: string | null
+  calculatedSpineWidth: number | null  // 계산된 책등 너비 (mm)
+}
+
 // Settings store state
 interface SettingsState {
   currentSettings: CanvasSettings
   currentUseCase: EditorUseCase
   editorTemplates: EditorTemplate[]
   renderType: EditorRenderType
+  spineConfig: SpineConfig  // 책등 계산 설정
   artwork: {
     name: string
     product: WowPressLinkedProduct | null
@@ -262,6 +270,10 @@ interface SettingsActions {
 
   // Editor templates management
   setEditorTemplates: (templates: EditorTemplate[]) => void
+
+  // 책등 계산 설정 관리
+  setSpineConfig: (config: Partial<SpineConfig>) => void
+  getSpineConfig: () => SpineConfig
 }
 
 // Initial state
@@ -282,6 +294,11 @@ const initialState: SettingsState = {
   currentUseCase: 'general',
   editorTemplates: [],
   renderType: 'bounded',
+  spineConfig: {
+    paperType: null,
+    bindingType: null,
+    calculatedSpineWidth: null,
+  },
   artwork: {
     name: '나의 새로운 작업',
     product: null,
@@ -632,6 +649,21 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()((set, 
   setEditorTemplates: (templates) => {
     set({ editorTemplates: templates })
   },
+
+  // 책등 계산 설정 관리
+  setSpineConfig: (config) => {
+    const { spineConfig } = get()
+    set({
+      spineConfig: {
+        ...spineConfig,
+        ...config,
+      },
+    })
+  },
+
+  getSpineConfig: () => {
+    return get().spineConfig
+  },
 }))
 
 // Selector hooks for computed values
@@ -661,6 +693,7 @@ export const useSettingsUnit = () => useSettingsStore((state) => state.currentSe
 export const useShowCutBorder = () => useSettingsStore((state) => state.currentSettings.showCutBorder)
 export const useShowSafeBorder = () => useSettingsStore((state) => state.currentSettings.showSafeBorder)
 export const useEditorTemplates = () => useSettingsStore((state) => state.editorTemplates)
+export const useSpineConfig = () => useSettingsStore((state) => state.spineConfig)
 
 export const useRenderType = (): EditorRenderType => {
   const { currentSettings, artwork } = useSettingsStore.getState()

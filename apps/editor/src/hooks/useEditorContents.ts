@@ -11,8 +11,9 @@ import {
   type GeneralSetupConfig,
 } from '@/stores/useSettingsStore'
 import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay } from '@storige/canvas-core'
-import { contentsApi, storageApi, templateSetsApi, templatesApi, spineApi } from '@/api'
+import { contentsApi, storageApi, templateSetsApi, templatesApi } from '@/api'
 import { createCanvas } from '@/utils/createCanvas'
+import { recalculateSpineWidth, initSpineConfig } from '@/utils/spineCalculator'
 import type {
   EditorContent,
   EditorTemplate,
@@ -952,8 +953,19 @@ export function useEditorContents(): UseEditorContentsReturn {
       if (templateDetails.length > 0) {
         // 첫 번째 페이지(이미 존재)에 첫 번째 템플릿 로드
         const firstTemplate = templateDetails[0]
+        const firstTemplateType = (firstTemplate as any).type as string
+
+        // 첫 번째 템플릿 크기 결정 (spine, wing은 템플릿 자체 크기)
+        let firstTemplateWidth = templateSet.width
+        let firstTemplateHeight = templateSet.height
+        if ((firstTemplateType === 'spine' || firstTemplateType === 'wing') && firstTemplate.width && firstTemplate.height) {
+          firstTemplateWidth = firstTemplate.width
+          firstTemplateHeight = firstTemplate.height
+          console.log(`[EditorContents] First template uses own size (${firstTemplateType}):`, { width: firstTemplateWidth, height: firstTemplateHeight })
+        }
+
         if (firstTemplate.canvasData) {
-          console.log('[EditorContents] Loading first template:', firstTemplate.name)
+          console.log('[EditorContents] Loading first template:', firstTemplate.name, `type=${firstTemplateType}`)
           const canvasData = typeof firstTemplate.canvasData === 'string'
             ? JSON.parse(firstTemplate.canvasData)
             : firstTemplate.canvasData
@@ -973,12 +985,10 @@ export function useEditorContents(): UseEditorContentsReturn {
             console.log('[EditorContents] No objects or workspace in canvasData, initializing workspace only')
             await initWorkspace()
           } else {
-            // 첫 번째 템플릿의 canvasData에서 workspace 크기를 템플릿셋 크기로 수정
-            // (템플릿의 원본 크기가 템플릿셋 크기와 다를 수 있으므로)
-            const latestSettings = useSettingsStore.getState().currentSettings
-            const targetSize = latestSettings.size
-            const targetWidth = mmToPxDisplay(targetSize.width + targetSize.cutSize)
-            const targetHeight = mmToPxDisplay(targetSize.height + targetSize.cutSize)
+            // 첫 번째 템플릿의 canvasData에서 workspace 크기를 템플릿별 크기로 수정
+            // (spine, wing 타입은 템플릿 자체 크기, 나머지는 템플릿셋 크기)
+            const targetWidth = mmToPxDisplay(firstTemplateWidth)
+            const targetHeight = mmToPxDisplay(firstTemplateHeight)
 
             // canvasData의 workspace 객체 크기 수정
             const modifyWorkspaceInData = (data: any) => {
@@ -997,8 +1007,8 @@ export function useEditorContents(): UseEditorContentsReturn {
                 })
               }
               // top-level width/height도 업데이트 (mm 단위)
-              data.width = targetSize.width + targetSize.cutSize
-              data.height = targetSize.height + targetSize.cutSize
+              data.width = firstTemplateWidth
+              data.height = firstTemplateHeight
               return data
             }
 
@@ -1009,17 +1019,19 @@ export function useEditorContents(): UseEditorContentsReturn {
             await loadCanvasData(canvases)
           }
 
-          // 첫 번째 페이지 workspace 크기 재조정 (setupEmptyEditorStore 후 크기가 변경되었으므로)
+          // 첫 번째 페이지 workspace 크기 재조정 (템플릿별 크기 적용)
           const firstCanvas = useAppStore.getState().allCanvas[0]
           const firstEditor = useAppStore.getState().allEditors[0]
           if (firstCanvas && firstEditor) {
-            const latestSettings = useSettingsStore.getState().currentSettings
-            const latestGetEffectiveValue = useSettingsStore.getState().getEffectiveValue
-            const size = latestSettings.size
-            const totalWidth = latestGetEffectiveValue(size.width + (size.cutSize || 0))
-            const totalHeight = latestGetEffectiveValue(size.height + (size.cutSize || 0))
+            // 첫 번째 템플릿 크기 사용 (spine, wing은 템플릿 자체 크기)
+            const totalWidth = mmToPxDisplay(firstTemplateWidth)
+            const totalHeight = mmToPxDisplay(firstTemplateHeight)
 
-            console.log('[EditorContents] Resizing first page workspace to:', { width: totalWidth, height: totalHeight })
+            console.log('[EditorContents] Resizing first page workspace to:', {
+              templateType: firstTemplateType,
+              mm: { width: firstTemplateWidth, height: firstTemplateHeight },
+              px: { width: totalWidth, height: totalHeight }
+            })
 
             const targetObjects = (firstCanvas.getObjects() as fabric.Object[]).filter((obj: fabric.Object) => {
               const extObj = obj as ExtendedFabricObject
@@ -1053,33 +1065,31 @@ export function useEditorContents(): UseEditorContentsReturn {
             // WorkspacePlugin의 내부 옵션 업데이트 및 workspace 객체 크기 조정
             // reset()은 workspace를 새로 생성할 수 있어 기존 객체가 사라지므로 사용하지 않음
             // setOptions는 template-background 등을 다시 변경하므로 사용하지 않음
-             
+
             const workspacePlugin = firstEditor.getPlugin<any>('WorkspacePlugin')
             if (workspacePlugin) {
-              // 플러그인 내부 옵션을 직접 업데이트
+              // 플러그인 내부 옵션을 직접 업데이트 (템플릿별 크기 사용)
               if (workspacePlugin._options) {
-                workspacePlugin._options.size = latestSettings.size
+                workspacePlugin._options.size = {
+                  width: firstTemplateWidth,
+                  height: firstTemplateHeight,
+                  cutSize: 0,
+                  safeSize: 0,
+                }
               }
               // workspace 객체 참조 업데이트 및 크기 조정
               const workspaceObj = firstCanvas.getObjects().find((obj: fabric.Object) => (obj as ExtendedFabricObject).id === 'workspace')
               if (workspaceObj) {
                 workspacePlugin.workspace = workspaceObj
 
-                // workspace 객체의 width/height를 올바른 크기로 업데이트
-                // cutSize를 포함한 전체 크기로 설정 (mm -> px 변환)
-                const canvasWidth = latestSettings.size.width + latestSettings.size.cutSize
-                const canvasHeight = latestSettings.size.height + latestSettings.size.cutSize
-                const effectiveWidth = mmToPxDisplay(canvasWidth)
-                const effectiveHeight = mmToPxDisplay(canvasHeight)
-
                 console.log('[EditorContents] Updating workspace size:', {
-                  mm: { width: canvasWidth, height: canvasHeight },
-                  px: { width: effectiveWidth, height: effectiveHeight }
+                  mm: { width: firstTemplateWidth, height: firstTemplateHeight },
+                  px: { width: totalWidth, height: totalHeight }
                 })
 
                 workspaceObj.set({
-                  width: effectiveWidth,
-                  height: effectiveHeight,
+                  width: totalWidth,
+                  height: totalHeight,
                   scaleX: 1,
                   scaleY: 1
                 })
@@ -1116,11 +1126,29 @@ export function useEditorContents(): UseEditorContentsReturn {
 
         for (let i = 1; i < templateDetails.length; i++) {
           const template = templateDetails[i]
-          console.log(`[EditorContents] Creating page ${i + 1}/${templateDetails.length}:`, template.name)
+          const templateType = (template as any).type as string
+          console.log(`[EditorContents] Creating page ${i + 1}/${templateDetails.length}:`, template.name, `type=${templateType}`)
+
+          // 템플릿 타입별 크기 결정
+          // spine, wing 타입은 템플릿 자체 크기 사용, 나머지는 템플릿셋 크기 사용
+          let templateWidth = templateSet.width
+          let templateHeight = templateSet.height
+          if ((templateType === 'spine' || templateType === 'wing') && template.width && template.height) {
+            templateWidth = template.width
+            templateHeight = template.height
+            console.log(`[EditorContents] Using template-specific size for ${templateType}:`, { width: templateWidth, height: templateHeight })
+          }
 
           // createCanvas를 사용하여 모든 플러그인이 포함된 새 캔버스 생성
           if (canvasContainer) {
-            await createCanvas({}, canvasContainer, initId || undefined)
+            await createCanvas({
+              size: {
+                width: templateWidth,
+                height: templateHeight,
+                cutSize: 0,
+                safeSize: 0,
+              }
+            }, canvasContainer, initId || undefined)
           }
 
           // 새로 추가된 페이지의 인덱스
@@ -1155,18 +1183,25 @@ export function useEditorContents(): UseEditorContentsReturn {
             if (servicePlugin && hasNonWorkspaceObjects) {
               // canvasData가 배열인 경우 첫 번째 요소 사용, 아니면 그대로 사용
               const dataToLoad = Array.isArray(canvasData) ? canvasData[0] : canvasData
+              // 클로저를 위해 템플릿 크기 캡처
+              const capturedWidth = templateWidth
+              const capturedHeight = templateHeight
               await new Promise<void>((resolve) => {
                 servicePlugin.loadJSON(dataToLoad, () => {
                   console.log(`[EditorContents] loadJSON completed for page ${newPageIndex}`)
 
-                  // loadJSON 후 workspace 크기 조정 (loadCanvasData와 동일한 로직)
+                  // loadJSON 후 workspace 크기 조정
+                  // 템플릿 타입별 크기 사용 (spine, wing은 템플릿 자체 크기)
                   const cvs = latestAllCanvas[newPageIndex]
                   if (cvs) {
-                    const latestSettings = useSettingsStore.getState().currentSettings
-                    const latestGetEffectiveValue = useSettingsStore.getState().getEffectiveValue
-                    const size = latestSettings.size
-                    const totalWidth = latestGetEffectiveValue(size.width + (size.cutSize || 0))
-                    const totalHeight = latestGetEffectiveValue(size.height + (size.cutSize || 0))
+                    const totalWidth = mmToPxDisplay(capturedWidth)
+                    const totalHeight = mmToPxDisplay(capturedHeight)
+
+                    console.log(`[EditorContents] Resizing workspace for page ${newPageIndex}:`, {
+                      templateType,
+                      mm: { width: capturedWidth, height: capturedHeight },
+                      px: { width: totalWidth, height: totalHeight }
+                    })
 
                     const targetObjects = (cvs.getObjects() as fabric.Object[]).filter((obj: fabric.Object) => {
                       const extObj = obj as ExtendedFabricObject
@@ -1217,85 +1252,21 @@ export function useEditorContents(): UseEditorContentsReturn {
 
         console.log(`[EditorContents] All ${templateDetails.length} templates loaded successfully`)
 
-        // 책등 자동 리사이징 (paperType, bindingType 파라미터가 있는 경우)
+        // 책등 설정 초기화 및 자동 리사이징
+        initSpineConfig(config.paperType || null, config.bindingType || null)
+
         if (config.paperType && config.bindingType) {
-          // templateMetadata에서 spine 템플릿 인덱스 찾기
-          const spineTemplateIndex = templateDetails.findIndex(t => (t as any).type === 'spine')
+          // 책등 너비 계산 및 적용
+          const spineResult = await recalculateSpineWidth({
+            paperType: config.paperType,
+            bindingType: config.bindingType,
+            templateSetHeight: templateSet.height,
+          })
 
-          if (spineTemplateIndex !== -1) {
-            // 내지 페이지 수 계산 (양면 인쇄이므로 × 2)
-            const pageTemplateCount = templateDetails.filter(t => (t as any).type === 'page').length
-            const pageCount = pageTemplateCount * 2
-
-            console.log(`[EditorContents] Calculating spine width: pageCount=${pageCount}, paperType=${config.paperType}, bindingType=${config.bindingType}`)
-
-            try {
-              // API로 책등 폭 계산
-              const spineResult = await spineApi.calculate({
-                pageCount,
-                paperType: config.paperType,
-                bindingType: config.bindingType,
-              })
-
-              console.log(`[EditorContents] Calculated spine width: ${spineResult.spineWidth}mm`)
-
-              // 경고 메시지 출력
-              if (spineResult.warnings.length > 0) {
-                spineResult.warnings.forEach(warning => {
-                  console.warn(`[EditorContents] Spine warning: ${warning.message}`)
-                })
-              }
-
-              // 책등 캔버스 크기 업데이트
-              const latestAllEditors = useAppStore.getState().allEditors
-              const latestAllCanvas = useAppStore.getState().allCanvas
-              const spineEditor = latestAllEditors[spineTemplateIndex]
-              const spineCanvas = latestAllCanvas[spineTemplateIndex]
-
-              if (spineEditor && spineCanvas) {
-                const workspacePlugin = spineEditor.getPlugin<any>('WorkspacePlugin')
-                if (workspacePlugin) {
-                  const newWidthPx = mmToPxDisplay(spineResult.spineWidth)
-                  const currentHeight = workspacePlugin._options?.size?.height || templateSet.height
-
-                  console.log(`[EditorContents] Resizing spine workspace: width=${newWidthPx}px (${spineResult.spineWidth}mm)`)
-
-                  // workspace 객체 찾아서 크기 변경
-                  const workspaceObj = spineCanvas.getObjects().find((obj: any) =>
-                    (obj as ExtendedFabricObject).id === 'workspace'
-                  )
-
-                  if (workspaceObj) {
-                    const heightPx = mmToPxDisplay(currentHeight)
-
-                    // workspace 객체 크기 업데이트
-                    workspaceObj.set({
-                      width: newWidthPx,
-                      height: heightPx,
-                      scaleX: 1,
-                      scaleY: 1
-                    })
-                    workspaceObj.setCoords()
-
-                    // 플러그인 내부 옵션 업데이트
-                    if (workspacePlugin._options?.size) {
-                      workspacePlugin._options.size.width = spineResult.spineWidth
-                    }
-
-                    // 렌더링 및 줌 조정
-                    spineCanvas.requestRenderAll()
-                    if (workspacePlugin.setZoomAuto) {
-                      workspacePlugin.setZoomAuto()
-                    }
-
-                    console.log('[EditorContents] Spine workspace resized successfully')
-                  }
-                }
-              }
-            } catch (spineError) {
-              console.error('[EditorContents] Spine calculation error:', spineError)
-              // 책등 계산 실패해도 에디터 로딩은 계속 진행
-            }
+          if (spineResult.success) {
+            console.log(`[EditorContents] Spine width calculated: ${spineResult.spineWidth}mm`)
+          } else if (spineResult.error) {
+            console.warn(`[EditorContents] Spine calculation skipped: ${spineResult.error}`)
           }
         }
       } else {
