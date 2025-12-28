@@ -14,7 +14,8 @@
 4. [책등 계산 테스트](#4-책등-계산-테스트)
 5. [PDF 처리 테스트](#5-pdf-처리-테스트)
 6. [웹훅 테스트](#6-웹훅-테스트)
-7. [통합 E2E 테스트](#7-통합-e2e-테스트)
+7. [워커 유닛 테스트](#7-워커-유닛-테스트)
+8. [통합 E2E 테스트](#8-통합-e2e-테스트)
 
 ---
 
@@ -1039,9 +1040,508 @@ X-Storige-Event: synthesis.failed
 
 ---
 
-## 7. 통합 E2E 테스트
+## 7. 워커 유닛 테스트
 
-### 7.1 전체 플로우 E2E 테스트
+> **테스트 파일**: `apps/worker/src/utils/ghostscript.spec.ts`
+> **실행 명령**: `pnpm --filter @storige/worker test`
+
+워커 서비스는 PDF 검증 및 처리를 담당합니다. 주요 테스트 케이스를 아래에 정리합니다.
+
+---
+
+### 7.1 별색(Spot Color) 감지 테스트 (WBS 4.1)
+
+#### TC-WORKER-001: PANTONE 별색 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-001 |
+| **테스트명** | PANTONE 별색 감지 |
+| **우선순위** | High |
+| **테스트 파일** | `test/fixtures/pdf/spot-color/spot-only.pdf` |
+
+**검증항목:**
+- [ ] `hasSpotColors`가 `true`
+- [ ] `spotColorNames`에 "PANTONE" 포함
+- [ ] Separation colorspace 감지
+
+---
+
+#### TC-WORKER-002: DeviceN 컬러스페이스 별색 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-002 |
+| **테스트명** | DeviceN 컬러스페이스 별색 감지 |
+| **우선순위** | High |
+
+**검증항목:**
+- [ ] DeviceN [Cyan, Magenta, CutContour] 감지
+- [ ] `spotColorNames`에 "CutContour" 포함
+
+---
+
+#### TC-WORKER-003: 순수 별색 PDF 감지 (후가공용)
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-003 |
+| **테스트명** | 순수 별색 PDF 감지 (CMYK 잉크 없음) |
+| **우선순위** | Critical |
+| **테스트 파일** | `test/fixtures/pdf/spot-color/success-spot-only.pdf` |
+
+**검증항목:**
+- [ ] `hasSpotColors`가 `true`
+- [ ] `spotColorNames`에 "CutContour", "Crease" 포함
+- [ ] CMYK 잉크 커버리지 0%
+
+---
+
+#### TC-WORKER-004: RGB PDF에서 별색 미감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-004 |
+| **테스트명** | RGB PDF에서 별색 미감지 |
+| **우선순위** | High |
+| **테스트 파일** | `test/fixtures/pdf/rgb/success-a4-single.pdf` |
+
+**검증항목:**
+- [ ] `hasSpotColors`가 `false`
+- [ ] `spotColorNames`가 빈 배열
+
+---
+
+### 7.2 투명도/오버프린트 감지 테스트 (WBS 4.2)
+
+#### TC-WORKER-005: 투명도 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-005 |
+| **테스트명** | 투명도 감지 |
+| **우선순위** | Medium |
+| **테스트 파일** | `test/fixtures/pdf/transparency/warn-with-transparency.pdf` |
+
+**검증항목:**
+- [ ] `hasTransparency`가 `true`
+- [ ] Blend mode (/BM /Multiply) 감지
+
+---
+
+#### TC-WORKER-006: 오버프린트 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-006 |
+| **테스트명** | 오버프린트 감지 |
+| **우선순위** | Medium |
+| **테스트 파일** | `test/fixtures/pdf/transparency/warn-with-overprint.pdf` |
+
+**검증항목:**
+- [ ] `hasOverprint`가 `true`
+- [ ] /OP true 또는 /op true 감지
+
+---
+
+#### TC-WORKER-007: 투명도+오버프린트 동시 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-007 |
+| **테스트명** | 투명도+오버프린트 동시 감지 |
+| **우선순위** | Medium |
+| **테스트 파일** | `test/fixtures/pdf/transparency/warn-both-trans-overprint.pdf` |
+
+**검증항목:**
+- [ ] `hasTransparency`가 `true`
+- [ ] `hasOverprint`가 `true`
+
+---
+
+### 7.3 CMYK 구조 감지 테스트
+
+#### TC-WORKER-008: DeviceCMYK 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-008 |
+| **테스트명** | DeviceCMYK 컬러스페이스 감지 |
+| **우선순위** | Critical |
+| **테스트 파일** | `test/fixtures/pdf/cmyk/fail-cmyk-for-postprocess.pdf` |
+
+**검증항목:**
+- [ ] PDF 바이너리에 `/DeviceCMYK` 시그니처 존재
+- [ ] 후가공 파일에서 CMYK 사용 시 에러 코드 `POST_PROCESS_CMYK` 반환
+
+---
+
+#### TC-WORKER-009: RGB PDF에서 CMYK 미감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-009 |
+| **테스트명** | RGB PDF에서 DeviceCMYK 미감지 |
+| **우선순위** | High |
+| **테스트 파일** | `test/fixtures/pdf/cmyk/success-rgb-only.pdf` |
+
+**검증항목:**
+- [ ] PDF 바이너리에 `/DeviceCMYK` 시그니처 없음
+
+---
+
+### 7.4 폰트 감지 테스트
+
+#### TC-WORKER-010: 폰트 없는 PDF 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-010 |
+| **테스트명** | 폰트 없는 PDF 처리 |
+| **우선순위** | High |
+
+**검증항목:**
+- [ ] `fontCount`가 `0`
+- [ ] `fonts`가 빈 배열
+- [ ] `hasUnembeddedFonts`가 `false`
+- [ ] `allFontsEmbedded`가 `true`
+
+---
+
+#### TC-WORKER-011: 폰트 감지 및 FontInfo 구조 검증
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-011 |
+| **테스트명** | 폰트 감지 및 FontInfo 구조 검증 |
+| **우선순위** | High |
+| **테스트 파일** | `test/fixtures/pdf/rgb/success-a4-single.pdf` |
+
+**검증항목:**
+- [ ] `FontInfo` 객체에 `name`, `type`, `embedded`, `subset` 속성 포함
+- [ ] 각 속성의 타입이 올바름 (string, string, boolean, boolean)
+
+---
+
+#### TC-WORKER-012: 서브셋 폰트 임베딩 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-012 |
+| **테스트명** | 서브셋 폰트 임베딩 감지 |
+| **우선순위** | High |
+
+**검증항목:**
+- [ ] 서브셋 폰트 (ABCDEF+FontName 형식)는 `subset: true`
+- [ ] 서브셋 폰트는 `embedded: true`
+
+---
+
+#### TC-WORKER-013: PDF 14 표준 폰트 인식
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-013 |
+| **테스트명** | PDF 14 표준 폰트 인식 |
+| **우선순위** | Medium |
+
+**검증항목:**
+- [ ] Helvetica, Times-Roman, Courier 등 표준 폰트 인식
+- [ ] 표준 폰트는 `unembeddedFonts`에 포함되지 않음
+
+---
+
+### 7.5 이미지 해상도 감지 테스트
+
+#### TC-WORKER-014: 이미지 없는 PDF 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-014 |
+| **테스트명** | 이미지 없는 PDF 처리 |
+| **우선순위** | High |
+
+**검증항목:**
+- [ ] `imageCount`가 `0`
+- [ ] `hasLowResolution`가 `false`
+- [ ] `minResolution`가 `0`
+- [ ] `avgResolution`가 `0`
+
+---
+
+#### TC-WORKER-015: 이미지 해상도 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-015 |
+| **테스트명** | 이미지 해상도 감지 |
+| **우선순위** | Critical |
+| **테스트 파일** | `test/fixtures/pdf/rgb/success-a4-single.pdf` |
+
+**검증항목:**
+- [ ] `ImageInfo` 객체에 필수 속성 포함
+  - `index`, `pixelWidth`, `pixelHeight`
+  - `displayWidthMm`, `displayHeightMm`
+  - `effectiveDpiX`, `effectiveDpiY`, `minEffectiveDpi`
+
+---
+
+#### TC-WORKER-016: 저해상도 이미지 감지
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-016 |
+| **테스트명** | 저해상도 이미지 감지 (150 DPI 미만) |
+| **우선순위** | Critical |
+
+**검증항목:**
+- [ ] 기본 임계값 150 DPI 적용
+- [ ] `hasLowResolution`가 `true` (저해상도 이미지 존재 시)
+- [ ] `lowResImages` 배열에 저해상도 이미지 정보 포함
+
+---
+
+### 7.6 에지 케이스 테스트
+
+#### TC-WORKER-017: 빈 PDF 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-017 |
+| **테스트명** | 빈 PDF 처리 |
+| **우선순위** | Medium |
+
+**검증항목:**
+- [ ] 별색 감지: `hasSpotColors: false`
+- [ ] 투명도 감지: `hasTransparency: false`
+- [ ] 오버프린트 감지: `hasOverprint: false`
+- [ ] 폰트 감지: `fontCount: 0`
+- [ ] 이미지 감지: `imageCount: 0`
+
+---
+
+#### TC-WORKER-018: 다중 페이지 PDF 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-WORKER-018 |
+| **테스트명** | 다중 페이지 PDF 처리 (10페이지, 64페이지) |
+| **우선순위** | Medium |
+
+**검증항목:**
+- [ ] 모든 페이지 정상 처리
+- [ ] 대용량 PDF에서도 타임아웃 없이 처리 완료
+
+---
+
+### 7.7 워커 유닛 테스트 매트릭스
+
+| 테스트 ID | 시나리오 | 예상 결과 | 우선순위 |
+|-----------|----------|-----------|----------|
+| TC-WORKER-001 | PANTONE 별색 감지 | hasSpotColors: true | High |
+| TC-WORKER-002 | DeviceN 별색 감지 | CutContour 감지 | High |
+| TC-WORKER-003 | 순수 별색 PDF | 후가공 파일 검증 통과 | Critical |
+| TC-WORKER-004 | RGB PDF 별색 미감지 | hasSpotColors: false | High |
+| TC-WORKER-005 | 투명도 감지 | hasTransparency: true | Medium |
+| TC-WORKER-006 | 오버프린트 감지 | hasOverprint: true | Medium |
+| TC-WORKER-007 | 투명도+오버프린트 동시 | 둘 다 true | Medium |
+| TC-WORKER-008 | DeviceCMYK 감지 | 후가공 에러 | Critical |
+| TC-WORKER-009 | RGB PDF CMYK 미감지 | DeviceCMYK 없음 | High |
+| TC-WORKER-010 | 폰트 없는 PDF | fontCount: 0 | High |
+| TC-WORKER-011 | FontInfo 구조 | 속성 검증 통과 | High |
+| TC-WORKER-012 | 서브셋 폰트 | embedded: true | High |
+| TC-WORKER-013 | 표준 폰트 인식 | unembedded에 미포함 | Medium |
+| TC-WORKER-014 | 이미지 없는 PDF | imageCount: 0 | High |
+| TC-WORKER-015 | 이미지 해상도 감지 | ImageInfo 검증 | Critical |
+| TC-WORKER-016 | 저해상도 감지 | hasLowResolution: true | Critical |
+| TC-WORKER-017 | 빈 PDF 처리 | 에러 없이 처리 | Medium |
+| TC-WORKER-018 | 다중 페이지 PDF | 타임아웃 없이 처리 | Medium |
+
+---
+
+### 7.8 테스트 픽스처 디렉토리 구조
+
+```
+apps/worker/test/fixtures/pdf/
+├── rgb/
+│   ├── success-a4-single.pdf       # 단일 페이지 A4 RGB
+│   ├── success-a4-8pages.pdf       # 8페이지 RGB
+│   └── success-a4-with-bleed.pdf   # 재단 여백 포함 RGB
+├── cmyk/
+│   ├── fail-cmyk-for-postprocess.pdf  # 후가공용 CMYK (에러)
+│   └── success-rgb-only.pdf           # RGB 전용
+├── spot-color/
+│   ├── spot-only.pdf                  # PANTONE + DeviceN
+│   ├── success-spot-only.pdf          # 순수 별색 (후가공용)
+│   └── warn-cmyk-spot-mixed.pdf       # CMYK + 별색 혼합
+├── transparency/
+│   ├── warn-with-transparency.pdf     # 투명도 포함
+│   ├── warn-with-overprint.pdf        # 오버프린트 포함
+│   ├── warn-both-trans-overprint.pdf  # 둘 다 포함
+│   └── success-no-transparency.pdf    # 투명도 없음
+└── font/                              # 폰트 테스트용
+```
+
+---
+
+### 7.9 비즈니스 시나리오 테스트
+
+> **테스트 파일**: `apps/worker/test/integration/scenario.e2e-spec.ts`
+
+실제 인쇄 주문 워크플로우를 시뮬레이션하는 시나리오 기반 통합 테스트입니다.
+
+---
+
+#### SC-COVER-001: 무선제본 표지 검증 (책등 포함)
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-COVER-001 |
+| **시나리오명** | 무선제본 표지 검증 (책등 포함) |
+| **우선순위** | Critical |
+
+**시나리오:**
+1. 고객이 100페이지 무선제본 책의 표지를 업로드
+2. 책등 폭: 5.5mm (100/2 × 0.10 + 0.5)
+3. 표지 크기: (210 + 3) × 2 + 5.5 = 431.5mm (폭) × 303mm (높이)
+
+**검증항목:**
+- [ ] 표지 파일은 1페이지
+- [ ] 책등 포함된 폭 검증
+- [ ] 잘못된 책등 폭 시 SPINE_SIZE_MISMATCH 에러
+
+---
+
+#### SC-PP-001: 후가공 파일 별색 검증
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-PP-001 |
+| **시나리오명** | 후가공 파일 별색 검증 |
+| **우선순위** | Critical |
+
+**시나리오:**
+1. 도무송(CutContour) + 접선(Crease) 별색만 포함된 후가공 파일 업로드
+2. CMYK 잉크가 없어야 함 (순수 별색 파일)
+
+**검증항목:**
+- [ ] `hasSpotColors`가 `true`
+- [ ] CutContour, Crease 별색 감지
+- [ ] CMYK 사용 시 POST_PROCESS_CMYK 에러
+
+---
+
+#### SC-FONT-001: 폰트 임베딩 검증
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-FONT-001 |
+| **시나리오명** | 폰트 임베딩 검증 |
+| **우선순위** | High |
+
+**시나리오:**
+1. 모든 폰트가 임베딩된 파일 검증
+2. 서브셋 폰트 (ABCDEF+FontName) 인식
+3. PDF 14 표준 폰트 처리
+
+**검증항목:**
+- [ ] `hasUnembeddedFonts`가 `false`
+- [ ] 서브셋 폰트는 `embedded: true`
+- [ ] 표준 폰트는 미임베딩 경고 대상 아님
+
+---
+
+#### SC-RES-001: 이미지 해상도 검증
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-RES-001 |
+| **시나리오명** | 이미지 해상도 검증 |
+| **우선순위** | High |
+
+**시나리오:**
+1. 인쇄용 고해상도 이미지 (300 DPI 이상) 검증
+2. 저해상도 이미지 (150 DPI 미만) 경고
+3. 커스텀 DPI 임계값 적용
+
+**검증항목:**
+- [ ] 저해상도 이미지 시 `hasLowResolution: true`
+- [ ] `lowResImages` 배열에 저해상도 이미지 정보
+
+---
+
+#### SC-FLOW-001: 전체 주문 플로우 검증
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-FLOW-001 |
+| **시나리오명** | 무선제본 책 주문 (표지+내지) |
+| **우선순위** | Critical |
+
+**시나리오:**
+```
+1. 고객이 A4 무선제본 100페이지 책 주문
+2. 표지 PDF 업로드 (책등 포함)
+3. 내지 PDF 업로드 (100페이지)
+4. 두 파일 모두 검증 통과해야 주문 진행
+```
+
+**검증항목:**
+- [ ] 내지: 페이지 수, 크기, 별색, 투명도, 폰트 검증
+- [ ] 표지: 책등 크기, 펼침면 크기 검증
+- [ ] 모든 검증 통과 시 주문 진행 가능
+
+---
+
+#### SC-ISSUE-001: 실제 인쇄 문제 사례
+
+| 항목 | 내용 |
+|------|------|
+| **시나리오 ID** | SC-ISSUE-001 |
+| **시나리오명** | 실제 인쇄 문제 사례 검증 |
+| **우선순위** | High |
+
+**시나리오:**
+1. 투명도로 인한 RIP 출력 문제 감지
+2. 흰색 오버프린트로 인한 출력 누락 감지
+3. PANTONE 별색 CMYK 변환 경고
+
+**검증항목:**
+- [ ] 투명도 감지 시 경고
+- [ ] 오버프린트 감지 시 경고
+- [ ] PANTONE 별색 감지 시 변환 경고
+
+---
+
+### 7.10 시나리오 테스트 매트릭스
+
+| 시나리오 ID | 시나리오명 | 예상 결과 | 우선순위 |
+|-------------|----------|-----------|----------|
+| SC-COVER-001 | 무선제본 표지 검증 | 책등 크기 검증 | Critical |
+| SC-COVER-002 | 중철제본 표지 검증 | 펼침면 크기 검증 | High |
+| SC-PP-001 | 후가공 별색 검증 | 순수 별색 통과 | Critical |
+| SC-PP-002 | 후가공 CMYK 에러 | POST_PROCESS_CMYK | Critical |
+| SC-PP-003 | 후가공 투명도/오버프린트 | 경고 반환 | Medium |
+| SC-FONT-001 | 폰트 임베딩 | allEmbedded: true | High |
+| SC-FONT-002 | 서브셋 폰트 | embedded: true | High |
+| SC-FONT-003 | 표준 폰트 | 경고 없음 | Medium |
+| SC-RES-001 | 고해상도 이미지 | 경고 없음 | High |
+| SC-RES-002 | 저해상도 이미지 | 경고 반환 | High |
+| SC-FLOW-001 | 무선제본 전체 플로우 | 주문 진행 가능 | Critical |
+| SC-FLOW-002 | 중철제본 전체 플로우 | 4의 배수 검증 | High |
+| SC-EDGE-001 | 빈 PDF 처리 | 에러 없이 처리 | Medium |
+| SC-EDGE-002 | 대용량 PDF (100페이지) | 5초 이내 처리 | Medium |
+| SC-EDGE-003 | 손상된 파일 | 에러 반환 | High |
+| SC-EDGE-004 | 병렬 검증 | 모든 검증 성공 | Medium |
+| SC-ISSUE-001 | 투명도 문제 | 경고 반환 | High |
+| SC-ISSUE-002 | 오버프린트 문제 | 경고 반환 | High |
+| SC-ISSUE-003 | 별색 변환 경고 | PANTONE 감지 | High |
+
+---
+
+## 8. 통합 E2E 테스트
+
+### 8.1 전체 플로우 E2E 테스트
 
 #### TC-E2E-001: 전체 주문 플로우
 
@@ -1155,7 +1655,7 @@ test('에디터 전체 플로우', async ({ page }) => {
 
 ---
 
-### 7.2 E2E 테스트 매트릭스
+### 8.2 E2E 테스트 매트릭스
 
 | 테스트 ID | 시나리오 | 예상 소요시간 | 우선순위 |
 |-----------|----------|--------------|----------|
@@ -1210,8 +1710,10 @@ export const testData = {
 | 책등 계산 | 10 | | | |
 | PDF 처리 | 9 | | | |
 | 웹훅 | 5 | | | |
+| 워커 유닛 | 18 | | | |
+| 워커 시나리오 | 19 | | | |
 | E2E | 5 | | | |
-| **합계** | **45** | | | |
+| **합계** | **82** | | | |
 
 ---
 
@@ -1220,3 +1722,5 @@ export const testData = {
 | 버전 | 날짜 | 변경 내용 |
 |------|------|----------|
 | 1.0 | 2025-12-28 | 최초 작성 |
+| 1.1 | 2025-12-28 | 워커 유닛 테스트 섹션 추가 (폰트/이미지 해상도/별색/투명도/CMYK 감지) |
+| 1.2 | 2025-12-28 | 워커 비즈니스 시나리오 테스트 추가 (표지/후가공/폰트/해상도/주문플로우) |
