@@ -57,10 +57,8 @@ async function bootstrap() {
     }),
   );
 
-  // API prefix (exclude storage routes for static file serving)
-  app.setGlobalPrefix('api', {
-    exclude: ['storage', 'storage/(.*)'],
-  });
+  // API prefix
+  app.setGlobalPrefix('api');
 
   // Swagger documentation
   const config = new DocumentBuilder()
