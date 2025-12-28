@@ -183,9 +183,13 @@ export const TemplateSetList = () => {
 
   const handleOpenEditor = (id: string) => {
     // 상대 경로인 경우 현재 origin을 base로 사용
-    const baseUrl = EDITOR_BASE_URL.startsWith('/')
+    let baseUrl = EDITOR_BASE_URL.startsWith('/')
       ? window.location.origin + EDITOR_BASE_URL
       : EDITOR_BASE_URL;
+    // trailing slash 보장 (Apache SPA 라우팅을 위해 필요)
+    if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
+    }
     const url = new URL(baseUrl);
     url.searchParams.set('templateSetId', id);
     if (accessToken) {
