@@ -35,9 +35,9 @@ const isLibraryBuild = process.env.BUILD_MODE === 'embed'
 console.log(`[vite.config] BUILD_MODE=${process.env.BUILD_MODE}, isLibraryBuild=${isLibraryBuild}`)
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  const env = loadEnv(mode, path.resolve(__dirname), '')
   const base = isLibraryBuild ? './' : (env.VITE_ROUTER_BASE || './')
-  console.log(`[vite.config] mode=${mode}, VITE_ROUTER_BASE=${env.VITE_ROUTER_BASE}, base=${base}`)
+  console.error(`[vite.config] mode=${mode}, cwd=${__dirname}, VITE_ROUTER_BASE=${env.VITE_ROUTER_BASE}, base=${base}`)
   return {
     base,
     plugins: [
