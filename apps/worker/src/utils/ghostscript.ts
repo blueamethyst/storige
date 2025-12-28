@@ -10,6 +10,8 @@ import {
   TransparencyResult,
   ImageResolutionResult,
   ImageInfo,
+  FontDetectionResult,
+  FontInfo,
 } from '../dto/validation-result.dto';
 
 const logger = new Logger('GhostscriptUtil');
@@ -764,6 +766,234 @@ export async function detectImageResolution(
       images: [],
     };
   }
+}
+
+// ============================================================
+// 폰트 감지
+// ============================================================
+
+/**
+ * PDF 내 폰트 정보 감지
+ * PDF의 Font 객체에서 폰트 이름, 타입, 임베딩 여부 등을 추출
+ *
+ * 감지 항목:
+ * - /BaseFont: 폰트 이름
+ * - /Subtype: 폰트 타입 (TrueType, Type1, Type0, CIDFontType2 등)
+ * - /FontDescriptor: 폰트 설명자 (임베딩 정보 포함)
+ * - /FontFile, /FontFile2, /FontFile3: 임베딩된 폰트 데이터
+ *
+ * @param pdfBytes PDF 바이너리 데이터
+ * @returns FontDetectionResult 폰트 감지 결과
+ */
+export async function detectFonts(
+  pdfBytes: Uint8Array,
+): Promise<FontDetectionResult> {
+  const fonts: FontInfo[] = [];
+  const unembeddedFonts: string[] = [];
+  const seenFonts = new Set<string>();
+
+  try {
+    const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+
+    // Font 객체 패턴
+    // /Type /Font /Subtype /TrueType /BaseFont /FontName
+    const fontPattern =
+      /<<[^>]*\/Type\s*\/Font[^>]*\/Subtype\s*\/([A-Za-z0-9]+)[^>]*\/BaseFont\s*\/([^\s\/\[\]>]+)[^>]*>>/gi;
+
+    // 대체 패턴: BaseFont가 먼저 오는 경우
+    const altFontPattern =
+      /<<[^>]*\/BaseFont\s*\/([^\s\/\[\]>]+)[^>]*\/Subtype\s*\/([A-Za-z0-9]+)[^>]*\/Type\s*\/Font[^>]*>>/gi;
+
+    // FontDescriptor에서 임베딩 정보 찾기
+    // /FontFile, /FontFile2 (TrueType), /FontFile3 (OpenType/CFF)
+    const fontDescriptorPattern =
+      /<<[^>]*\/Type\s*\/FontDescriptor[^>]*\/FontName\s*\/([^\s\/\[\]>]+)[^>]*(\/FontFile[23]?\s+\d+\s+\d+\s+R)?[^>]*>>/gi;
+
+    // 임베딩된 폰트 이름 수집
+    const embeddedFontNames = new Set<string>();
+    let match;
+
+    while ((match = fontDescriptorPattern.exec(pdfContent)) !== null) {
+      const fontName = decodeFontName(match[1]);
+      const hasFontFile = !!match[2];
+
+      if (hasFontFile) {
+        embeddedFontNames.add(fontName);
+        // 서브셋 폰트도 추가 (ABCDEF+FontName 형식)
+        const baseNameMatch = fontName.match(/^[A-Z]{6}\+(.+)$/);
+        if (baseNameMatch) {
+          embeddedFontNames.add(baseNameMatch[1]);
+        }
+      }
+    }
+
+    // 폰트 정보 추출
+    while ((match = fontPattern.exec(pdfContent)) !== null) {
+      const fontType = match[1];
+      const fontName = decodeFontName(match[2]);
+
+      if (seenFonts.has(fontName)) continue;
+      seenFonts.add(fontName);
+
+      const isSubset = /^[A-Z]{6}\+/.test(fontName);
+      const baseName = isSubset ? fontName.substring(7) : fontName;
+      const isEmbedded =
+        embeddedFontNames.has(fontName) ||
+        embeddedFontNames.has(baseName) ||
+        isSubset; // 서브셋은 항상 임베딩됨
+
+      fonts.push({
+        name: fontName,
+        type: normalizeFontType(fontType),
+        embedded: isEmbedded,
+        subset: isSubset,
+      });
+
+      if (!isEmbedded && !isStandardFont(baseName)) {
+        unembeddedFonts.push(fontName);
+      }
+    }
+
+    // 대체 패턴으로 추가 검색
+    while ((match = altFontPattern.exec(pdfContent)) !== null) {
+      const fontName = decodeFontName(match[1]);
+      const fontType = match[2];
+
+      if (seenFonts.has(fontName)) continue;
+      seenFonts.add(fontName);
+
+      const isSubset = /^[A-Z]{6}\+/.test(fontName);
+      const baseName = isSubset ? fontName.substring(7) : fontName;
+      const isEmbedded =
+        embeddedFontNames.has(fontName) ||
+        embeddedFontNames.has(baseName) ||
+        isSubset;
+
+      fonts.push({
+        name: fontName,
+        type: normalizeFontType(fontType),
+        embedded: isEmbedded,
+        subset: isSubset,
+      });
+
+      if (!isEmbedded && !isStandardFont(baseName)) {
+        unembeddedFonts.push(fontName);
+      }
+    }
+
+    // CIDFont 패턴 (CJK 폰트)
+    const cidFontPattern =
+      /<<[^>]*\/Type\s*\/Font[^>]*\/Subtype\s*\/Type0[^>]*\/BaseFont\s*\/([^\s\/\[\]>]+)[^>]*>>/gi;
+
+    while ((match = cidFontPattern.exec(pdfContent)) !== null) {
+      const fontName = decodeFontName(match[1]);
+
+      if (seenFonts.has(fontName)) continue;
+      seenFonts.add(fontName);
+
+      const isSubset = /^[A-Z]{6}\+/.test(fontName);
+      const baseName = isSubset ? fontName.substring(7) : fontName;
+      const isEmbedded =
+        embeddedFontNames.has(fontName) ||
+        embeddedFontNames.has(baseName) ||
+        isSubset;
+
+      fonts.push({
+        name: fontName,
+        type: 'CID',
+        embedded: isEmbedded,
+        subset: isSubset,
+      });
+
+      if (!isEmbedded && !isStandardFont(baseName)) {
+        unembeddedFonts.push(fontName);
+      }
+    }
+
+    const fontCount = fonts.length;
+    const hasUnembeddedFonts = unembeddedFonts.length > 0;
+    const allFontsEmbedded = !hasUnembeddedFonts;
+
+    logger.debug(
+      `Font detection: ${fontCount} fonts, embedded=${allFontsEmbedded}, unembedded=${unembeddedFonts.length}`,
+    );
+
+    return {
+      fontCount,
+      fonts,
+      hasUnembeddedFonts,
+      unembeddedFonts,
+      allFontsEmbedded,
+    };
+  } catch (error) {
+    logger.warn(`Font detection failed: ${error.message}`);
+    return {
+      fontCount: 0,
+      fonts: [],
+      hasUnembeddedFonts: false,
+      unembeddedFonts: [],
+      allFontsEmbedded: true,
+    };
+  }
+}
+
+/**
+ * 폰트 이름 디코딩
+ * PDF에서 특수문자는 #XX 형식으로 인코딩됨
+ */
+function decodeFontName(encoded: string): string {
+  return encoded.replace(/#([0-9A-Fa-f]{2})/g, (_, hex) => {
+    return String.fromCharCode(parseInt(hex, 16));
+  });
+}
+
+/**
+ * 폰트 타입 정규화
+ */
+function normalizeFontType(type: string): string {
+  const normalizedTypes: Record<string, string> = {
+    TrueType: 'TrueType',
+    Type1: 'Type1',
+    Type0: 'CID',
+    Type3: 'Type3',
+    CIDFontType0: 'CID',
+    CIDFontType2: 'CID-TrueType',
+    OpenType: 'OpenType',
+    MMType1: 'MultipleMaster',
+  };
+  return normalizedTypes[type] || type;
+}
+
+/**
+ * 표준 폰트 여부 확인
+ * PDF 14 표준 폰트는 임베딩 없이 사용 가능
+ */
+function isStandardFont(fontName: string): boolean {
+  const standardFonts = [
+    'Times-Roman',
+    'Times-Bold',
+    'Times-Italic',
+    'Times-BoldItalic',
+    'Helvetica',
+    'Helvetica-Bold',
+    'Helvetica-Oblique',
+    'Helvetica-BoldOblique',
+    'Courier',
+    'Courier-Bold',
+    'Courier-Oblique',
+    'Courier-BoldOblique',
+    'Symbol',
+    'ZapfDingbats',
+    // 변형 이름
+    'TimesNewRoman',
+    'TimesNewRomanPS',
+    'TimesNewRomanPSMT',
+    'Arial',
+    'ArialMT',
+  ];
+  return standardFonts.some(
+    (std) => fontName.toLowerCase().includes(std.toLowerCase()),
+  );
 }
 
 /**

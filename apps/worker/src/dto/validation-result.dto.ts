@@ -343,3 +343,39 @@ export interface ImageResolutionResult {
   /** 모든 이미지 정보 */
   images: ImageInfo[];
 }
+
+// ============================================================
+// 폰트 감지 관련 타입
+// ============================================================
+
+/**
+ * 폰트 정보
+ */
+export interface FontInfo {
+  /** 폰트 이름 */
+  name: string;
+  /** 폰트 타입 (TrueType, Type1, CID, OpenType 등) */
+  type: string;
+  /** 임베딩 여부 */
+  embedded: boolean;
+  /** 서브셋 여부 */
+  subset: boolean;
+  /** 인코딩 */
+  encoding?: string;
+}
+
+/**
+ * 폰트 감지 결과
+ */
+export interface FontDetectionResult {
+  /** 감지된 폰트 수 */
+  fontCount: number;
+  /** 사용된 폰트 목록 */
+  fonts: FontInfo[];
+  /** 임베딩되지 않은 폰트 존재 여부 */
+  hasUnembeddedFonts: boolean;
+  /** 임베딩되지 않은 폰트 목록 */
+  unembeddedFonts: string[];
+  /** 모든 폰트 임베딩 여부 */
+  allFontsEmbedded: boolean;
+}

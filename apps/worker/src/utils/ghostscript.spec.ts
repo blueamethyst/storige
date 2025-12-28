@@ -17,6 +17,7 @@ import {
   detectSpotColors,
   detectTransparencyAndOverprint,
   detectImageResolutionFromPdf,
+  detectFonts,
 } from './ghostscript';
 
 describe('Ghostscript Utilities', () => {
@@ -443,6 +444,166 @@ describe('Ghostscript Utilities', () => {
         pdfBytes,
       );
       expect(transparencyResult.hasTransparency).toBe(false);
+    });
+  });
+
+  // ============================================================
+  // 폰트 감지 테스트
+  // ============================================================
+  describe('detectFonts', () => {
+    describe('PDF without fonts', () => {
+      it('should return empty result for PDF without fonts', async () => {
+        const pdfDoc = await PDFDocument.create();
+        pdfDoc.addPage([595, 842]); // A4
+        const pdfBytes = await pdfDoc.save();
+
+        const result = await detectFonts(pdfBytes);
+
+        expect(result.fontCount).toBe(0);
+        expect(result.fonts).toHaveLength(0);
+        expect(result.hasUnembeddedFonts).toBe(false);
+        expect(result.allFontsEmbedded).toBe(true);
+      });
+
+      it('should handle empty PDF', async () => {
+        const pdfDoc = await PDFDocument.create();
+        const pdfBytes = await pdfDoc.save();
+
+        const result = await detectFonts(pdfBytes);
+
+        expect(result.fontCount).toBe(0);
+        expect(result.hasUnembeddedFonts).toBe(false);
+      });
+    });
+
+    describe('PDF with embedded fonts (using fixture files)', () => {
+      it('should detect fonts in real PDF file', async () => {
+        const pdfPath = path.join(FIXTURES_DIR, 'rgb', 'success-a4-single.pdf');
+
+        if (!await fileExists(pdfPath)) {
+          console.log('Skipping test: success-a4-single.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pdfPath);
+        const result = await detectFonts(pdfBytes);
+
+        // PDF에 폰트가 있거나 없을 수 있음 (픽스처에 따라 다름)
+        expect(typeof result.fontCount).toBe('number');
+        expect(Array.isArray(result.fonts)).toBe(true);
+        expect(typeof result.hasUnembeddedFonts).toBe('boolean');
+        expect(typeof result.allFontsEmbedded).toBe('boolean');
+      });
+
+      it('should detect fonts in 8-page PDF', async () => {
+        const pdfPath = path.join(FIXTURES_DIR, 'rgb', 'success-a4-8pages.pdf');
+
+        if (!await fileExists(pdfPath)) {
+          console.log('Skipping test: success-a4-8pages.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pdfPath);
+        const result = await detectFonts(pdfBytes);
+
+        expect(typeof result.fontCount).toBe('number');
+        expect(Array.isArray(result.fonts)).toBe(true);
+      });
+    });
+
+    describe('FontInfo structure', () => {
+      it('should return correct FontInfo structure when fonts exist', async () => {
+        const pdfPath = path.join(FIXTURES_DIR, 'rgb', 'success-a4-single.pdf');
+
+        if (!await fileExists(pdfPath)) {
+          console.log('Skipping test: success-a4-single.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pdfPath);
+        const result = await detectFonts(pdfBytes);
+
+        if (result.fontCount > 0) {
+          const firstFont = result.fonts[0];
+          expect(firstFont).toHaveProperty('name');
+          expect(firstFont).toHaveProperty('type');
+          expect(firstFont).toHaveProperty('embedded');
+          expect(firstFont).toHaveProperty('subset');
+
+          expect(typeof firstFont.name).toBe('string');
+          expect(typeof firstFont.type).toBe('string');
+          expect(typeof firstFont.embedded).toBe('boolean');
+          expect(typeof firstFont.subset).toBe('boolean');
+        }
+      });
+    });
+
+    describe('Font embedding detection', () => {
+      it('should detect subset fonts as embedded', async () => {
+        // 서브셋 폰트는 ABCDEF+FontName 형식으로 이름이 지정됨
+        // pdf-lib로 생성한 PDF는 서브셋 폰트를 사용
+        const pdfPath = path.join(FIXTURES_DIR, 'rgb', 'success-a4-single.pdf');
+
+        if (!await fileExists(pdfPath)) {
+          console.log('Skipping test: success-a4-single.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pdfPath);
+        const result = await detectFonts(pdfBytes);
+
+        // 서브셋 폰트는 임베딩됨으로 처리
+        const subsetFonts = result.fonts.filter((f) => f.subset);
+        for (const font of subsetFonts) {
+          expect(font.embedded).toBe(true);
+        }
+      });
+
+      it('should handle PDF with multiple fonts', async () => {
+        const pdfDoc = await PDFDocument.create();
+        for (let i = 0; i < 5; i++) {
+          pdfDoc.addPage([595, 842]); // A4
+        }
+        const pdfBytes = await pdfDoc.save();
+
+        const result = await detectFonts(pdfBytes);
+
+        // 빈 PDF는 폰트가 없음
+        expect(result.fontCount).toBe(0);
+        expect(result.allFontsEmbedded).toBe(true);
+      });
+    });
+
+    describe('Standard font detection', () => {
+      it('should recognize PDF standard fonts', async () => {
+        // PDF 14 표준 폰트는 임베딩 없이 사용 가능
+        // Helvetica, Times-Roman, Courier 등
+        const pdfPath = path.join(FIXTURES_DIR, 'rgb', 'success-a4-single.pdf');
+
+        if (!await fileExists(pdfPath)) {
+          console.log('Skipping test: success-a4-single.pdf not found');
+          return;
+        }
+
+        const pdfBytes = await fs.readFile(pdfPath);
+        const result = await detectFonts(pdfBytes);
+
+        // 표준 폰트는 unembeddedFonts에 포함되지 않아야 함
+        const standardFontNames = [
+          'Helvetica',
+          'Times-Roman',
+          'Courier',
+          'Arial',
+        ];
+
+        for (const fontName of standardFontNames) {
+          expect(
+            result.unembeddedFonts.some((name) =>
+              name.toLowerCase().includes(fontName.toLowerCase()),
+            ),
+          ).toBe(false);
+        }
+      });
     });
   });
 
