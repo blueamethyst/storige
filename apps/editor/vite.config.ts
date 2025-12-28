@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from 'vite'
+import { defineConfig, loadEnv, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
@@ -34,7 +34,10 @@ function colorRuntimeStubPlugin(): Plugin {
 const isLibraryBuild = process.env.BUILD_MODE === 'embed'
 console.log(`[vite.config] BUILD_MODE=${process.env.BUILD_MODE}, isLibraryBuild=${isLibraryBuild}`)
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
+  base: isLibraryBuild ? './' : (env.VITE_ROUTER_BASE || './'),
   plugins: [
     colorRuntimeStubPlugin(),
     react(),
@@ -134,4 +137,4 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@pf/color-runtime'],
   },
-})
+}})
