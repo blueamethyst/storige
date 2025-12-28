@@ -36,9 +36,11 @@ console.log(`[vite.config] BUILD_MODE=${process.env.BUILD_MODE}, isLibraryBuild=
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const base = isLibraryBuild ? './' : (env.VITE_ROUTER_BASE || './')
+  console.log(`[vite.config] mode=${mode}, VITE_ROUTER_BASE=${env.VITE_ROUTER_BASE}, base=${base}`)
   return {
-  base: isLibraryBuild ? './' : (env.VITE_ROUTER_BASE || './'),
-  plugins: [
+    base,
+    plugins: [
     colorRuntimeStubPlugin(),
     react(),
     visualizer({
