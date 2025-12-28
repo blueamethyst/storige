@@ -7,7 +7,6 @@ import {
   ManyToOne,
   JoinColumn,
   BeforeInsert,
-  RelationId,
 } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../../auth/entities/user.entity';
@@ -36,12 +35,12 @@ export class EditorDesign {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @Column({ name: 'user_id', type: 'varchar', length: 36 })
+  userId: string;
+
   @ManyToOne(() => User, { nullable: false })
   @JoinColumn({ name: 'user_id' })
   user: User;
-
-  @RelationId((design: EditorDesign) => design.user)
-  userId: string;
 
   @BeforeInsert()
   generateId() {
