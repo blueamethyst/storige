@@ -13,6 +13,9 @@ import { ValidationProcessor } from './processors/validation.processor';
 import { ConversionProcessor } from './processors/conversion.processor';
 import { SynthesisProcessor } from './processors/synthesis.processor';
 
+// Controllers
+import { HealthController } from './health/health.controller';
+
 @Module({
   imports: [
     // Configuration
@@ -56,7 +59,7 @@ import { SynthesisProcessor } from './processors/synthesis.processor';
       { name: 'pdf-synthesis' },
     ),
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [
     // Services
     PdfValidatorService,
