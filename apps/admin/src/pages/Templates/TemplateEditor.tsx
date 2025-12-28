@@ -76,7 +76,21 @@ export const TemplateEditor = () => {
   useEffect(() => {
     const handleMessage = (event: MessageEvent<TemplateEditorMessage>) => {
       // 에디터 origin 확인
-      if (!event.origin.includes('localhost:3000') && !event.origin.includes(new URL(EDITOR_URL).host)) {
+      // 상대 경로인 경우 현재 origin과 비교, 절대 URL인 경우 해당 host와 비교
+      const isValidOrigin = (() => {
+        if (event.origin.includes('localhost:3000')) return true;
+        if (EDITOR_URL.startsWith('/')) {
+          // 상대 경로: 같은 origin에서 로드됨
+          return event.origin === window.location.origin;
+        }
+        try {
+          return event.origin.includes(new URL(EDITOR_URL).host);
+        } catch {
+          return false;
+        }
+      })();
+
+      if (!isValidOrigin) {
         return;
       }
 

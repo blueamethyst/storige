@@ -182,7 +182,11 @@ export const TemplateSetList = () => {
   };
 
   const handleOpenEditor = (id: string) => {
-    const url = new URL(EDITOR_BASE_URL);
+    // 상대 경로인 경우 현재 origin을 base로 사용
+    const baseUrl = EDITOR_BASE_URL.startsWith('/')
+      ? window.location.origin + EDITOR_BASE_URL
+      : EDITOR_BASE_URL;
+    const url = new URL(baseUrl);
     url.searchParams.set('templateSetId', id);
     if (accessToken) {
       url.searchParams.set('token', accessToken);
