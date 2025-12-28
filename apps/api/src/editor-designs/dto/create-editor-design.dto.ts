@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, ValidateNested, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsObject, ValidateNested, IsNumber, IsNotEmpty, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class EditorDesignMetadataDto {
@@ -15,6 +15,10 @@ class EditorDesignMetadataDto {
 
   @IsObject()
   settings: Record<string, any>;
+
+  @IsOptional()
+  @IsBoolean()
+  isAdmin?: boolean;
 }
 
 export class CreateEditorDesignDto {

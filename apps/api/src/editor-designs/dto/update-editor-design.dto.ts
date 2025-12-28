@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsObject, ValidateNested, IsNumber, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class PartialEditorDesignMetadataDto {
@@ -17,6 +17,10 @@ class PartialEditorDesignMetadataDto {
   @IsOptional()
   @IsObject()
   settings?: Record<string, any>;
+
+  @IsOptional()
+  @IsBoolean()
+  isAdmin?: boolean;
 }
 
 export class UpdateEditorDesignDto {
