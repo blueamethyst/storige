@@ -1,6 +1,6 @@
 # Storige-Bookmoa 서비스 플로우 테스트 케이스
 
-> **문서 버전**: 1.0
+> **문서 버전**: 1.3
 > **작성일**: 2025-12-28
 > **대상 시스템**: Storige + Bookmoa 통합 인쇄 쇼핑몰 시스템
 
@@ -1539,6 +1539,160 @@ apps/worker/test/fixtures/pdf/
 
 ---
 
+### 7.11 헬스체크 테스트
+
+> **테스트 파일**: `apps/worker/src/health/health.controller.spec.ts`
+
+워커 서비스의 헬스체크 엔드포인트를 검증하는 테스트입니다.
+
+---
+
+#### TC-HEALTH-001: 헬스체크 기본 응답
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-001 |
+| **테스트명** | 헬스체크 기본 응답 검증 |
+| **우선순위** | Critical |
+| **엔드포인트** | `GET /health` |
+
+**기대결과:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-12-28T11:00:00.000Z",
+  "uptime": 3600.5,
+  "environment": "production",
+  "version": "1.0.0",
+  "queues": { ... }
+}
+```
+
+**검증항목:**
+- [ ] `status`가 `"ok"`
+- [ ] `timestamp`가 ISO 8601 형식
+- [ ] `uptime`이 0보다 큼
+- [ ] `environment`가 정의됨
+- [ ] `version`이 정의됨
+- [ ] `queues` 객체 존재
+
+---
+
+#### TC-HEALTH-002: 큐 상태 카운트 검증
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-002 |
+| **테스트명** | 큐별 작업 카운트 검증 |
+| **우선순위** | High |
+
+**기대결과:**
+```json
+{
+  "queues": {
+    "validation": { "waiting": 5, "active": 2, "completed": 100, "failed": 3, "delayed": 0 },
+    "conversion": { "waiting": 1, "active": 0, "completed": 50, "failed": 0, "delayed": 0 },
+    "synthesis": { "waiting": 0, "active": 1, "completed": 25, "failed": 0, "delayed": 0 }
+  }
+}
+```
+
+**검증항목:**
+- [ ] `validation` 큐 카운트 반환
+- [ ] `conversion` 큐 카운트 반환
+- [ ] `synthesis` 큐 카운트 반환
+- [ ] 각 큐에 `waiting`, `active`, `completed`, `failed`, `delayed` 포함
+
+---
+
+#### TC-HEALTH-003: Readiness 체크 (Redis 연결)
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-003 |
+| **테스트명** | Readiness 체크 - Redis 연결 확인 |
+| **우선순위** | Critical |
+| **엔드포인트** | `GET /health/ready` |
+
+**기대결과 (정상):**
+```json
+{ "status": "ready" }
+```
+
+**기대결과 (Redis 연결 실패):**
+```json
+{ "status": "not_ready", "error": "Redis connection failed" }
+```
+
+**검증항목:**
+- [ ] Redis 연결 시 `status: "ready"`
+- [ ] Redis 연결 실패 시 `status: "not_ready"`
+- [ ] 연결 실패 시 `error` 메시지 포함
+
+---
+
+#### TC-HEALTH-004: Liveness 체크
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-004 |
+| **테스트명** | Liveness 체크 |
+| **우선순위** | High |
+| **엔드포인트** | `GET /health/live` |
+
+**기대결과:**
+```json
+{ "status": "alive" }
+```
+
+**검증항목:**
+- [ ] 항상 `status: "alive"` 반환
+- [ ] 외부 의존성 없이 즉시 응답
+
+---
+
+#### TC-HEALTH-005: 빈 큐 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-005 |
+| **테스트명** | 빈 큐 상태 처리 |
+| **우선순위** | Medium |
+
+**검증항목:**
+- [ ] 모든 카운트가 0인 경우 정상 처리
+- [ ] 에러 없이 응답 반환
+
+---
+
+#### TC-HEALTH-006: 대량 작업 카운트 처리
+
+| 항목 | 내용 |
+|------|------|
+| **테스트 ID** | TC-HEALTH-006 |
+| **테스트명** | 대량 작업 카운트 처리 |
+| **우선순위** | Medium |
+
+**검증항목:**
+- [ ] `waiting: 10000` 정상 처리
+- [ ] `completed: 1000000` 정상 처리
+- [ ] 큰 숫자도 에러 없이 반환
+
+---
+
+### 7.12 헬스체크 테스트 매트릭스
+
+| 테스트 ID | 시나리오 | 예상 결과 | 우선순위 |
+|-----------|----------|-----------|----------|
+| TC-HEALTH-001 | 기본 헬스체크 | status: ok + 메타데이터 | Critical |
+| TC-HEALTH-002 | 큐 카운트 | 3개 큐 카운트 반환 | High |
+| TC-HEALTH-003 | Readiness 체크 | Redis ping 성공/실패 | Critical |
+| TC-HEALTH-004 | Liveness 체크 | status: alive | High |
+| TC-HEALTH-005 | 빈 큐 처리 | 에러 없음 | Medium |
+| TC-HEALTH-006 | 대량 카운트 | 에러 없음 | Medium |
+
+---
+
 ## 8. 통합 E2E 테스트
 
 ### 8.1 전체 플로우 E2E 테스트
@@ -1712,8 +1866,9 @@ export const testData = {
 | 웹훅 | 5 | | | |
 | 워커 유닛 | 18 | | | |
 | 워커 시나리오 | 19 | | | |
+| 헬스체크 | 6 | | | |
 | E2E | 5 | | | |
-| **합계** | **82** | | | |
+| **합계** | **88** | | | |
 
 ---
 
@@ -1724,3 +1879,4 @@ export const testData = {
 | 1.0 | 2025-12-28 | 최초 작성 |
 | 1.1 | 2025-12-28 | 워커 유닛 테스트 섹션 추가 (폰트/이미지 해상도/별색/투명도/CMYK 감지) |
 | 1.2 | 2025-12-28 | 워커 비즈니스 시나리오 테스트 추가 (표지/후가공/폰트/해상도/주문플로우) |
+| 1.3 | 2025-12-28 | 헬스체크 테스트 섹션 추가 (기본 응답/큐 상태/Readiness/Liveness) |
