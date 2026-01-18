@@ -13,10 +13,6 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        CORS_ORIGIN: 'http://bookmoa.noriter.co.kr:3000,http://bookmoa.noriter.co.kr:3001',
-        API_KEYS: 'storige-internal-api-key-2024,bookmoa-api-key-2024',
-        REDIS_HOST: 'localhost',
-        REDIS_PORT: '6379',
       },
       error_file: './logs/api-error.log',
       out_file: './logs/api-out.log',
@@ -37,15 +33,6 @@ module.exports = {
       max_memory_restart: '2G', // Worker needs more memory for PDF processing
       env: {
         NODE_ENV: 'production',
-        DATABASE_USER: 'gprinting_remote',
-        DATABASE_PASSWORD: 'Gprinting2024',
-        DATABASE_NAME: 'gprinting',
-        DATABASE_HOST: '58.229.105.98',
-        DATABASE_PORT: '3306',
-        REDIS_HOST: 'localhost',
-        REDIS_PORT: '6379',
-        API_BASE_URL: 'http://localhost:4000/api',
-        WORKER_API_KEY: 'storige-internal-api-key-2024',
       },
       error_file: './logs/worker-error.log',
       out_file: './logs/worker-out.log',

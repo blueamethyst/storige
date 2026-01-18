@@ -18,10 +18,13 @@ import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
-    // Configuration
+    // Configuration - loads environment-specific file based on NODE_ENV
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env',
+      ],
     }),
 
     // Database (MariaDB - for job status updates)

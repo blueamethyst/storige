@@ -2,7 +2,10 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Load environment variables before anything else
-config({ path: resolve(__dirname, '../../../.env') });
+// Priority: .env.{NODE_ENV} > .env
+const nodeEnv = process.env.NODE_ENV || 'development';
+config({ path: resolve(__dirname, `../.env.${nodeEnv}`) });
+config({ path: resolve(__dirname, '../.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
