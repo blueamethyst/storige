@@ -21,6 +21,9 @@ $sessionId = $_GET['sessionId'] ?? null;
 $pages = intval($_GET['pages'] ?? 20);
 $wingFront = isset($_GET['wingFront']) ? intval($_GET['wingFront']) : null;
 $wingBack = isset($_GET['wingBack']) ? intval($_GET['wingBack']) : null;
+// 세션 생성용 파라미터 (bookmoa 연동)
+$mode = $_GET['mode'] ?? 'both';  // 기본값: 표지+내지 모두 편집
+$orderSeqno = isset($_GET['orderSeqno']) ? intval($_GET['orderSeqno']) : 1;  // 기본값: 1 (테스트용)
 
 // 필수 파라미터 확인
 if (!$templateSetId || !$productId) {
@@ -280,6 +283,8 @@ $apiBaseUrl = 'http://localhost:4000/api';
                 productId: '<?= htmlspecialchars($productId) ?>',
                 token: '<?= htmlspecialchars($token) ?>',
                 apiBaseUrl: '<?= htmlspecialchars($apiBaseUrl) ?>',
+                mode: '<?= htmlspecialchars($mode) ?>',
+                orderSeqno: <?= $orderSeqno ?>,
                 <?php if ($sessionId): ?>
                 sessionId: '<?= htmlspecialchars($sessionId) ?>',
                 <?php endif; ?>
