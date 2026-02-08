@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { v4 as uuid } from 'uuid'
 import { useAppStore } from '@/stores/useAppStore'
+import { useEditorStore } from '@/stores/useEditorStore'
 import {
   useSettingsStore,
   type EditorUseCase,
@@ -10,15 +11,18 @@ import {
   type EmptyEditorSetupConfig,
   type GeneralSetupConfig,
 } from '@/stores/useSettingsStore'
-import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay } from '@storige/canvas-core'
+import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay, computeLayout } from '@storige/canvas-core'
 import { contentsApi, storageApi, templateSetsApi, templatesApi } from '@/api'
 import { createCanvas } from '@/utils/createCanvas'
 import { recalculateSpineWidth, initSpineConfig } from '@/utils/spineCalculator'
+import { buildSpreadSpec } from '@/utils/buildSpreadSpec'
 import type {
   EditorContent,
   EditorTemplate,
 } from '@/generated/graphql'
 import type { fabric } from 'fabric'
+import type { EditorMode, SpreadConfig, EditPage } from '@storige/types'
+import { TemplateType } from '@storige/types'
 
 // Fabric.js Object 확장 타입 (canvas-core에서 사용하는 커스텀 속성 포함)
 interface ExtendedFabricObject extends fabric.Object {
@@ -874,7 +878,23 @@ export function useEditorContents(): UseEditorContentsReturn {
       console.log('[EditorContents] Template set loaded:', templateSet.name)
       console.log('[EditorContents] Original template details count:', originalTemplateDetails.length)
 
-      // 2. 페이지수 조정 (pageCount 파라미터가 있는 경우)
+      // 2. EditorMode 확인 및 분기
+      const editorMode = (templateSet as any).editorMode as EditorMode
+      console.log('[EditorContents] EditorMode:', editorMode)
+
+      if (editorMode === 'book') {
+        // ========================================================================
+        // Spread Mode 초기화 (§4.5 설계서)
+        // ========================================================================
+        await loadSpreadModeEditor(config, templateSet, originalTemplateDetails)
+        return
+      }
+
+      // ========================================================================
+      // Single Mode 초기화 (기존 로직)
+      // ========================================================================
+
+      // 3. 페이지수 조정 (pageCount 파라미터가 있는 경우)
       let templateDetails = [...originalTemplateDetails]
       const requestedPageCount = config.pageCount
 
@@ -919,7 +939,7 @@ export function useEditorContents(): UseEditorContentsReturn {
               id: uuid(),  // 새 ID 생성
               name: `${lastPageTemplate.name || '내지'} (${currentPageCount + i + 1})`,
               order: templateDetails.length,
-            })
+            } as any)
           }
 
           console.log(`[EditorContents] Template details after page adjustment: ${templateDetails.length}`)
@@ -945,7 +965,7 @@ export function useEditorContents(): UseEditorContentsReturn {
         type: 'template',
         name: t.name || `Page ${index + 1}`,
         pageType: (t as any).type,  // API는 type 필드 사용
-        order: t.order ?? index,
+        order: (t as any).order ?? index,
       })) as any[]
       setEditorTemplates(templateMetadata)
 
@@ -1281,6 +1301,271 @@ export function useEditorContents(): UseEditorContentsReturn {
       throw error
     } finally {
       editor?.emit('longTask:end')
+    }
+
+    /**
+     * Spread Mode 전용 에디터 로드 헬퍼 함수
+     */
+    async function loadSpreadModeEditor(
+      config: TemplateSetBasedSetupConfig,
+      templateSet: any,
+      originalTemplateDetails: any[]
+    ): Promise<void> {
+      console.log('[EditorContents:Spread] Loading spread mode editor')
+
+      // 1. spread 템플릿 찾기 (type === 'spread')
+      const spreadTemplate = originalTemplateDetails.find((t: any) => t.type === 'spread')
+      if (!spreadTemplate) {
+        throw new Error('Spread 템플릿을 찾을 수 없습니다.')
+      }
+
+      // 2. SpreadSpec 구성
+      const spreadSpec = buildSpreadSpec({
+        template: spreadTemplate,
+        cutSizeMm: 2,
+        safeSizeMm: 3,
+        dpi: 150,
+      })
+
+      if (!spreadSpec) {
+        throw new Error('SpreadSpec 구성에 실패했습니다.')
+      }
+
+      console.log('[EditorContents:Spread] SpreadSpec built:', spreadSpec)
+
+      // 3. computeLayout으로 완전한 SpreadConfig 계산
+      const spreadLayout = computeLayout(spreadSpec)
+      const spreadConfig: SpreadConfig = {
+        spec: spreadSpec,
+        regions: spreadLayout.regions,
+        totalWidthMm: spreadLayout.totalWidthMm,
+        totalHeightMm: spreadLayout.totalHeightMm,
+      }
+
+      console.log('[EditorContents:Spread] SpreadConfig calculated:', spreadConfig)
+
+      // 4. settingsStore에 SpreadConfig 저장
+      useSettingsStore.getState().setSpreadConfig(spreadConfig)
+
+      // 5. 빈 에디터 스토어 설정 (spread 캔버스용)
+      await setupEmptyEditorStore({
+        name: templateSet.name,
+        size: {
+          width: spreadSpec.coverWidthMm,
+          height: spreadSpec.coverHeightMm,
+          cutSize: spreadSpec.cutSizeMm,
+          safeSize: spreadSpec.safeSizeMm,
+        },
+        unit: 'mm',
+      })
+
+      // 6. spread 캔버스 생성 (createCanvas가 SpreadPlugin을 자동 등록함)
+      // 첫 번째 캔버스가 spread 캔버스로 생성됨
+      const spreadCanvasData = spreadTemplate.canvasData
+        ? typeof spreadTemplate.canvasData === 'string'
+          ? JSON.parse(spreadTemplate.canvasData)
+          : spreadTemplate.canvasData
+        : null
+
+      if (spreadCanvasData) {
+        console.log('[EditorContents:Spread] Loading spread canvas data')
+        const canvases = Array.isArray(spreadCanvasData) ? spreadCanvasData : [spreadCanvasData]
+        await loadCanvasData(canvases)
+      } else {
+        console.log('[EditorContents:Spread] No spread canvasData, initializing workspace only')
+        await initWorkspace()
+      }
+
+      // 7. isSpreadMode 설정
+      useAppStore.getState().setSpreadMode(true)
+
+      // 8. 내지 페이지 템플릿 필터링 (type === 'page')
+      const pageTemplates = originalTemplateDetails.filter((t: any) => t.type === 'page')
+      console.log('[EditorContents:Spread] Page templates count:', pageTemplates.length)
+
+      // 9. 페이지수 조정 (config.pageCount가 있는 경우)
+      let adjustedPageTemplates = [...pageTemplates]
+      const requestedPageCount = config.pageCount
+
+      if (requestedPageCount !== undefined) {
+        const currentPageCount = pageTemplates.length
+
+        console.log(`[EditorContents:Spread] Page adjustment: requested=${requestedPageCount}, current=${currentPageCount}`)
+
+        // pageCountRange 검증
+        const pageCountRange = (templateSet as any).pageCountRange || []
+        if (pageCountRange.length > 0) {
+          const minPages = Math.min(...pageCountRange)
+          const maxPages = Math.max(...pageCountRange)
+
+          if (requestedPageCount < minPages) {
+            throw new Error(`페이지 수는 최소 ${minPages}페이지 이상이어야 합니다.`)
+          }
+          if (requestedPageCount > maxPages) {
+            throw new Error(`페이지 수는 최대 ${maxPages}페이지를 초과할 수 없습니다.`)
+          }
+        }
+
+        // 페이지수가 템플릿 내지수보다 적으면 에러
+        if (requestedPageCount < currentPageCount) {
+          throw new Error(
+            `요청된 페이지 수(${requestedPageCount})가 템플릿의 최소 내지 수(${currentPageCount})보다 적습니다.`
+          )
+        }
+
+        // 페이지수가 더 많으면 마지막 내지 템플릿 복제
+        if (requestedPageCount > currentPageCount && pageTemplates.length > 0) {
+          const lastPageTemplate = pageTemplates[pageTemplates.length - 1]
+          const pagesToAdd = requestedPageCount - currentPageCount
+
+          console.log(`[EditorContents:Spread] Adding ${pagesToAdd} pages by cloning last page template`)
+
+          for (let i = 0; i < pagesToAdd; i++) {
+            adjustedPageTemplates.push({
+              ...lastPageTemplate,
+              id: uuid(),
+              name: `${lastPageTemplate.name || '내지'} (${currentPageCount + i + 1})`,
+              order: adjustedPageTemplates.length,
+            })
+          }
+
+          console.log(`[EditorContents:Spread] Adjusted page templates count: ${adjustedPageTemplates.length}`)
+        }
+      }
+
+      // 10. 내지 페이지 캔버스 생성 및 로드
+      if (adjustedPageTemplates.length > 0) {
+        const appStore = useAppStore.getState()
+
+        for (let i = 0; i < adjustedPageTemplates.length; i++) {
+          const pageTemplate = adjustedPageTemplates[i]
+
+          console.log(`[EditorContents:Spread] Creating inner page ${i + 1}/${adjustedPageTemplates.length}`)
+
+          // 내지 페이지 추가 (addInnerPage는 debounced spine 계산 포함)
+          await appStore.addInnerPage()
+
+          // 최신 상태 가져오기
+          const latestAllCanvas = useAppStore.getState().allCanvas
+          const latestAllEditors = useAppStore.getState().allEditors
+          const newPageIndex = latestAllCanvas.length - 1
+
+          // canvasData가 있으면 로드
+          if (pageTemplate.canvasData) {
+            const canvasData = typeof pageTemplate.canvasData === 'string'
+              ? JSON.parse(pageTemplate.canvasData)
+              : pageTemplate.canvasData
+
+            // canvasData에 실제 객체가 있는지 확인 (workspace 제외)
+            const dataToCheck = Array.isArray(canvasData) ? canvasData[0] : canvasData
+            const hasNonWorkspaceObjects = dataToCheck?.objects && Array.isArray(dataToCheck.objects) &&
+              dataToCheck.objects.some((obj: any) => obj.id !== 'workspace')
+
+            const targetEditor = latestAllEditors[newPageIndex]
+            const servicePlugin = targetEditor.getPlugin<ServicePlugin>('ServicePlugin')
+
+            console.log(`[EditorContents:Spread] Loading canvasData to inner page ${newPageIndex}:`, {
+              hasServicePlugin: !!servicePlugin,
+              hasNonWorkspaceObjects,
+            })
+
+            if (servicePlugin && hasNonWorkspaceObjects) {
+              const dataToLoad = Array.isArray(canvasData) ? canvasData[0] : canvasData
+              await new Promise<void>((resolve) => {
+                servicePlugin.loadJSON(dataToLoad, () => {
+                  console.log(`[EditorContents:Spread] loadJSON completed for inner page ${newPageIndex}`)
+                  resolve()
+                })
+              })
+            } else {
+              console.log(`[EditorContents:Spread] Skipping loadJSON for inner page ${newPageIndex} - no non-workspace objects`)
+            }
+          }
+        }
+
+        // 첫 번째 페이지(spread 캔버스)로 돌아가기
+        appStore.setPage(0)
+
+        console.log(`[EditorContents:Spread] All ${adjustedPageTemplates.length} inner pages loaded`)
+      }
+
+      // 10-1. useEditorStore.pages 설정 (SpreadPagePanel이 참조)
+      const editorPages: EditPage[] = []
+
+      // 스프레드 페이지 (index 0)
+      editorPages.push({
+        id: spreadTemplate.id,
+        templateId: spreadTemplate.id,
+        templateType: TemplateType.SPREAD,
+        canvasData: { version: '5.3.0', objects: [] },
+        sortOrder: 0,
+        required: true,
+        deleteable: false,
+      })
+
+      // 내지 페이지들
+      for (let i = 0; i < adjustedPageTemplates.length; i++) {
+        const pt = adjustedPageTemplates[i]
+        editorPages.push({
+          id: pt.id,
+          templateId: pt.id,
+          templateType: TemplateType.PAGE,
+          canvasData: { version: '5.3.0', objects: [] },
+          sortOrder: i + 1,
+          required: pt.required !== false,
+          deleteable: pt.required === false,
+        })
+      }
+
+      const editorStore = useEditorStore.getState()
+      editorStore.setPages(editorPages)
+
+      // canAddPage, pageCountRange도 설정
+      useEditorStore.setState({
+        canAddPage: templateSet.canAddPage ?? true,
+        pageCountRange: templateSet.pageCountRange ?? [],
+        templateSetId: templateSet.id,
+        templateSetName: templateSet.name,
+      })
+
+      console.log(`[EditorContents:Spread] EditorStore pages set: ${editorPages.length} pages`)
+
+      // 11. 템플릿 메타데이터 저장 (스프레드 모드용)
+      const spreadMetadata = {
+        id: spreadTemplate.id,
+        type: 'template',
+        name: spreadTemplate.name || 'Spread',
+        pageType: 'spread',
+        order: 0,
+      }
+
+      const pageMetadata = adjustedPageTemplates.map((t: any, index: number) => ({
+        id: t.id,
+        type: 'template',
+        name: t.name || `Page ${index + 1}`,
+        pageType: 'page',
+        order: index + 1,
+      }))
+
+      setEditorTemplates([spreadMetadata, ...pageMetadata])
+
+      // 12. 책등 설정 초기화 및 자동 리사이징
+      initSpineConfig(config.paperType || null, config.bindingType || null)
+
+      if (config.paperType && config.bindingType) {
+        const spineResult = await recalculateSpineWidth({
+          paperType: config.paperType,
+          bindingType: config.bindingType,
+        })
+
+        if (spineResult.success) {
+          console.log(`[EditorContents:Spread] Spine width calculated: ${spineResult.spineWidth}mm`)
+        } else if (spineResult.error) {
+          console.warn(`[EditorContents:Spread] Spine calculation skipped: ${spineResult.error}`)
+        }
+      }
+
+      console.log('[EditorContents:Spread] Spread mode editor loaded successfully')
     }
   }, [editor, setupEmptyEditorStore, setEditorTemplates, initWorkspace, loadCanvasData])
 
