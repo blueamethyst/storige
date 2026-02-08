@@ -10,6 +10,8 @@ import FeatureSidebar from '@/components/editor/FeatureSidebar'
 import ControlBar from '@/components/editor/ControlBar'
 import SidePanel from '@/components/editor/SidePanel'
 import EditorHeader from '@/components/editor/EditorHeader'
+import { PagePanel } from '@/components/PagePanel/PagePanel'
+import { SpreadPagePanel } from '@/components/PagePanel/SpreadPagePanel'
 import { productsApi } from '@/api'
 
 // Screen mode type
@@ -71,6 +73,7 @@ export default function EditorView() {
     startInitialization,
     cancelInitialization,
     updateObjects,
+    isSpreadMode,
   } = useAppStore()
   const { getUseCaseFromParams } = useSettingsStore()
 
@@ -452,15 +455,15 @@ export default function EditorView() {
       />
 
       {/* Main Layout */}
-      <div className={`flex-1 flex relative overflow-hidden ${screenMode !== 'desktop' ? 'flex-col' : 'flex-row'}`}>
+      <div className={`flex-1 flex ${isSpreadMode ? 'flex-col' : screenMode !== 'desktop' ? 'flex-col' : 'flex-row'} relative overflow-hidden`}>
         {/* Tool Sidebar - horizontal in tablet/mobile mode */}
-        <ToolBar horizontal={screenMode !== 'desktop'} />
+        {!isSpreadMode && <ToolBar horizontal={screenMode !== 'desktop'} />}
 
-        {/* Content area - always flex-row for sidebar + canvas */}
+        {/* Content area - flex-row for sidebar + canvas (스프레드 모드도 동일) */}
         <div className="flex-1 flex flex-row relative overflow-hidden">
           {/* Feature Sidebar or Control Bar - mutually exclusive */}
-          <FeatureSidebar />
-          {ready && <ControlBar />}
+          {!isSpreadMode && <FeatureSidebar />}
+          {ready && !isSpreadMode && <ControlBar />}
 
           {/* Canvas Area */}
           <main className="flex-1 relative overflow-hidden bg-editor-workspace">
@@ -482,9 +485,12 @@ export default function EditorView() {
             </div>
           </main>
 
-          {/* Side Panel */}
-          <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />
+          {/* Side Panel (스프레드 모드에서는 숨김) */}
+          {!isSpreadMode && <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />}
         </div>
+
+        {/* 스프레드 모드 전용 하단 페이지 패널 */}
+        {isSpreadMode && <SpreadPagePanel />}
       </div>
 
       {/* Loading Overlay */}

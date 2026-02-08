@@ -12,7 +12,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { Category } from './category.entity';
 import { User } from '../../auth/entities/user.entity';
-import type { CanvasData, TemplateType } from '@storige/types';
+import type { CanvasData, TemplateType, SpreadConfig } from '@storige/types';
 
 /**
  * 템플릿 타입 enum (DB용)
@@ -22,6 +22,7 @@ export enum TemplateTypeEnum {
   COVER = 'cover',
   SPINE = 'spine',
   PAGE = 'page',
+  SPREAD = 'spread',
 }
 
 @Entity('templates')
@@ -73,6 +74,12 @@ export class Template {
 
   @Column({ name: 'canvas_data', type: 'json' })
   canvasData: CanvasData;
+
+  /**
+   * 스프레드 설정 (type='spread'일 때만 사용)
+   */
+  @Column({ name: 'spread_config', type: 'json', nullable: true })
+  spreadConfig: SpreadConfig | null;
 
   /**
    * 소프트 삭제 플래그

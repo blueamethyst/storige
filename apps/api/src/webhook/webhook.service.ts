@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import { SynthesisWebhookPayload } from '@storige/types';
 
 export interface SessionWebhookPayload {
   event: 'session.validated' | 'session.failed';
@@ -12,17 +13,7 @@ export interface SessionWebhookPayload {
   timestamp: string;
 }
 
-export interface SynthesisWebhookPayload {
-  event: 'synthesis.completed' | 'synthesis.failed';
-  jobId: string;
-  orderId?: string;
-  status: 'completed' | 'failed';
-  outputFileUrl?: string;
-  result?: any;
-  errorMessage?: string;
-  timestamp: string;
-}
-
+// SynthesisWebhookPayload는 @storige/types에서 import
 export type WebhookPayload = SessionWebhookPayload | SynthesisWebhookPayload;
 
 @Injectable()

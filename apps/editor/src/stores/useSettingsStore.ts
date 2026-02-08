@@ -8,6 +8,7 @@ import {
   pxToMmDisplay,
 } from '@storige/canvas-core'
 import type { EditorTemplate } from '@/generated/graphql'
+import type { SpreadConfig } from '@storige/types'
 
 // Types (will be replaced with GraphQL generated types later)
 interface WowPressProductSize {
@@ -210,6 +211,7 @@ interface SettingsState {
   editorTemplates: EditorTemplate[]
   renderType: EditorRenderType
   spineConfig: SpineConfig  // 책등 계산 설정
+  spreadConfig: SpreadConfig | null  // 스프레드 편집 설정 (null이면 비-스프레드 모드)
   artwork: {
     name: string
     product: WowPressLinkedProduct | null
@@ -274,6 +276,10 @@ interface SettingsActions {
   // 책등 계산 설정 관리
   setSpineConfig: (config: Partial<SpineConfig>) => void
   getSpineConfig: () => SpineConfig
+
+  // 스프레드 편집 설정 관리
+  setSpreadConfig: (config: SpreadConfig | null) => void
+  updateSpreadSpineWidth: (newWidthMm: number) => void
 }
 
 // Initial state
@@ -299,6 +305,7 @@ const initialState: SettingsState = {
     bindingType: null,
     calculatedSpineWidth: null,
   },
+  spreadConfig: null,
   artwork: {
     name: '나의 새로운 작업',
     product: null,
@@ -663,6 +670,27 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()((set, 
 
   getSpineConfig: () => {
     return get().spineConfig
+  },
+
+  // 스프레드 편집 설정 관리
+  setSpreadConfig: (config) => {
+    set({ spreadConfig: config })
+  },
+
+  updateSpreadSpineWidth: (newWidthMm) => {
+    const { spreadConfig } = get()
+    if (!spreadConfig) return
+
+    // SpreadConfig의 spec.spineWidthMm 업데이트
+    set({
+      spreadConfig: {
+        ...spreadConfig,
+        spec: {
+          ...spreadConfig.spec,
+          spineWidthMm: newWidthMm,
+        },
+      },
+    })
   },
 }))
 

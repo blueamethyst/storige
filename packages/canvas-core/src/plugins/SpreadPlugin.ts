@@ -1,0 +1,482 @@
+/**
+ * SpreadPlugin
+ *
+ * 스프레드 캔버스 모드 플러그인
+ * - WorkspacePlugin 위에 레이어링
+ * - SpreadLayoutEngine (순수 함수)를 사용하여 레이아웃 계산
+ * - Fabric.js 오브젝트 생성/갱신 + 이벤트 핸들링
+ */
+
+import { fabric } from 'fabric'
+import type { IEvent } from 'fabric/fabric-impl'
+import Editor from '../Editor'
+import { PluginBase, PluginOption } from '../plugin'
+import type {
+  SpreadSpec,
+  SpreadLayout,
+  SpreadRegion,
+  SpreadRegionPosition,
+  SystemObjectType,
+  ObjectAnchor,
+  SpreadObjectMeta,
+} from '@storige/types'
+import {
+  computeLayout,
+  computeResizedLayout,
+  resolveRegionAtX,
+  computeObjectReposition,
+  resolveRegionRef,
+} from '../spread/SpreadLayoutEngine'
+import {
+  getSpineResizeStrategy,
+} from '../spread/SpineResizeStrategy'
+
+// ============================================================================
+// Plugin Options
+// ============================================================================
+
+interface SpreadPluginOptions extends PluginOption {
+  spec: SpreadSpec
+}
+
+// ============================================================================
+// SpreadPlugin Class
+// ============================================================================
+
+class SpreadPlugin extends PluginBase {
+  name = 'SpreadPlugin'
+  events = ['spineWidthChange', 'spreadLayoutUpdate']
+  hotkeys = []
+
+  private currentSpec: SpreadSpec
+  private currentLayout: SpreadLayout | null = null
+  private isLayoutTransaction = false
+
+  // Fabric 오브젝트 참조
+  private guideLines: fabric.Line[] = []
+  private dimensionLabels: fabric.Text[] = []
+
+  // 이벤트 핸들러 참조
+  private _boundHandleObjectModified: ((e: IEvent) => void) | null = null
+  private _boundHandleObjectMoving: ((e: IEvent) => void) | null = null
+
+  constructor(canvas: fabric.Canvas, editor: Editor, options: SpreadPluginOptions) {
+    super(canvas, editor, options)
+    this.currentSpec = options.spec
+  }
+
+  // ============================================================================
+  // Lifecycle
+  // ============================================================================
+
+  async mounted(): Promise<void> {
+    // 초기 레이아웃 계산 및 렌더링
+    this.init(this.currentSpec)
+
+    // 이벤트 핸들러 등록
+    this._boundHandleObjectModified = this.handleObjectModified.bind(this)
+    this._boundHandleObjectMoving = this.handleObjectMoving.bind(this)
+
+    this._canvas.on('object:modified', this._boundHandleObjectModified)
+    this._canvas.on('object:moving', this._boundHandleObjectMoving)
+
+    return super.mounted()
+  }
+
+  async destroyed(): Promise<void> {
+    // 이벤트 핸들러 제거
+    if (this._boundHandleObjectModified) {
+      this._canvas.off('object:modified', this._boundHandleObjectModified)
+    }
+    if (this._boundHandleObjectMoving) {
+      this._canvas.off('object:moving', this._boundHandleObjectMoving)
+    }
+
+    // 가이드/라벨 제거
+    this.clearGuides()
+    this.clearLabels()
+
+    this._boundHandleObjectModified = null
+    this._boundHandleObjectMoving = null
+
+    return super.destroyed()
+  }
+
+  // ============================================================================
+  // Core Methods
+  // ============================================================================
+
+  /**
+   * 스프레드 초기화
+   */
+  init(spec: SpreadSpec): void {
+    this.currentSpec = spec
+    this.currentLayout = computeLayout(spec)
+
+    // 가이드/라벨 렌더링
+    this.renderGuides(this.currentLayout)
+    this.renderLabels(this.currentLayout)
+
+    this._editor.emit('spreadLayoutUpdate', { layout: this.currentLayout })
+  }
+
+  /**
+   * 책등 리사이즈 (Atomic Transaction)
+   */
+  async resizeSpine(newSpineWidthMm: number): Promise<void> {
+    if (!this.currentLayout) {
+      console.warn('SpreadPlugin: currentLayout is null')
+      return
+    }
+
+    if (newSpineWidthMm === this.currentSpec.spineWidthMm) {
+      // 동일한 폭이면 skip
+      return
+    }
+
+    // 레이아웃 트랜잭션 시작
+    this.isLayoutTransaction = true
+
+    try {
+      // 1. 렌더링 잠금
+      this._canvas.renderOnAddRemove = false
+
+      // 2. 새 레이아웃 계산
+      const newLayout = computeResizedLayout(
+        this.currentLayout,
+        this.currentSpec,
+        newSpineWidthMm
+      )
+
+      if (newLayout.totalWidthPx === this.currentLayout.totalWidthPx) {
+        // 변경 없음
+        return
+      }
+
+      // 3. WorkspacePlugin.setOptions 호출 (workspace 크기 변경)
+      const workspacePlugin = this._editor.getPlugin('WorkspacePlugin')
+      if (workspacePlugin) {
+        await workspacePlugin.setOptions({
+          size: { width: newLayout.totalWidthMm },
+        })
+      }
+
+      // 4. 객체 재배치
+      this.repositionObjects(this.currentLayout, newLayout)
+
+      // 5. 가이드/라벨 재렌더링
+      this.clearGuides()
+      this.clearLabels()
+      this.renderGuides(newLayout)
+      this.renderLabels(newLayout)
+
+      // 6. 레이아웃 갱신
+      const oldLayout = this.currentLayout
+      this.currentLayout = newLayout
+      this.currentSpec = { ...this.currentSpec, spineWidthMm: newSpineWidthMm }
+
+      // 7. 렌더링 잠금 해제
+      this._canvas.renderOnAddRemove = true
+
+      // 8. Zoom Auto + 렌더링
+      const workspacePlugin2 = this._editor.getPlugin('WorkspacePlugin')
+      if (workspacePlugin2) {
+        workspacePlugin2.setZoomAuto()
+      }
+      this._canvas.requestRenderAll()
+
+      // 9. 이벤트 발행
+      this._editor.emit('spineWidthChange', {
+        oldSpineWidth: oldLayout.regions.find((r) => r.position === 'spine')?.widthMm ?? 0,
+        newSpineWidth: newSpineWidthMm,
+        oldLayout,
+        newLayout,
+      })
+
+      // 10. 캔버스 밖 객체 경고 (선택 사항)
+      this.checkObjectsOutOfBounds(newLayout)
+    } finally {
+      // 트랜잭션 종료
+      this.isLayoutTransaction = false
+    }
+  }
+
+  /**
+   * 객체 재배치 (resizeSpine 내부 호출)
+   */
+  private repositionObjects(oldLayout: SpreadLayout, newLayout: SpreadLayout): void {
+    const objects = this._canvas.getObjects()
+
+    for (const obj of objects) {
+      // 시스템 객체 skip
+      if (obj.meta?.system) {
+        continue
+      }
+
+      const regionRef = obj.meta?.regionRef ?? null
+      const anchor = obj.meta?.anchor ?? { kind: 'canvas', x: 0, y: 0 }
+
+      // 자유 객체: 절대좌표 유지
+      if (regionRef === null) {
+        // 변경 없음
+        continue
+      }
+
+      // 영역 객체: 재배치
+      const boundingRect = obj.getBoundingRect()
+
+      if (regionRef === 'spine') {
+        // Spine 객체: Strategy 적용
+        const oldSpine = oldLayout.regions.find((r) => r.position === 'spine')!
+        const newSpine = newLayout.regions.find((r) => r.position === 'spine')!
+
+        const strategy = getSpineResizeStrategy(obj)
+        const result = strategy.apply(obj, oldSpine, newSpine)
+
+        // 위치 업데이트
+        obj.setPositionByOrigin(
+          new fabric.Point(result.x, result.y),
+          'center',
+          'center'
+        )
+
+        // 스케일 업데이트 (있을 경우)
+        if (result.scaleX !== undefined) {
+          obj.set('scaleX', result.scaleX)
+        }
+        if (result.scaleY !== undefined) {
+          obj.set('scaleY', result.scaleY)
+        }
+
+        obj.setCoords()
+      } else if (regionRef === 'front-cover' || regionRef === 'front-wing') {
+        // 앞표지/앞날개: 영역 이동에 따라 이동
+        const result = computeObjectReposition(
+          { regionRef, anchor },
+          boundingRect,
+          oldLayout,
+          newLayout
+        )
+
+        obj.setPositionByOrigin(
+          new fabric.Point(result.x, result.y),
+          'center',
+          'center'
+        )
+
+        obj.setCoords()
+
+        // anchor 갱신
+        if (!obj.meta) {
+          obj.meta = {}
+        }
+        obj.meta.anchor = result.anchor
+      }
+      // else: back-wing, back-cover는 변동 없음
+    }
+  }
+
+  /**
+   * 캔버스 밖 객체 경고
+   */
+  private checkObjectsOutOfBounds(layout: SpreadLayout): void {
+    const objects = this._canvas.getObjects()
+    const outOfBounds = objects.filter((obj) => {
+      if (obj.meta?.system) return false
+      const boundingRect = obj.getBoundingRect()
+      return boundingRect.left + boundingRect.width > layout.totalWidthPx ||
+             boundingRect.left < 0
+    })
+
+    if (outOfBounds.length > 0) {
+      console.warn(`SpreadPlugin: ${outOfBounds.length} objects are out of bounds`)
+      // TODO: 토스트 알림 or 이벤트 발행
+    }
+  }
+
+  // ============================================================================
+  // Rendering
+  // ============================================================================
+
+  /**
+   * 가이드라인 렌더링 (영역 경계 점선)
+   */
+  private renderGuides(layout: SpreadLayout): void {
+    layout.guides.forEach((guide, index) => {
+      const line = new fabric.Line([guide.x, guide.y1, guide.x, guide.y2], {
+        id: `spread-guide-${index}`,
+        stroke: '#999',
+        strokeWidth: 1,
+        strokeDashArray: [5, 5],
+        selectable: false,
+        evented: false,
+        hasControls: false,
+        hasBorders: false,
+      })
+
+      if (!line.meta) {
+        line.meta = {}
+      }
+      line.meta.system = 'spreadGuide' as SystemObjectType
+
+      this._canvas.add(line)
+      this.guideLines.push(line)
+    })
+  }
+
+  /**
+   * 치수 라벨 렌더링 (영역별 mm 표시)
+   */
+  private renderLabels(layout: SpreadLayout): void {
+    for (const label of layout.labels) {
+      const text = new fabric.Text(label.text, {
+        left: label.x,
+        top: label.y,
+        fontSize: 14,
+        fill: '#666',
+        selectable: false,
+        evented: false,
+        hasControls: false,
+        hasBorders: false,
+        originX: 'center',
+        originY: 'bottom',
+      })
+
+      if (!text.meta) {
+        text.meta = {}
+      }
+      text.meta.system = 'dimensionLabel' as SystemObjectType
+      text.meta.regionPosition = label.regionPosition
+
+      this._canvas.add(text)
+      this.dimensionLabels.push(text)
+    }
+  }
+
+  /**
+   * 가이드라인 제거
+   */
+  private clearGuides(): void {
+    for (const line of this.guideLines) {
+      this._canvas.remove(line)
+    }
+    this.guideLines = []
+  }
+
+  /**
+   * 치수 라벨 제거
+   */
+  private clearLabels(): void {
+    for (const label of this.dimensionLabels) {
+      this._canvas.remove(label)
+    }
+    this.dimensionLabels = []
+  }
+
+  // ============================================================================
+  // Event Handlers
+  // ============================================================================
+
+  /**
+   * 객체 이동 완료: regionRef/anchor 자동 갱신
+   */
+  private handleObjectModified(e: IEvent): void {
+    if (this.isLayoutTransaction) {
+      // 트랜잭션 중에는 자동 갱신 비활성
+      return
+    }
+
+    if (!this.currentLayout) {
+      return
+    }
+
+    const target = e.target
+    if (!target || target.meta?.system) {
+      return
+    }
+
+    // 바운딩 박스 계산 (stroke 포함)
+    const boundingRect = target.getBoundingRect()
+
+    // 현재 regionRef
+    const currentRegionRef = target.meta?.regionRef ?? null
+
+    // 히스테리시스 적용 판정
+    const result = resolveRegionRef(
+      this.currentLayout.regions,
+      boundingRect,
+      currentRegionRef
+    )
+
+    // 메타 갱신
+    if (!target.meta) {
+      target.meta = {}
+    }
+    target.meta.regionRef = result.regionRef
+    target.meta.primaryRegionHint = result.primaryRegionHint
+    target.meta.anchor = result.anchor
+
+    // 강등/승격 로그 (디버깅용)
+    if (currentRegionRef !== result.regionRef) {
+      console.log('SpreadPlugin: regionRef changed', {
+        from: currentRegionRef,
+        to: result.regionRef,
+        hint: result.primaryRegionHint,
+      })
+    }
+  }
+
+  /**
+   * 객체 이동 중: 영역 경계/중앙 스냅
+   */
+  private handleObjectMoving(e: IEvent): void {
+    if (this.isLayoutTransaction) {
+      return
+    }
+
+    if (!this.currentLayout) {
+      return
+    }
+
+    const target = e.target
+    if (!target || target.meta?.system) {
+      return
+    }
+
+    // TODO: 스냅 가이드 구현
+    // - 영역 경계에 스냅
+    // - 영역 중앙에 스냅
+    // - primaryRegionHint 기준으로 스냅
+    // WorkspacePlugin의 스냅 기능을 재사용하거나 별도 구현
+  }
+
+  // ============================================================================
+  // Public API
+  // ============================================================================
+
+  /**
+   * 현재 레이아웃 조회
+   */
+  getLayout(): SpreadLayout | null {
+    return this.currentLayout
+  }
+
+  /**
+   * 현재 스펙 조회
+   */
+  getSpec(): SpreadSpec {
+    return this.currentSpec
+  }
+
+  /**
+   * x 좌표 → 영역 판정
+   */
+  getRegionAtX(x: number): SpreadRegion | null {
+    if (!this.currentLayout) {
+      return null
+    }
+    return resolveRegionAtX(this.currentLayout.regions, x)
+  }
+}
+
+export default SpreadPlugin

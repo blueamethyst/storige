@@ -5,7 +5,7 @@
 import { spineApi } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import { mmToPxDisplay } from '@storige/canvas-core'
+import { mmToPxDisplay, SpreadPlugin } from '@storige/canvas-core'
 import type { fabric } from 'fabric'
 
 // Fabric.js Object 확장 타입
@@ -106,7 +106,19 @@ export async function recalculateSpineWidth(
   options?: Partial<RecalculateSpineOptions>
 ): Promise<RecalculateSpineResult> {
   const settingsStore = useSettingsStore.getState()
+  const appStore = useAppStore.getState()
   const spineConfig = settingsStore.spineConfig
+
+  // ============================================================================
+  // 스프레드 모드 분기 (§4.3 설계서)
+  // ============================================================================
+  if (appStore.isSpreadMode) {
+    return await recalculateSpineWidthSpreadMode(options)
+  }
+
+  // ============================================================================
+  // 단일 모드 (기존 로직 유지)
+  // ============================================================================
 
   // paperType과 bindingType 결정 (옵션 > 스토어 > null)
   const paperType = options?.paperType || spineConfig.paperType
@@ -223,6 +235,113 @@ export async function recalculateSpineWidth(
     }
   } catch (error) {
     console.error('[SpineCalculator] 책등 계산 오류:', error)
+    return {
+      success: false,
+      spineWidth: null,
+      pageCount,
+      warnings: [],
+      error: error instanceof Error ? error.message : '책등 계산 중 오류가 발생했습니다.',
+    }
+  }
+}
+
+/**
+ * 스프레드 모드 전용: 책등 너비 재계산 및 SpreadPlugin.resizeSpine() 호출
+ *
+ * @param options - 계산 옵션
+ * @returns 계산 결과
+ */
+async function recalculateSpineWidthSpreadMode(
+  options?: Partial<RecalculateSpineOptions>
+): Promise<RecalculateSpineResult> {
+  const settingsStore = useSettingsStore.getState()
+  const appStore = useAppStore.getState()
+  const spineConfig = settingsStore.spineConfig
+
+  // paperType과 bindingType 결정
+  const paperType = options?.paperType || spineConfig.paperType
+  const bindingType = options?.bindingType || spineConfig.bindingType
+
+  if (!paperType || !bindingType) {
+    console.log('[SpineCalculator:Spread] paperType 또는 bindingType 미설정, 스킵')
+    return {
+      success: false,
+      spineWidth: null,
+      pageCount: 0,
+      warnings: [],
+      error: 'paperType 또는 bindingType이 설정되지 않았습니다.',
+    }
+  }
+
+  // 내지 페이지 수 계산 (스프레드 모드에서는 allCanvas[1~N]이 내지)
+  const allCanvas = appStore.allCanvas
+  if (allCanvas.length <= 1) {
+    console.log('[SpineCalculator:Spread] 내지 캔버스 없음, 스킵')
+    return {
+      success: false,
+      spineWidth: null,
+      pageCount: 0,
+      warnings: [],
+      error: '내지 캔버스가 없습니다.',
+    }
+  }
+
+  const innerPageCanvasCount = allCanvas.length - 1 // 첫 번째는 스프레드 캔버스
+  const pageCount = innerPageCanvasCount * 2 // 양면 인쇄
+
+  console.log(`[SpineCalculator:Spread] 책등 너비 계산: pageCount=${pageCount}, paperType=${paperType}, bindingType=${bindingType}`)
+
+  try {
+    // API로 책등 폭 계산
+    const spineResult = await spineApi.calculate({
+      pageCount,
+      paperType,
+      bindingType,
+    })
+
+    console.log(`[SpineCalculator:Spread] 계산된 책등 너비: ${spineResult.spineWidth}mm`)
+
+    // 경고 메시지 출력
+    if (spineResult.warnings.length > 0) {
+      spineResult.warnings.forEach((warning: { message: string }) => {
+        console.warn(`[SpineCalculator:Spread] 경고: ${warning.message}`)
+      })
+    }
+
+    // ========================================================================
+    // SpreadPlugin.resizeSpine() 호출
+    // ========================================================================
+    const spreadEditor = appStore.allEditors[0] // 스프레드 캔버스는 항상 인덱스 0
+
+    if (spreadEditor) {
+      const spreadPlugin = spreadEditor.getPlugin<SpreadPlugin>('SpreadPlugin')
+
+      if (spreadPlugin) {
+        await spreadPlugin.resizeSpine(spineResult.spineWidth)
+        console.log('[SpineCalculator:Spread] SpreadPlugin.resizeSpine() 완료')
+      } else {
+        console.warn('[SpineCalculator:Spread] SpreadPlugin을 찾을 수 없습니다.')
+      }
+    }
+
+    // 스토어에 계산된 값 저장
+    settingsStore.setSpineConfig({
+      paperType,
+      bindingType,
+      calculatedSpineWidth: spineResult.spineWidth,
+    })
+
+    // SpreadConfig의 spineWidthMm도 업데이트
+    settingsStore.updateSpreadSpineWidth(spineResult.spineWidth)
+
+    return {
+      success: true,
+      spineWidth: spineResult.spineWidth,
+      pageCount,
+      warnings: spineResult.warnings,
+    }
+  } catch (error) {
+    console.error('[SpineCalculator:Spread] 책등 계산 오류:', error)
     return {
       success: false,
       spineWidth: null,

@@ -1,6 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject, IsNumber, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject, IsNumber, IsEnum, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { CanvasData, TemplateType } from '@storige/types';
+import type { CanvasData, TemplateType, SpreadConfig } from '@storige/types';
 
 export class CreateTemplateDto {
   @ApiProperty({ example: '명함 템플릿 1' })
@@ -13,7 +13,7 @@ export class CreateTemplateDto {
   @IsString()
   categoryId?: string;
 
-  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page'] })
+  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page', 'spread'] })
   @IsOptional()
   @IsString()
   type?: TemplateType;
@@ -56,6 +56,29 @@ export class CreateTemplateDto {
   @IsNotEmpty()
   canvasData: CanvasData;
 
+  @ApiPropertyOptional({
+    description: '스프레드 설정 (type=spread일 때 필수)',
+    example: {
+      spec: {
+        coverWidthMm: 210,
+        coverHeightMm: 297,
+        spineWidthMm: 7.5,
+        wingEnabled: true,
+        wingWidthMm: 60,
+        cutSizeMm: 3,
+        safeSizeMm: 5,
+        dpi: 300,
+      },
+      regions: [],
+      totalWidthMm: 550,
+      totalHeightMm: 303,
+    },
+  })
+  @ValidateIf((o) => o.type === 'spread')
+  @IsObject()
+  @IsNotEmpty()
+  spreadConfig?: SpreadConfig;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
@@ -73,7 +96,7 @@ export class UpdateTemplateDto {
   @IsString()
   categoryId?: string;
 
-  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page'] })
+  @ApiPropertyOptional({ example: 'page', enum: ['wing', 'cover', 'spine', 'page', 'spread'] })
   @IsOptional()
   @IsString()
   type?: TemplateType;
@@ -107,6 +130,13 @@ export class UpdateTemplateDto {
   @IsOptional()
   @IsObject()
   canvasData?: CanvasData;
+
+  @ApiPropertyOptional({
+    description: '스프레드 설정 (type=spread일 때 필수)',
+  })
+  @IsOptional()
+  @IsObject()
+  spreadConfig?: SpreadConfig;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

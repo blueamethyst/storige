@@ -16,6 +16,7 @@ import Editor, {
   RulerPlugin,
   ServicePlugin,
   SmartCodePlugin,
+  SpreadPlugin,
   TemplatePlugin,
   WorkspacePlugin,
   createFabricCanvas,
@@ -199,6 +200,10 @@ function initPlugins(
     renderType,
   }
 
+  // SpreadPlugin은 스프레드 모드일 때만 등록
+  const spreadConfig = settingsStore.spreadConfig
+  const spread = spreadConfig?.spec ? new SpreadPlugin(canvas, editor, spreadConfig.spec) : null
+
   const workspace = new WorkspacePlugin(canvas, editor, mergedOptions)
   const object = new ObjectPlugin(canvas, editor, mergedOptions)
   const group = new GroupPlugin(canvas, editor)
@@ -232,6 +237,12 @@ function initPlugins(
 
   // 모든 플러그인 등록
   editor.use(workspace)
+
+  // SpreadPlugin은 workspace 다음에 등록 (workspace가 먼저 초기화되어야 함)
+  if (spread) {
+    editor.use(spread)
+  }
+
   editor.use(object)
   // RulerPlugin은 VITE_ENABLE_RULER 환경변수로 제어
   if (ruler) {
@@ -257,6 +268,12 @@ function initPlugins(
   editor.use(service)
 
   workspace.init()
+
+  // SpreadPlugin 초기화 (spread가 있을 때만)
+  if (spread) {
+    spread.init()
+  }
+
   // RulerPlugin은 VITE_ENABLE_RULER 환경변수로 제어
   if (ruler) {
     ruler.enable()

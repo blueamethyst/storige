@@ -19,8 +19,10 @@ import {
   Upload,
   Monitor,
   Check,
+  Box,
 } from 'lucide-react'
 import { AutoSaveIndicator } from './AutoSaveIndicator'
+import { BookMockup3D } from '../Mockup3D/BookMockup3D'
 
 interface EditorHeaderProps {
   screenMode?: 'mobile' | 'tablet' | 'desktop'
@@ -45,10 +47,11 @@ export default function EditorHeader({
   const [previewMode, setPreviewMode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [finishing, setFinishing] = useState(false)
+  const [show3DMockup, setShow3DMockup] = useState(false)
 
   // Stores
-  const { ready, canvas, allCanvas, allEditors, getPlugin, setPage } = useAppStore()
-  const { artwork, currentSettings } = useSettingsStore()
+  const { ready, canvas, allCanvas, allEditors, getPlugin, setPage, isSpreadMode } = useAppStore()
+  const { artwork, currentSettings, spreadConfig } = useSettingsStore()
   const isAdmin = useIsAdmin()
 
   // Work save hook for admin
@@ -364,6 +367,23 @@ export default function EditorHeader({
               <TooltipContent>인쇄 미리보기</TooltipContent>
             </Tooltip>
 
+            {/* 3D 미리보기 (스프레드 모드 전용) */}
+            {isSpreadMode && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShow3DMockup(true)}
+                    disabled={!ready}
+                  >
+                    <Box className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>3D 미리보기</TooltipContent>
+              </Tooltip>
+            )}
+
             {/* PDF 저장 */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -484,6 +504,16 @@ export default function EditorHeader({
           </div>
         )}
       </nav>
+
+      {/* 3D 미리보기 모달 */}
+      {show3DMockup && spreadConfig && (
+        <BookMockup3D
+          spineWidthMm={spreadConfig.spec.spineWidthMm}
+          coverWidthMm={spreadConfig.spec.coverWidthMm}
+          coverHeightMm={spreadConfig.spec.coverHeightMm}
+          onClose={() => setShow3DMockup(false)}
+        />
+      )}
     </TooltipProvider>
   )
 }

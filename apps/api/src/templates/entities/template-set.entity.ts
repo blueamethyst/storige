@@ -13,7 +13,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { Category } from './category.entity';
 import { Template } from './template.entity';
-import type { ProductSpecs, TemplateSetType, TemplateRef } from '@storige/types';
+import type { ProductSpecs, TemplateSetType, TemplateRef, EditorMode } from '@storige/types';
 
 /**
  * 템플릿셋 타입 enum (DB용)
@@ -76,6 +76,12 @@ export class TemplateSet {
    */
   @Column({ type: 'json', default: '[]' })
   templates: TemplateRef[];
+
+  /**
+   * 에디터 모드: single(개별 캔버스 편집) | book(스프레드 편집)
+   */
+  @Column({ name: 'editor_mode', type: 'varchar', length: 20, default: 'single' })
+  editorMode: EditorMode;
 
   /**
    * 소프트 삭제 플래그

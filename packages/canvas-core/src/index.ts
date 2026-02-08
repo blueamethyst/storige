@@ -20,8 +20,13 @@ export { default as TemplatePlugin } from './plugins/TemplatePlugin'
 export { default as PreviewPlugin } from './plugins/PreviewPlugin'
 export { default as ScreenshotPlugin } from './plugins/ScreenshotPlugin'
 export { default as LockPlugin, type LockLevel, type UserRole, type LockInfo } from './plugins/LockPlugin'
+export { default as SpreadPlugin } from './plugins/SpreadPlugin'
 
 export { PluginBase } from './plugin'
+
+// Spread layout engine exports
+export * from './spread/SpreadLayoutEngine'
+export * from './spread/SpineResizeStrategy'
 
 export * from './utils/colors'
 export * from './utils/canvas'

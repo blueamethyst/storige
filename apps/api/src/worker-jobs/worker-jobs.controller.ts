@@ -16,6 +16,7 @@ import {
   CreateSynthesisJobDto,
   UpdateJobStatusDto,
 } from './dto/worker-job.dto';
+import { CreateSplitSynthesisJobDto } from './dto/create-split-synthesis-job.dto';
 import { CheckMergeableDto, CheckMergeableResponseDto } from './dto/check-mergeable.dto';
 import { WorkerJob } from './entities/worker-job.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -102,6 +103,47 @@ export class WorkerJobsController {
     @Body() createSynthesisJobDto: CreateSynthesisJobDto,
   ): Promise<WorkerJob> {
     return await this.workerJobsService.createSynthesisJob(createSynthesisJobDto);
+  }
+
+  // ============================================================================
+  // Split Synthesis (단일 PDF 분리)
+  // ============================================================================
+
+  /**
+   * 분리 합성 작업 생성 (★ v1.1.4 설계서)
+   * 단일 PDF에서 표지/내지를 분리
+   */
+  @Post('split-synthesize')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Create a PDF split-synthesis job (split single PDF into cover/content)' })
+  @ApiResponse({ status: 201, description: 'Split synthesis job created and queued', type: WorkerJob })
+  @ApiResponse({ status: 400, description: 'Invalid input or option combination' })
+  @ApiResponse({ status: 404, description: 'Session or file not found' })
+  @ApiResponse({ status: 422, description: 'Invalid session data (empty pages, invalid sortOrder, etc.)' })
+  async createSplitSynthesisJob(
+    @Body() dto: CreateSplitSynthesisJobDto,
+  ): Promise<WorkerJob> {
+    return await this.workerJobsService.createSplitSynthesisJob(dto);
+  }
+
+  /**
+   * 외부 연동용 분리 합성 작업 생성 (API Key 인증)
+   */
+  @Post('split-synthesize/external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Create a PDF split-synthesis job (external API key auth)' })
+  @ApiResponse({ status: 201, description: 'Split synthesis job created and queued', type: WorkerJob })
+  @ApiResponse({ status: 400, description: 'Invalid input or option combination' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  @ApiResponse({ status: 404, description: 'Session or file not found' })
+  @ApiResponse({ status: 422, description: 'Invalid session data' })
+  async createSplitSynthesisJobExternal(
+    @Body() dto: CreateSplitSynthesisJobDto,
+  ): Promise<WorkerJob> {
+    return await this.workerJobsService.createSplitSynthesisJob(dto);
   }
 
   // ============================================================================

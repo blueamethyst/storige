@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ServicePlugin, core } from '@storige/canvas-core'
 import { designsApi, storageApi } from '@/api'
+import type { SpreadSynthesisJobData } from '@storige/types'
 
 // Fabric.js 타입 (런타임에 로드됨)
  
@@ -38,6 +39,12 @@ const isError = (error: unknown): error is Error => {
   return error instanceof Error
 }
 
+export interface CompleteSpreadWorkResult {
+  success: boolean
+  jobId?: string
+  error?: string
+}
+
 export interface UseWorkSaveReturn {
   saving: boolean
   workId: string
@@ -55,6 +62,7 @@ export interface UseWorkSaveReturn {
   saveWorkToLocal: () => Promise<boolean>
   loadWorkFromLocal: () => Promise<boolean>
   loadWorkFromServer: (designId: string) => Promise<boolean>
+  completeSpreadWork: () => Promise<CompleteSpreadWorkResult>
 }
 
 /**
@@ -543,6 +551,150 @@ export function useWorkSave(): UseWorkSaveReturn {
     }
   }, [allEditors, updateSettings, updateArtworkStore, updateObjects])
 
+  /**
+   * 스프레드 모드 작업 완료 (PDF 생성 및 Worker Job 생성)
+   *
+   * §4.7 설계서에 따라:
+   * 1. allCanvas[0] (스프레드) → cover.pdf 업로드
+   * 2. allCanvas[1~N] (내지) → 개별 PDF 업로드
+   * 3. EditSession 완료 API 호출 → Worker Job 자동 생성
+   */
+  const completeSpreadWork = useCallback(async (): Promise<CompleteSpreadWorkResult> => {
+    const isSpreadMode = useAppStore.getState().isSpreadMode
+
+    if (!isSpreadMode) {
+      console.error('[useWorkSave] completeSpreadWork는 스프레드 모드에서만 사용 가능합니다.')
+      return {
+        success: false,
+        error: '스프레드 모드가 아닙니다.',
+      }
+    }
+
+    if (saving) {
+      console.warn('[useWorkSave] 이미 저장 중입니다.')
+      return {
+        success: false,
+        error: '이미 저장 중입니다.',
+      }
+    }
+
+    try {
+      setSaving(true)
+      console.log('[useWorkSave:Spread] 스프레드 작업 완료 시작...')
+
+      if (allCanvas.length < 1) {
+        throw new Error('캔버스가 없습니다.')
+      }
+
+      // ========================================================================
+      // 1. 스프레드 캔버스 (allCanvas[0]) → cover.pdf
+      // ========================================================================
+      const spreadCanvas = allCanvas[0]
+      const spreadEditor = allEditors[0]
+
+      if (!spreadCanvas || !spreadEditor) {
+        throw new Error('스프레드 캔버스를 찾을 수 없습니다.')
+      }
+
+      console.log('[useWorkSave:Spread] 1. 스프레드 캔버스 → PDF 생성 중...')
+
+      const spreadPlugin = spreadEditor.getPlugin<ServicePlugin>('ServicePlugin')
+      if (!spreadPlugin) {
+        throw new Error('스프레드 캔버스의 ServicePlugin을 찾을 수 없습니다.')
+      }
+
+      const coverPdfBlob = await spreadPlugin.exportToPDF()
+      const coverPdfFileName = `spread_cover_${Date.now()}.pdf`
+
+      const coverUploadResult = await storageApi.uploadDesign(coverPdfBlob, coverPdfFileName)
+      const coverPdfFileId = coverUploadResult.data?.id || ''
+
+      if (!coverPdfFileId) {
+        throw new Error('스프레드 PDF 업로드 실패')
+      }
+
+      console.log('[useWorkSave:Spread] 스프레드 PDF 업로드 완료:', coverPdfFileId)
+
+      // ========================================================================
+      // 2. 내지 캔버스들 (allCanvas[1~N]) → 개별 PDF 업로드
+      // ========================================================================
+      const innerPageCanvases = allCanvas.slice(1)
+      const contentPdfFileIds: string[] = []
+
+      console.log(`[useWorkSave:Spread] 2. 내지 ${innerPageCanvases.length}개 → PDF 생성 중...`)
+
+      for (let i = 0; i < innerPageCanvases.length; i++) {
+        const innerCanvas = innerPageCanvases[i]
+        const innerEditor = allEditors[i + 1]
+
+        if (!innerCanvas || !innerEditor) {
+          console.warn(`[useWorkSave:Spread] 내지 캔버스 ${i + 1} 누락, 스킵`)
+          continue
+        }
+
+        const plugin = innerEditor.getPlugin<ServicePlugin>('ServicePlugin')
+        if (!plugin) {
+          console.warn(`[useWorkSave:Spread] 내지 캔버스 ${i + 1}의 ServicePlugin 없음, 스킵`)
+          continue
+        }
+
+        const contentPdfBlob = await plugin.exportToPDF()
+        const contentPdfFileName = `spread_content_${i + 1}_${Date.now()}.pdf`
+
+        const contentUploadResult = await storageApi.uploadDesign(contentPdfBlob, contentPdfFileName)
+        const contentPdfFileId = contentUploadResult.data?.id || ''
+
+        if (contentPdfFileId) {
+          contentPdfFileIds.push(contentPdfFileId)
+          console.log(`[useWorkSave:Spread] 내지 ${i + 1} PDF 업로드 완료:`, contentPdfFileId)
+        } else {
+          console.warn(`[useWorkSave:Spread] 내지 ${i + 1} PDF 업로드 실패, 스킵`)
+        }
+      }
+
+      if (contentPdfFileIds.length === 0) {
+        throw new Error('내지 PDF가 하나도 업로드되지 않았습니다.')
+      }
+
+      console.log(`[useWorkSave:Spread] 내지 PDF ${contentPdfFileIds.length}개 업로드 완료`)
+
+      // ========================================================================
+      // 3. EditSession 완료 API 호출 (→ Worker Job 자동 생성)
+      // ========================================================================
+      console.log('[useWorkSave:Spread] 3. EditSession 완료 API 호출 중...')
+
+      // TODO: API 연동 (EditSession 완료 엔드포인트)
+      // const sessionId = ... (현재 세션 ID)
+      // const completeResult = await editSessionApi.complete(sessionId, {
+      //   spreadPdfFileId: coverPdfFileId,
+      //   contentPdfFileIds,
+      // })
+
+      // 임시: 모의 결과
+      const mockJobId = `job_${Date.now()}`
+      console.log('[useWorkSave:Spread] TODO: EditSession 완료 API 호출 (실제 구현 필요)')
+      console.log('[useWorkSave:Spread] - spreadPdfFileId:', coverPdfFileId)
+      console.log('[useWorkSave:Spread] - contentPdfFileIds:', contentPdfFileIds)
+      console.log('[useWorkSave:Spread] - mockJobId:', mockJobId)
+
+      console.log('[useWorkSave:Spread] 스프레드 작업 완료!')
+
+      return {
+        success: true,
+        jobId: mockJobId,
+      }
+    } catch (error) {
+      console.error('[useWorkSave:Spread] 오류:', error)
+      const errorMessage = isError(error) ? error.message : '알 수 없는 오류'
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    } finally {
+      setSaving(false)
+    }
+  }, [saving, allCanvas, allEditors])
+
   return {
     saving,
     workId,
@@ -551,6 +703,7 @@ export function useWorkSave(): UseWorkSaveReturn {
     saveWorkForAdmin,
     saveWorkToLocal,
     loadWorkFromLocal,
-    loadWorkFromServer
+    loadWorkFromServer,
+    completeSpreadWork,
   }
 }

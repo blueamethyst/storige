@@ -18,6 +18,8 @@ import {
   Modal,
   Spin,
   List,
+  Radio,
+  Alert,
 } from 'antd';
 import {
   PlusOutlined,
@@ -47,6 +49,7 @@ import {
   TemplateRef,
   Template,
   TemplateType,
+  EditorMode,
 } from '@storige/types';
 import { templateSetsApi } from '../../api/template-sets';
 import { templatesApi } from '../../api/templates';
@@ -72,6 +75,7 @@ const templateTypeLabels: Record<TemplateType, string> = {
   [TemplateType.COVER]: '표지',
   [TemplateType.SPINE]: '책등',
   [TemplateType.PAGE]: '내지',
+  [TemplateType.SPREAD]: '스프레드',
 };
 
 const templateTypeColors: Record<TemplateType, string> = {
@@ -79,6 +83,7 @@ const templateTypeColors: Record<TemplateType, string> = {
   [TemplateType.COVER]: 'blue',
   [TemplateType.SPINE]: 'orange',
   [TemplateType.PAGE]: 'default',
+  [TemplateType.SPREAD]: 'green',
 };
 
 // Sortable Template Item Component
@@ -245,6 +250,7 @@ export const TemplateSetForm = () => {
       form.setFieldsValue({
         name: templateSet.name,
         type: templateSet.type,
+        editorMode: templateSet.editorMode || EditorMode.SINGLE,
         width: templateSet.width,
         height: templateSet.height,
         canAddPage: templateSet.canAddPage,
@@ -264,9 +270,42 @@ export const TemplateSetForm = () => {
   }, [templateSet, allTemplates, form]);
 
   const handleSubmit = async (values: any) => {
+    const editorMode = values.editorMode || EditorMode.SINGLE;
+
+    // 책모드 검증
+    if (editorMode === EditorMode.BOOK) {
+      const spreadTemplates = templates.filter(t => t.template?.type === TemplateType.SPREAD);
+      const invalidTemplates = templates.filter(t =>
+        t.template?.type === TemplateType.WING ||
+        t.template?.type === TemplateType.COVER ||
+        t.template?.type === TemplateType.SPINE
+      );
+
+      if (spreadTemplates.length !== 1) {
+        message.error('책모드는 스프레드 템플릿이 정확히 1개 필요합니다.');
+        return;
+      }
+
+      if (invalidTemplates.length > 0) {
+        message.error('책모드에서는 날개/표지/책등 템플릿을 사용할 수 없습니다.');
+        return;
+      }
+    }
+
+    // 단일모드 검증
+    if (editorMode === EditorMode.SINGLE) {
+      const spreadTemplates = templates.filter(t => t.template?.type === TemplateType.SPREAD);
+
+      if (spreadTemplates.length > 0) {
+        message.error('단일모드에서는 스프레드 템플릿을 사용할 수 없습니다.');
+        return;
+      }
+    }
+
     const data = {
       name: values.name,
       type: values.type,
+      editorMode,
       width: values.width,
       height: values.height,
       canAddPage: values.canAddPage,
@@ -371,6 +410,7 @@ export const TemplateSetForm = () => {
           onFinish={handleSubmit}
           initialValues={{
             type: TemplateSetType.BOOK,
+            editorMode: EditorMode.SINGLE,
             canAddPage: true,
             pageCountMin: 10,
             pageCountMax: 100,
@@ -395,6 +435,18 @@ export const TemplateSetForm = () => {
                 { label: '리플렛 (표지+내지)', value: TemplateSetType.LEAFLET },
               ]}
             />
+          </Form.Item>
+
+          <Form.Item
+            name="editorMode"
+            label="에디터 모드"
+            rules={[{ required: true, message: '에디터 모드를 선택하세요' }]}
+            extra="책모드는 스프레드 템플릿을 사용하며, 단일모드는 기존 방식입니다"
+          >
+            <Radio.Group>
+              <Radio value={EditorMode.SINGLE}>단일모드 (개별 페이지 편집)</Radio>
+              <Radio value={EditorMode.BOOK}>책모드 (스프레드 편집)</Radio>
+            </Radio.Group>
           </Form.Item>
 
           <Space size="large">
@@ -444,6 +496,63 @@ export const TemplateSetForm = () => {
           </Form.Item>
 
           <Divider>템플릿 구성</Divider>
+
+          {/* 에디터 모드별 안내 메시지 */}
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.editorMode !== curr.editorMode}>
+            {({ getFieldValue }) => {
+              const editorMode = getFieldValue('editorMode');
+              const spreadTemplates = templates.filter(t => t.template?.type === TemplateType.SPREAD);
+              const invalidTemplates = templates.filter(t =>
+                t.template?.type === TemplateType.WING ||
+                t.template?.type === TemplateType.COVER ||
+                t.template?.type === TemplateType.SPINE
+              );
+
+              if (editorMode === EditorMode.BOOK) {
+                if (spreadTemplates.length !== 1) {
+                  return (
+                    <Alert
+                      type="warning"
+                      message="책모드에서는 스프레드 템플릿이 정확히 1개 필요합니다"
+                      style={{ marginBottom: 16 }}
+                    />
+                  );
+                }
+                if (invalidTemplates.length > 0) {
+                  return (
+                    <Alert
+                      type="error"
+                      message="책모드에서는 날개/표지/책등 템플릿을 사용할 수 없습니다"
+                      description="스프레드 템플릿 1개와 내지(PAGE) 템플릿만 사용하세요"
+                      style={{ marginBottom: 16 }}
+                    />
+                  );
+                }
+                return (
+                  <Alert
+                    type="success"
+                    message="템플릿 구성이 올바릅니다"
+                    description="스프레드 템플릿 1개 + 내지 템플릿 N개"
+                    style={{ marginBottom: 16 }}
+                  />
+                );
+              }
+
+              if (editorMode === EditorMode.SINGLE) {
+                if (spreadTemplates.length > 0) {
+                  return (
+                    <Alert
+                      type="error"
+                      message="단일모드에서는 스프레드 템플릿을 사용할 수 없습니다"
+                      style={{ marginBottom: 16 }}
+                    />
+                  );
+                }
+              }
+
+              return null;
+            }}
+          </Form.Item>
 
           <Card
             size="small"

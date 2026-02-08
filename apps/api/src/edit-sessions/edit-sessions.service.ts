@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
   Inject,
   forwardRef,
@@ -159,6 +160,11 @@ export class EditSessionsService {
       });
     }
 
+    // 스프레드 모드 스냅샷 검증 (하드 실패)
+    if (session.mode === SessionMode.SPREAD) {
+      this.validateSpreadSnapshot(session);
+    }
+
     session.status = SessionStatus.COMPLETE;
     session.completedAt = new Date();
 
@@ -169,6 +175,45 @@ export class EditSessionsService {
     await this.createValidationJobs(completed);
 
     return completed;
+  }
+
+  /**
+   * 스프레드 모드 스냅샷 검증 (필수 필드 누락 시 하드 실패)
+   */
+  private validateSpreadSnapshot(session: EditSessionEntity): void {
+    // metadata.spine 검증
+    if (!session.metadata?.spine) {
+      throw new BadRequestException({
+        code: 'SPREAD_SNAPSHOT_MISSING',
+        message: 'spread 모드 세션 완료 시 metadata.spine이 필수입니다.',
+      });
+    }
+
+    const { spine } = session.metadata;
+    if (!spine.spineWidthMm || !spine.pageCount || !spine.paperType || !spine.bindingType || !spine.formulaVersion) {
+      throw new BadRequestException({
+        code: 'SPREAD_SNAPSHOT_INVALID',
+        message: 'metadata.spine의 필수 필드가 누락되었습니다: spineWidthMm, pageCount, paperType, bindingType, formulaVersion',
+      });
+    }
+
+    // metadata.spread 검증
+    if (!session.metadata?.spread) {
+      throw new BadRequestException({
+        code: 'SPREAD_SNAPSHOT_MISSING',
+        message: 'spread 모드 세션 완료 시 metadata.spread가 필수입니다.',
+      });
+    }
+
+    const { spread } = session.metadata;
+    if (!spread.spec || !spread.totalWidthMm || !spread.totalHeightMm || !spread.dpi) {
+      throw new BadRequestException({
+        code: 'SPREAD_SNAPSHOT_INVALID',
+        message: 'metadata.spread의 필수 필드가 누락되었습니다: spec, totalWidthMm, totalHeightMm, dpi',
+      });
+    }
+
+    this.logger.log(`Validated spread snapshot for session ${session.id}`);
   }
 
   /**

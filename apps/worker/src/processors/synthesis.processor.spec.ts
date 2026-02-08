@@ -1,0 +1,406 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { SynthesisProcessor } from './synthesis.processor';
+import { PdfSynthesizerService } from '../services/pdf-synthesizer.service';
+import { Job } from 'bull';
+import {
+  SynthesisLocalResult,
+  OutputFile,
+  SplitResult,
+  PageTypes,
+} from '@storige/types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+// Mock axios - jest.mock은 호이스팅되므로 인라인으로 정의
+jest.mock('axios', () => ({
+  default: {
+    patch: jest.fn().mockResolvedValue({ status: 200 }),
+    get: jest.fn().mockResolvedValue({
+      data: {
+        id: 'test-file-id',
+        filePath: '/tmp/test.pdf',
+        metadata: {
+          generatedBy: 'editor',
+          editSessionId: 'test-session-id',
+        },
+      },
+    }),
+  },
+  __esModule: true,
+}));
+
+describe('SynthesisProcessor', () => {
+  let processor: SynthesisProcessor;
+  let synthesizerService: jest.Mocked<PdfSynthesizerService>;
+
+  const testOutputsPath = '/tmp/storige-test-outputs';
+  const testStoragePath = '/tmp/storige-test-storage';
+
+  beforeAll(async () => {
+    await fs.mkdir(testOutputsPath, { recursive: true });
+    await fs.mkdir(testStoragePath, { recursive: true });
+  });
+
+  beforeEach(async () => {
+    const mockSynthesizerService = {
+      synthesizeToLocal: jest.fn(),
+      synthesize: jest.fn(),
+      calculateSpineWidth: jest.fn(),
+      getPaperThickness: jest.fn(),
+      splitPdfByIndices: jest.fn(),
+      mergeSplitPdfs: jest.fn(),
+      downloadFile: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        SynthesisProcessor,
+        {
+          provide: PdfSynthesizerService,
+          useValue: mockSynthesizerService,
+        },
+      ],
+    }).compile();
+
+    processor = module.get<SynthesisProcessor>(SynthesisProcessor);
+    synthesizerService = module.get(PdfSynthesizerService);
+
+    // private 멤버 오버라이드
+    (processor as any).outputsPath = testOutputsPath;
+    (processor as any).storagePath = testStoragePath;
+  });
+
+  afterAll(async () => {
+    try {
+      await fs.rm(testOutputsPath, { recursive: true, force: true });
+      await fs.rm(testStoragePath, { recursive: true, force: true });
+    } catch {
+      // 무시
+    }
+  });
+
+  describe('handleSynthesis', () => {
+    describe('merged 모드 (기본)', () => {
+      it('outputFormat 미지정 시 merged로 처리', async () => {
+        const jobId = 'test-job-merged';
+        const mockJob = createMockJob({
+          jobId,
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          // outputFormat 미지정
+        });
+
+        const mockLocalResult: SynthesisLocalResult = {
+          success: true,
+          sourceCoverPath: `${testStoragePath}/source_cover.pdf`,
+          sourceContentPath: `${testStoragePath}/source_content.pdf`,
+          mergedPath: `${testStoragePath}/merged.pdf`,
+          totalPages: 104,
+        };
+
+        // Mock 파일 생성
+        await createMockPdfFile(mockLocalResult.sourceCoverPath);
+        await createMockPdfFile(mockLocalResult.sourceContentPath);
+        await createMockPdfFile(mockLocalResult.mergedPath);
+
+        synthesizerService.synthesizeToLocal.mockResolvedValue(mockLocalResult);
+
+        try {
+          const result = await processor.handleSynthesis(mockJob as any);
+
+          // merged URL만 반환
+          expect(result.outputFileUrl).toContain('merged.pdf');
+          expect(result.outputFiles).toBeUndefined();
+        } finally {
+          // 정리
+          await cleanupMockFiles([
+            mockLocalResult.sourceCoverPath,
+            mockLocalResult.sourceContentPath,
+            mockLocalResult.mergedPath,
+          ]);
+        }
+      });
+    });
+
+    describe('separate 모드', () => {
+      it('outputFormat: separate 요청 시 outputFiles 포함', async () => {
+        const jobId = 'test-job-separate';
+        const mockJob = createMockJob({
+          jobId,
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'separate',
+        });
+
+        const mockLocalResult: SynthesisLocalResult = {
+          success: true,
+          sourceCoverPath: `${testStoragePath}/source_cover_sep.pdf`,
+          sourceContentPath: `${testStoragePath}/source_content_sep.pdf`,
+          mergedPath: `${testStoragePath}/merged_sep.pdf`,
+          coverPath: `${testStoragePath}/cover_sep.pdf`,
+          contentPath: `${testStoragePath}/content_sep.pdf`,
+          totalPages: 104,
+        };
+
+        // Mock 파일 생성
+        await createMockPdfFile(mockLocalResult.sourceCoverPath);
+        await createMockPdfFile(mockLocalResult.sourceContentPath);
+        await createMockPdfFile(mockLocalResult.mergedPath);
+        await createMockPdfFile(mockLocalResult.coverPath!);
+        await createMockPdfFile(mockLocalResult.contentPath!);
+
+        synthesizerService.synthesizeToLocal.mockResolvedValue(mockLocalResult);
+
+        try {
+          const result = await processor.handleSynthesis(mockJob as any);
+
+          // merged URL 항상 포함 (하위호환)
+          expect(result.outputFileUrl).toContain('merged.pdf');
+
+          // outputFiles 포함
+          expect(result.outputFiles).toBeDefined();
+          expect(result.outputFiles).toHaveLength(2);
+
+          // 순서 검증: cover → content
+          expect(result.outputFiles![0].type).toBe('cover');
+          expect(result.outputFiles![1].type).toBe('content');
+        } finally {
+          // 정리
+          await cleanupMockFiles([
+            mockLocalResult.sourceCoverPath,
+            mockLocalResult.sourceContentPath,
+            mockLocalResult.mergedPath,
+            mockLocalResult.coverPath!,
+            mockLocalResult.contentPath!,
+          ]);
+        }
+      });
+    });
+
+    describe('에러 처리', () => {
+      it('synthesizeToLocal 실패 시 에러 발생', async () => {
+        const jobId = 'test-job-error';
+        const mockJob = createMockJob({
+          jobId,
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+        });
+
+        synthesizerService.synthesizeToLocal.mockRejectedValue(
+          new Error('Download failed'),
+        );
+
+        await expect(processor.handleSynthesis(mockJob as any)).rejects.toThrow(
+          'Download failed',
+        );
+      });
+    });
+  });
+
+  describe('OutputFile 타입 검증', () => {
+    it('cover 타입 검증', () => {
+      const coverFile: OutputFile = {
+        type: 'cover',
+        url: '/storage/outputs/test/cover.pdf',
+      };
+      expect(coverFile.type).toBe('cover');
+      expect(coverFile.url).toContain('cover.pdf');
+    });
+
+    it('content 타입 검증', () => {
+      const contentFile: OutputFile = {
+        type: 'content',
+        url: '/storage/outputs/test/content.pdf',
+      };
+      expect(contentFile.type).toBe('content');
+      expect(contentFile.url).toContain('content.pdf');
+    });
+  });
+
+  // ============================================================================
+  // Split Synthesis 테스트 (★ v1.1.4 설계서)
+  // ============================================================================
+
+  describe('handleSplitSynthesis (mode: split)', () => {
+    describe('mode 분기 검증', () => {
+      it('mode === "split" 시 handleSplitSynthesis 호출', async () => {
+        const mockJob = createMockJob({
+          jobId: 'test-split-job',
+          mode: 'split',
+          sessionId: 'test-session-id',
+          pdfFileId: 'test-file-id',
+          pageTypes: ['cover', 'content', 'content', 'cover'] as PageTypes,
+          totalExpectedPages: 4,
+          outputFormat: 'separate',
+        });
+
+        // handleSplitSynthesis가 호출되면 파일 조회를 시도함
+        // axios mock이 설정되어 있으므로 getFileById 호출 확인
+        const axios = require('axios').default;
+
+        try {
+          await processor.handleSynthesis(mockJob as any);
+        } catch {
+          // 파일 다운로드 실패는 예상됨
+        }
+
+        // getFileById가 호출되었는지 확인 (split 모드 분기 확인)
+        expect(axios.get).toHaveBeenCalled();
+      });
+
+      it('mode 없으면 기존 merge 로직 실행', async () => {
+        const mockJob = createMockJob({
+          jobId: 'test-merge-job',
+          // mode 없음
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+        });
+
+        const mockLocalResult: SynthesisLocalResult = {
+          success: true,
+          sourceCoverPath: `${testStoragePath}/source_cover.pdf`,
+          sourceContentPath: `${testStoragePath}/source_content.pdf`,
+          mergedPath: `${testStoragePath}/merged.pdf`,
+          totalPages: 10,
+        };
+
+        await createMockPdfFile(mockLocalResult.sourceCoverPath);
+        await createMockPdfFile(mockLocalResult.sourceContentPath);
+        await createMockPdfFile(mockLocalResult.mergedPath);
+
+        synthesizerService.synthesizeToLocal.mockResolvedValue(mockLocalResult);
+
+        try {
+          const result = await processor.handleSynthesis(mockJob as any);
+          // synthesizeToLocal이 호출되었다면 merge 로직 실행됨
+          expect(synthesizerService.synthesizeToLocal).toHaveBeenCalled();
+        } finally {
+          await cleanupMockFiles([
+            mockLocalResult.sourceCoverPath,
+            mockLocalResult.sourceContentPath,
+            mockLocalResult.mergedPath,
+          ]);
+        }
+      });
+
+      it('mode === undefined 시 기존 merge 로직 실행', async () => {
+        const mockJob = createMockJob({
+          jobId: 'test-undefined-mode',
+          mode: undefined,
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+        });
+
+        const mockLocalResult: SynthesisLocalResult = {
+          success: true,
+          sourceCoverPath: `${testStoragePath}/src_cover.pdf`,
+          sourceContentPath: `${testStoragePath}/src_content.pdf`,
+          mergedPath: `${testStoragePath}/merged.pdf`,
+          totalPages: 10,
+        };
+
+        await createMockPdfFile(mockLocalResult.sourceCoverPath);
+        await createMockPdfFile(mockLocalResult.sourceContentPath);
+        await createMockPdfFile(mockLocalResult.mergedPath);
+
+        synthesizerService.synthesizeToLocal.mockResolvedValue(mockLocalResult);
+
+        try {
+          await processor.handleSynthesis(mockJob as any);
+          expect(synthesizerService.synthesizeToLocal).toHaveBeenCalled();
+        } finally {
+          await cleanupMockFiles([
+            mockLocalResult.sourceCoverPath,
+            mockLocalResult.sourceContentPath,
+            mockLocalResult.mergedPath,
+          ]);
+        }
+      });
+    });
+
+    describe('옵션 조합 검증', () => {
+      it('INVALID_OUTPUT_OPTIONS: merged + alsoGenerateMerged=true', async () => {
+        const mockJob = createMockJob({
+          jobId: 'test-invalid-options',
+          mode: 'split',
+          sessionId: 'test-session-id',
+          pdfFileId: 'test-file-id',
+          pageTypes: ['cover', 'content'] as PageTypes,
+          totalExpectedPages: 2,
+          outputFormat: 'merged',
+          alsoGenerateMerged: true, // ★ 무효한 조합
+        });
+
+        await expect(processor.handleSynthesis(mockJob as any)).rejects.toThrow(
+          /INVALID_OUTPUT_OPTIONS|alsoGenerateMerged/,
+        );
+      });
+    });
+  });
+
+  describe('PageTypes 타입 검증', () => {
+    it('pageTypes 배열 생성 검증', () => {
+      const pageTypes: PageTypes = ['cover', 'content', 'content', 'content', 'cover'];
+
+      expect(pageTypes).toHaveLength(5);
+      expect(pageTypes[0]).toBe('cover');
+      expect(pageTypes[1]).toBe('content');
+      expect(pageTypes[4]).toBe('cover');
+    });
+
+    it('cover/content만 허용', () => {
+      const pageTypes: PageTypes = ['cover', 'content'];
+
+      pageTypes.forEach((type) => {
+        expect(['cover', 'content']).toContain(type);
+      });
+    });
+  });
+
+  describe('SplitResult 타입 검증', () => {
+    it('SplitResult 구조 검증', () => {
+      const splitResult: SplitResult = {
+        coverPath: '/tmp/cover.pdf',
+        contentPath: '/tmp/content.pdf',
+        coverPageCount: 2,
+        contentPageCount: 8,
+      };
+
+      expect(splitResult.coverPath).toContain('cover.pdf');
+      expect(splitResult.contentPath).toContain('content.pdf');
+      expect(splitResult.coverPageCount + splitResult.contentPageCount).toBe(10);
+    });
+  });
+});
+
+// Helper functions
+function createMockJob(data: any): Partial<Job<any>> {
+  return {
+    id: data.jobId,
+    data,
+    progress: jest.fn(),
+    log: jest.fn(),
+  };
+}
+
+async function createMockPdfFile(filePath: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  // 최소한의 PDF 헤더
+  await fs.writeFile(filePath, '%PDF-1.4\n%%EOF');
+}
+
+async function cleanupMockFiles(files: string[]): Promise<void> {
+  for (const file of files) {
+    try {
+      await fs.unlink(file);
+    } catch {
+      // 무시
+    }
+  }
+}

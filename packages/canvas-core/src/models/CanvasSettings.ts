@@ -37,6 +37,7 @@ export interface CanvasSettings {
   category?: string,
   reduced?: boolean
   envelopeOption?: EnvelopeOption
+  spreadMode?: boolean  // 스프레드 모드 여부
 }
 
 export interface CanvasControls {

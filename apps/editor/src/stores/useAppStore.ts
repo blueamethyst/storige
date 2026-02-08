@@ -46,6 +46,13 @@ interface AppState {
   // UI 상태
   screenshots: string[]
   currentContentsBrowser: ContentsBrowserType
+
+  // 스프레드 모드 상태
+  isSpreadMode: boolean
+  spreadCanvasIndex: number  // 항상 0 (스프레드 캔버스는 첫 번째)
+  spineResizeAbortController: AbortController | null  // in-flight cancel용
+  restoring: boolean  // history replay 중 여부 (debounce 비활성 제어)
+  isLayoutTransaction: boolean  // resizeSpine 중 여부 (입력 잠금 제어)
 }
 
 interface AppActions {
@@ -75,8 +82,14 @@ interface AppActions {
   setPageName: (name: string) => void
   setPage: (index: number) => void
   addPage: () => Promise<void>
+  addInnerPage: () => Promise<void>     // 내지 추가 → debouncedRecalcSpine()
   deletePage: (canvasId: string) => void
+  deleteInnerPage: (canvasId: string) => void   // 내지 삭제 → debouncedRecalcSpine()
   reorderPages: (oldIndex: number, newIndex: number) => void
+
+  // 스프레드 모드 관리
+  setSpreadMode: (enabled: boolean) => void
+  debouncedRecalcSpine: () => void      // debounce(300ms) + abort
 
   // 객체 목록 관리
   updateObjects: () => void
@@ -212,6 +225,13 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
   screenshots: [],
   currentContentsBrowser: null,
 
+  // 스프레드 모드 초기 상태
+  isSpreadMode: false,
+  spreadCanvasIndex: 0,
+  spineResizeAbortController: null,
+  restoring: false,
+  isLayoutTransaction: false,
+
   // UI 액션
   hideSidePanel: () => set({ showSidePanel: false }),
   setShowSidePanel: (show: boolean) => set({ showSidePanel: show }),
@@ -313,6 +333,8 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
 
   // HMR 시 스토어 상태만 리셋 (DOM 정리 없이)
   reset: () => {
+    const { spineResizeAbortController } = get()
+
     // 모든 debounced 함수 취소 (메모리 누수 방지)
     debouncedTakeScreenshot.cancel()
     debouncedRenderFn.cancel()
@@ -328,6 +350,11 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       throttleTimeout = null
     }
 
+    // 스프레드 모드 AbortController 취소
+    if (spineResizeAbortController) {
+      spineResizeAbortController.abort()
+    }
+
     set({
       allCanvas: [],
       allEditors: [],
@@ -340,7 +367,13 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       initializationId: null,  // 초기화 ID도 리셋
       screenshots: [],
       currentContentsBrowser: null,
-      currentMenu: null
+      currentMenu: null,
+      // 스프레드 모드 상태 리셋
+      isSpreadMode: false,
+      spreadCanvasIndex: 0,
+      spineResizeAbortController: null,
+      restoring: false,
+      isLayoutTransaction: false,
     })
   },
 
@@ -589,6 +622,32 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
     }).catch((error) => {
       console.error('[AppStore] 책등 재계산 오류:', error)
     })
+  },
+
+  // 내지 추가 (스프레드 모드 전용)
+  addInnerPage: async () => {
+    const { isSpreadMode, addPage, debouncedRecalcSpine } = get()
+
+    if (!isSpreadMode) {
+      console.warn('[AppStore] addInnerPage는 스프레드 모드에서만 사용 가능합니다.')
+      return
+    }
+
+    await addPage()
+    debouncedRecalcSpine()
+  },
+
+  // 내지 삭제 (스프레드 모드 전용)
+  deleteInnerPage: (canvasId: string) => {
+    const { isSpreadMode, deletePage, debouncedRecalcSpine } = get()
+
+    if (!isSpreadMode) {
+      console.warn('[AppStore] deleteInnerPage는 스프레드 모드에서만 사용 가능합니다.')
+      return
+    }
+
+    deletePage(canvasId)
+    debouncedRecalcSpine()
   },
 
   reorderPages: (oldIndex: number, newIndex: number) => {
@@ -902,7 +961,78 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
 
   _incrementTriggerSelectionRefresh: () => {
     set((state) => ({ triggerSelectionRefresh: state.triggerSelectionRefresh + 1 }))
-  }
+  },
+
+  // 스프레드 모드 관리
+  setSpreadMode: (enabled: boolean) => {
+    set({ isSpreadMode: enabled })
+  },
+
+  debouncedRecalcSpine: () => {
+    const { isSpreadMode, restoring, spineResizeAbortController } = get()
+
+    if (!isSpreadMode) return
+
+    // restoring 중이면 debounce 비활성 (즉시 실행)
+    if (restoring) {
+      // 이전 요청 취소
+      if (spineResizeAbortController) {
+        spineResizeAbortController.abort()
+      }
+
+      // 즉시 실행 (debounce 없이)
+      const newController = new AbortController()
+      set({ spineResizeAbortController: newController })
+
+      recalculateSpineWidth()
+        .then((result) => {
+          if (result.success) {
+            console.log(`[AppStore] 책등 너비 재계산 완료 (즉시): ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+          }
+        })
+        .catch((error) => {
+          if (error.name !== 'AbortError') {
+            console.error('[AppStore] 책등 재계산 오류:', error)
+          }
+        })
+        .finally(() => {
+          set({ spineResizeAbortController: null })
+        })
+
+      return
+    }
+
+    // 정상 모드: debounce(300ms) + AbortController
+    // 이전 요청 취소
+    if (spineResizeAbortController) {
+      spineResizeAbortController.abort()
+    }
+
+    const newController = new AbortController()
+    set({ spineResizeAbortController: newController })
+
+    // debounce 300ms
+    setTimeout(() => {
+      if (newController.signal.aborted) return
+
+      recalculateSpineWidth()
+        .then((result) => {
+          if (result.success) {
+            console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+          }
+        })
+        .catch((error) => {
+          if (error.name !== 'AbortError') {
+            console.error('[AppStore] 책등 재계산 오류:', error)
+          }
+        })
+        .finally(() => {
+          if (get().spineResizeAbortController === newController) {
+            set({ spineResizeAbortController: null })
+          }
+        })
+    }, 300)
+  },
 }))
 
 // Computed 값들을 위한 Selector hooks

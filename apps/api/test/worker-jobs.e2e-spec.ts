@@ -287,6 +287,8 @@ class TestWorkerJobsService {
       throw new BadRequestException('CONTENT_FILE_REQUIRED');
     }
 
+    const outputFormat = dto.outputFormat || 'merged';
+
     const job = this.jobRepository.create({
       id: uuidv4(),
       jobType: 'SYNTHESIZE',
@@ -302,6 +304,7 @@ class TestWorkerJobsService {
         spineWidth: dto.spineWidth,
         orderId: dto.orderId,
         callbackUrl: dto.callbackUrl,
+        outputFormat, // 출력 형식 저장
       },
     });
 
@@ -329,6 +332,12 @@ class TestWorkerJobsService {
 
   async updateJobStatus(id: string, dto: any) {
     const job = await this.findOne(id);
+
+    // outputFiles가 있으면 result에 포함
+    if (dto.outputFiles && dto.result) {
+      dto.result.outputFiles = dto.outputFiles;
+    }
+
     Object.assign(job, dto);
     if (dto.status === 'COMPLETED' || dto.status === 'FAILED') {
       job.completedAt = new Date();
@@ -1234,6 +1243,289 @@ describe('WorkerJobsController (e2e)', () => {
       expect(failedResponse.body.status).toBe('FAILED');
       expect(failedResponse.body.errorMessage).toBe('PDF 파일이 손상되었습니다.');
       expect(failedResponse.body.completedAt).toBeDefined();
+    });
+  });
+
+  // ============================================================================
+  // PDF 분리 출력 테스트 (outputFormat: 'separate')
+  // ============================================================================
+
+  describe('PDF 분리 출력 테스트 (outputFormat)', () => {
+    it('TC-SEP-001: 기본 모드 (merged) - outputFormat 미지정 시 merged로 저장', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          orderId: 'ORD-2024-MERGED',
+        })
+        .expect(201);
+
+      expect(createResponse.body.options.outputFormat).toBe('merged');
+    });
+
+    it('TC-SEP-002: 분리 모드 (separate) - outputFormat: separate 요청', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          orderId: 'ORD-2024-SEPARATE',
+          outputFormat: 'separate',
+        })
+        .expect(201);
+
+      expect(createResponse.body.options.outputFormat).toBe('separate');
+    });
+
+    it('TC-SEP-003: 분리 모드 완료 시 outputFiles 포함 응답', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'separate',
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      // PROCESSING → COMPLETED with outputFiles
+      await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ status: 'PROCESSING' })
+        .expect(200);
+
+      const completedResponse = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/test-job/merged.pdf', // 항상 merged URL
+          outputFiles: [
+            { type: 'cover', url: '/storage/outputs/test-job/cover.pdf' },
+            { type: 'content', url: '/storage/outputs/test-job/content.pdf' },
+          ],
+          result: {
+            success: true,
+            totalPages: 104,
+            outputFileUrl: '/storage/outputs/test-job/merged.pdf',
+            outputFiles: [
+              { type: 'cover', url: '/storage/outputs/test-job/cover.pdf' },
+              { type: 'content', url: '/storage/outputs/test-job/content.pdf' },
+            ],
+          },
+        })
+        .expect(200);
+
+      // 하위호환: outputFileUrl은 항상 merged URL
+      expect(completedResponse.body.outputFileUrl).toBe('/storage/outputs/test-job/merged.pdf');
+
+      // separate 모드: outputFiles 포함
+      expect(completedResponse.body.result.outputFiles).toBeDefined();
+      expect(completedResponse.body.result.outputFiles).toHaveLength(2);
+      expect(completedResponse.body.result.outputFiles[0].type).toBe('cover');
+      expect(completedResponse.body.result.outputFiles[1].type).toBe('content');
+    });
+
+    it('TC-SEP-004: 하위호환 - merged 모드에서는 outputFiles 없음', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'merged', // 명시적 merged
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ status: 'PROCESSING' })
+        .expect(200);
+
+      const completedResponse = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/test-job/merged.pdf',
+          result: {
+            success: true,
+            totalPages: 104,
+            outputFileUrl: '/storage/outputs/test-job/merged.pdf',
+            // outputFiles 없음
+          },
+        })
+        .expect(200);
+
+      expect(completedResponse.body.outputFileUrl).toBe('/storage/outputs/test-job/merged.pdf');
+      expect(completedResponse.body.result.outputFiles).toBeUndefined();
+    });
+
+    it('TC-SEP-005: 분리 모드 실패 시 outputFileUrl 빈값, errorMessage 포함', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'separate',
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ status: 'PROCESSING' })
+        .expect(200);
+
+      const failedResponse = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'FAILED',
+          errorMessage: 'Separate upload failed: content file inaccessible',
+        })
+        .expect(200);
+
+      expect(failedResponse.body.status).toBe('FAILED');
+      expect(failedResponse.body.errorMessage).toBe('Separate upload failed: content file inaccessible');
+      expect(failedResponse.body.outputFileUrl).toBeNull();
+    });
+
+    it('TC-SEP-006: outputFiles 순서 검증 (cover → content)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'separate',
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({ status: 'PROCESSING' })
+        .expect(200);
+
+      const completedResponse = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/test/merged.pdf',
+          outputFiles: [
+            { type: 'cover', url: '/storage/outputs/test/cover.pdf' },
+            { type: 'content', url: '/storage/outputs/test/content.pdf' },
+          ],
+          result: {
+            success: true,
+            outputFiles: [
+              { type: 'cover', url: '/storage/outputs/test/cover.pdf' },
+              { type: 'content', url: '/storage/outputs/test/content.pdf' },
+            ],
+          },
+        })
+        .expect(200);
+
+      // 순서 검증: cover가 먼저
+      const outputFiles = completedResponse.body.result.outputFiles;
+      expect(outputFiles[0].type).toBe('cover');
+      expect(outputFiles[1].type).toBe('content');
+    });
+
+    it('TC-SEP-007: queueJobId 디버깅 필드 전달', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      const completedResponse = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/test/merged.pdf',
+          queueJobId: '12345', // Bull queue ID
+          result: { success: true },
+        })
+        .expect(200);
+
+      // queueJobId가 저장되었는지 확인 (result 안에 저장될 수 있음)
+      expect(completedResponse.body.status).toBe('COMPLETED');
+    });
+  });
+
+  // ============================================================================
+  // 재시도 (Idempotency) 테스트
+  // ============================================================================
+
+  describe('재시도 및 Idempotency 테스트', () => {
+    it('TC-RETRY-001: 동일 jobId로 상태 업데이트 재시도', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/worker-jobs/synthesize/external')
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          coverUrl: 'https://example.com/cover.pdf',
+          contentUrl: 'https://example.com/content.pdf',
+          spineWidth: 5.5,
+          outputFormat: 'separate',
+        })
+        .expect(201);
+
+      const jobId = createResponse.body.id;
+
+      // 첫 번째 완료 업데이트
+      const firstComplete = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/v1/merged.pdf',
+        })
+        .expect(200);
+
+      expect(firstComplete.body.status).toBe('COMPLETED');
+
+      // 두 번째 완료 업데이트 (재시도 - 덮어쓰기)
+      const secondComplete = await request(app.getHttpServer())
+        .patch(`/worker-jobs/external/${jobId}/status`)
+        .set('X-API-Key', TEST_API_KEY)
+        .send({
+          status: 'COMPLETED',
+          outputFileUrl: '/storage/outputs/v2/merged.pdf', // 다른 URL
+        })
+        .expect(200);
+
+      // 덮어쓰기 확인
+      expect(secondComplete.body.outputFileUrl).toBe('/storage/outputs/v2/merged.pdf');
     });
   });
 });

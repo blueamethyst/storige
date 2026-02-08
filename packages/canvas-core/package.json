@@ -26,6 +26,7 @@
   ],
   "dependencies": {
     "@imgly/background-removal": "^1.5.3",
+    "@storige/types": "workspace:^",
     "@techstark/opencv-js": "^4.9.0-release.3",
     "@webtoon/psd": "^0.4.0",
     "axios": "^1.7.2",

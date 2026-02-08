@@ -42,6 +42,27 @@ export class TemplatesService {
   }
 
   async create(createTemplateDto: CreateTemplateDto, userId?: string): Promise<Template> {
+    // spread 타입 검증: spreadConfig 필수
+    if (createTemplateDto.type === 'spread') {
+      if (!createTemplateDto.spreadConfig) {
+        throw new BadRequestException('type=spread일 때 spreadConfig는 필수입니다.');
+      }
+
+      // spreadConfig 필수 필드 검증
+      const { spec } = createTemplateDto.spreadConfig;
+      if (!spec || !spec.coverWidthMm || !spec.coverHeightMm) {
+        throw new BadRequestException('spreadConfig.spec에 coverWidthMm, coverHeightMm이 필요합니다.');
+      }
+
+      // 판형 검증 (width, height와 일치 여부)
+      if (createTemplateDto.width && Math.abs(createTemplateDto.width - spec.coverWidthMm) > 0.1) {
+        throw new BadRequestException('spreadConfig.spec.coverWidthMm은 템플릿 width와 일치해야 합니다.');
+      }
+      if (createTemplateDto.height && Math.abs(createTemplateDto.height - spec.coverHeightMm) > 0.1) {
+        throw new BadRequestException('spreadConfig.spec.coverHeightMm은 템플릿 height와 일치해야 합니다.');
+      }
+    }
+
     // 템플릿 코드와 편집 코드 자동 생성
     let templateCode = this.generateCode('TMPL');
     let editCode = this.generateCode('EDIT');

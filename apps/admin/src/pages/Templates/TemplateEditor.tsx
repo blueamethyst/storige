@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, message, Modal, Form, Input, Select, InputNumber, Space, Spin } from 'antd';
+import { Button, message, Modal, Form, Input, Select, InputNumber, Space, Spin, Switch, Divider } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 
 const { Option } = Select;
 
 // 템플릿 타입
-type TemplateType = 'wing' | 'cover' | 'spine' | 'page';
+type TemplateType = 'wing' | 'cover' | 'spine' | 'page' | 'spread';
 
 // PostMessage 이벤트 타입
 interface TemplateEditorMessage {
@@ -28,6 +28,15 @@ interface TemplateConfig {
   height: number;
 }
 
+// 스프레드 최소 설정 타입
+interface SpreadMinimalConfig {
+  coverWidthMm: number;
+  coverHeightMm: number;
+  wingEnabled: boolean;
+  wingWidthMm: number;
+  initialSpineWidthMm?: number;
+}
+
 // 에디터 URL
 const EDITOR_URL = import.meta.env.VITE_EDITOR_URL || 'http://localhost:3000';
 
@@ -43,15 +52,18 @@ export const TemplateEditor = () => {
 
   // 상태
   const [configModalVisible, setConfigModalVisible] = useState(!templateId);
+  const [spreadConfigModalVisible, setSpreadConfigModalVisible] = useState(false);
   const [editorLoading, setEditorLoading] = useState(true);
   const [editorReady, setEditorReady] = useState(false);
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
+  const [spreadConfig, setSpreadConfig] = useState<SpreadMinimalConfig | null>(null);
 
   // 폼 인스턴스
   const [form] = Form.useForm();
+  const [spreadForm] = Form.useForm();
 
   // iframe으로 보낼 URL 생성
-  const getEditorUrl = useCallback((config?: TemplateConfig) => {
+  const getEditorUrl = useCallback((config?: TemplateConfig, spread?: SpreadMinimalConfig) => {
     const params = new URLSearchParams();
 
     if (templateId) {
@@ -63,6 +75,12 @@ export const TemplateEditor = () => {
       params.set('width', config.width.toString());
       params.set('height', config.height.toString());
       params.set('type', config.type);
+
+      // 스프레드 모드인 경우
+      if (config.type === 'spread' && spread) {
+        params.set('mode', 'spread');
+        params.set('spec', JSON.stringify(spread));
+      }
     }
 
     if (accessToken) {
@@ -133,11 +151,36 @@ export const TemplateEditor = () => {
   const handleConfigSubmit = async () => {
     try {
       const values = await form.validateFields();
-      setTemplateConfig(values);
-      setConfigModalVisible(false);
+
+      // spread 타입인 경우 추가 설정 모달 표시
+      if (values.type === 'spread') {
+        setTemplateConfig(values);
+        setConfigModalVisible(false);
+        setSpreadConfigModalVisible(true);
+      } else {
+        setTemplateConfig(values);
+        setConfigModalVisible(false);
+      }
     } catch (error) {
       console.error('Form validation failed:', error);
     }
+  };
+
+  // 스프레드 설정 모달 확인
+  const handleSpreadConfigSubmit = async () => {
+    try {
+      const values = await spreadForm.validateFields();
+      setSpreadConfig(values);
+      setSpreadConfigModalVisible(false);
+    } catch (error) {
+      console.error('Spread form validation failed:', error);
+    }
+  };
+
+  // 스프레드 설정 모달 취소
+  const handleSpreadConfigCancel = () => {
+    setSpreadConfigModalVisible(false);
+    setConfigModalVisible(true); // 다시 기본 설정 모달로
   };
 
   // 설정 모달 취소
@@ -216,7 +259,10 @@ export const TemplateEditor = () => {
         {(templateConfig || templateId) && (
           <iframe
             ref={iframeRef}
-            src={getEditorUrl(templateConfig || undefined)}
+            src={getEditorUrl(
+              templateConfig || undefined,
+              templateConfig?.type === 'spread' ? spreadConfig || undefined : undefined
+            )}
             style={{
               width: '100%',
               height: '100%',
@@ -235,7 +281,7 @@ export const TemplateEditor = () => {
         open={configModalVisible}
         onOk={handleConfigSubmit}
         onCancel={handleConfigCancel}
-        okText="에디터 열기"
+        okText={form.getFieldValue('type') === 'spread' ? '다음' : '에디터 열기'}
         cancelText="취소"
         maskClosable={false}
         closable={false}
@@ -268,6 +314,7 @@ export const TemplateEditor = () => {
               <Option value="cover">표지 (Cover)</Option>
               <Option value="spine">책등 (Spine)</Option>
               <Option value="wing">날개 (Wing)</Option>
+              <Option value="spread">스프레드 (Spread) - 책모드용</Option>
             </Select>
           </Form.Item>
 
@@ -296,6 +343,93 @@ export const TemplateEditor = () => {
               <li>A5: 148 × 210 mm</li>
               <li>B5: 176 × 250 mm</li>
               <li>46배판: 188 × 257 mm</li>
+            </ul>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* 스프레드 최소 설정 모달 */}
+      <Modal
+        title="스프레드 템플릿 설정"
+        open={spreadConfigModalVisible}
+        onOk={handleSpreadConfigSubmit}
+        onCancel={handleSpreadConfigCancel}
+        okText="에디터 열기"
+        cancelText="뒤로"
+        maskClosable={false}
+        width={600}
+      >
+        <Form
+          form={spreadForm}
+          layout="vertical"
+          initialValues={{
+            coverWidthMm: 210,
+            coverHeightMm: 297,
+            wingEnabled: true,
+            wingWidthMm: 60,
+            initialSpineWidthMm: undefined,
+          }}
+        >
+          <Divider orientation="left">표지 크기</Divider>
+          <Space size="middle" style={{ display: 'flex' }}>
+            <Form.Item
+              name="coverWidthMm"
+              label="표지 가로 (mm)"
+              rules={[{ required: true, message: '표지 가로를 입력해주세요' }]}
+            >
+              <InputNumber min={50} max={1000} style={{ width: 150 }} />
+            </Form.Item>
+
+            <Form.Item
+              name="coverHeightMm"
+              label="표지 세로 (mm)"
+              rules={[{ required: true, message: '표지 세로를 입력해주세요' }]}
+            >
+              <InputNumber min={50} max={1000} style={{ width: 150 }} />
+            </Form.Item>
+          </Space>
+
+          <Divider orientation="left">날개 설정</Divider>
+          <Form.Item
+            name="wingEnabled"
+            label="날개 포함"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="포함" unCheckedChildren="제외" />
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.wingEnabled !== curr.wingEnabled}>
+            {({ getFieldValue }) =>
+              getFieldValue('wingEnabled') && (
+                <Form.Item
+                  name="wingWidthMm"
+                  label="날개 너비 (mm)"
+                  rules={[
+                    { required: true, message: '날개 너비를 입력해주세요' },
+                    { type: 'number', min: 30, max: 200, message: '30~200mm 사이로 입력해주세요' },
+                  ]}
+                >
+                  <InputNumber min={30} max={200} style={{ width: 150 }} />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+
+          <Divider orientation="left">책등 설정 (선택)</Divider>
+          <Form.Item
+            name="initialSpineWidthMm"
+            label="초기 책등 너비 (mm)"
+            extra="입력하지 않으면 상품 스펙에서 자동 계산됩니다"
+          >
+            <InputNumber min={1} max={100} style={{ width: 150 }} placeholder="자동 계산" />
+          </Form.Item>
+
+          <div style={{ color: '#888', fontSize: 12, marginTop: 16 }}>
+            <strong>참고:</strong>
+            <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+              <li>스프레드 템플릿은 책모드 전용입니다</li>
+              <li>표지 크기는 상품 스펙과 일치해야 합니다</li>
+              <li>책등 너비는 내지 페이지 수에 따라 동적으로 변경됩니다</li>
             </ul>
           </div>
         </Form>

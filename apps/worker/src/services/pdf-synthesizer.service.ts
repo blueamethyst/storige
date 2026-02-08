@@ -9,6 +9,8 @@ import {
   mergePdfs,
   pdfToImage,
 } from '../utils/ghostscript';
+import { SynthesisLocalResult, SplitResult, SpreadSynthesisLocalResult } from '@storige/types';
+import { DomainError, ErrorCodes } from '../common/errors';
 
 export interface SynthesisOptions {
   /** 표지 PDF URL 또는 파일 경로 */
@@ -21,8 +23,11 @@ export interface SynthesisOptions {
   bindingType?: 'perfect' | 'saddle' | 'hardcover';
   /** 미리보기 생성 여부 */
   generatePreview?: boolean;
+  /** 출력 형식: merged(기본) 또는 separate */
+  outputFormat?: 'merged' | 'separate';
 }
 
+/** @deprecated 하위호환용 - SynthesisLocalResult 사용 권장 */
 export interface SynthesisResult {
   success: boolean;
   outputFileUrl: string;
@@ -41,7 +46,108 @@ export class PdfSynthesizerService {
   private gsAvailable: boolean | null = null;
 
   /**
+   * Synthesize cover and content PDFs (로컬 파일 경로 반환)
+   * 설계서 기준: Synthesizer는 파일 생성, Processor는 publish
+   *
+   * @param coverPdfUrl 표지 PDF URL
+   * @param contentPdfUrl 내지 PDF URL
+   * @param options 합성 옵션
+   * @returns SynthesisLocalResult (로컬 파일 경로들)
+   */
+  async synthesizeToLocal(
+    coverPdfUrl: string,
+    contentPdfUrl: string,
+    options: Partial<SynthesisOptions> = {},
+  ): Promise<SynthesisLocalResult> {
+    const { outputFormat = 'merged', bindingType = 'perfect' } = options;
+
+    this.logger.log(
+      `Synthesizing PDFs: cover=${coverPdfUrl}, content=${contentPdfUrl}, format=${outputFormat}`,
+    );
+
+    // Ghostscript 사용 가능 여부 확인
+    if (this.gsAvailable === null) {
+      this.gsAvailable = await isGhostscriptAvailable();
+      this.logger.log(`Ghostscript available: ${this.gsAvailable}`);
+    }
+
+    // 1. 다운로드 (source 경로)
+    const sourceCoverPath = path.join(
+      this.storagePath,
+      `source_cover_${uuidv4()}.pdf`,
+    );
+    const sourceContentPath = path.join(
+      this.storagePath,
+      `source_content_${uuidv4()}.pdf`,
+    );
+
+    const coverBytes = await this.downloadFile(coverPdfUrl);
+    const contentBytes = await this.downloadFile(contentPdfUrl);
+
+    await fs.writeFile(sourceCoverPath, coverBytes);
+    await fs.writeFile(sourceContentPath, contentBytes);
+
+    // 2. merged PDF 생성 (항상)
+    const mergedPath = path.join(this.storagePath, `merged_${uuidv4()}.pdf`);
+
+    let totalPages: number;
+    if (this.gsAvailable) {
+      totalPages = await this.synthesizeWithGhostscript(
+        sourceCoverPath,
+        sourceContentPath,
+        mergedPath,
+        bindingType,
+      );
+    } else {
+      totalPages = await this.synthesizeWithPdfLib(
+        sourceCoverPath,
+        sourceContentPath,
+        mergedPath,
+        bindingType,
+      );
+    }
+
+    this.logger.log(
+      `Merged PDF created: ${totalPages} pages saved to ${mergedPath}`,
+    );
+
+    // 3. separate 모드면 cover/content 복사본 생성 (output 경로)
+    if (outputFormat === 'separate') {
+      const coverPath = path.join(this.storagePath, `cover_${uuidv4()}.pdf`);
+      const contentPath = path.join(
+        this.storagePath,
+        `content_${uuidv4()}.pdf`,
+      );
+      await fs.copyFile(sourceCoverPath, coverPath);
+      await fs.copyFile(sourceContentPath, contentPath);
+
+      this.logger.log(
+        `Separate mode: cover=${coverPath}, content=${contentPath}`,
+      );
+
+      return {
+        success: true,
+        sourceCoverPath, // 다운로드 원본
+        sourceContentPath, // 다운로드 원본
+        mergedPath,
+        coverPath, // 복사본 (출력용)
+        contentPath, // 복사본 (출력용)
+        totalPages,
+      };
+    }
+
+    return {
+      success: true,
+      sourceCoverPath, // 다운로드 원본
+      sourceContentPath, // 다운로드 원본
+      mergedPath,
+      totalPages,
+    };
+  }
+
+  /**
    * Synthesize cover and content PDFs
+   * @deprecated synthesizeToLocal 사용 권장 (하위호환 유지)
    */
   async synthesize(
     options: SynthesisOptions,
@@ -331,10 +437,108 @@ export class PdfSynthesizerService {
     return gsm * factor;
   }
 
+  // ============================================================================
+  // Split Synthesis (단일 PDF 분리) - ★ v1.1.4 설계서
+  // ============================================================================
+
+  /**
+   * PDF 문서에서 인덱스 기반으로 페이지 분리
+   *
+   * ★ 설계서 v1.1.4 기준:
+   * - pdfDoc을 직접 받아 I/O 최소화
+   * - jobTempDir로 jobId scoped 임시 파일 (동시 작업 안전)
+   * - cover.pdf, content.pdf 생성
+   *
+   * @param pdfDoc 원본 PDF 문서 (이미 로드됨)
+   * @param coverIndices 표지로 분류된 페이지 인덱스 배열
+   * @param contentIndices 내지로 분류된 페이지 인덱스 배열
+   * @param jobTempDir jobId scoped 임시 디렉토리 경로
+   * @returns SplitResult (cover.pdf, content.pdf 경로 및 페이지 수)
+   */
+  async splitPdfByIndices(
+    pdfDoc: PDFDocument,
+    coverIndices: number[],
+    contentIndices: number[],
+    jobTempDir: string,
+  ): Promise<SplitResult> {
+    this.logger.log(
+      `Splitting PDF: coverPages=${coverIndices.length}, contentPages=${contentIndices.length}`,
+    );
+
+    // 표지 PDF 생성
+    const coverDoc = await PDFDocument.create();
+    const coverPages = await coverDoc.copyPages(pdfDoc, coverIndices);
+    coverPages.forEach((page) => coverDoc.addPage(page));
+
+    const coverPath = path.join(jobTempDir, 'cover.pdf');
+    await fs.writeFile(coverPath, await coverDoc.save());
+
+    // 내지 PDF 생성
+    const contentDoc = await PDFDocument.create();
+    const contentPages = await contentDoc.copyPages(pdfDoc, contentIndices);
+    contentPages.forEach((page) => contentDoc.addPage(page));
+
+    const contentPath = path.join(jobTempDir, 'content.pdf');
+    await fs.writeFile(contentPath, await contentDoc.save());
+
+    this.logger.log(
+      `Split complete: cover=${coverPath} (${coverIndices.length}p), content=${contentPath} (${contentIndices.length}p)`,
+    );
+
+    return {
+      coverPath,
+      contentPath,
+      coverPageCount: coverIndices.length,
+      contentPageCount: contentIndices.length,
+    };
+  }
+
+  /**
+   * 두 PDF를 병합하여 merged.pdf 생성 (split 모드용)
+   *
+   * @param coverPath 표지 PDF 경로
+   * @param contentPath 내지 PDF 경로
+   * @param outputPath 출력 경로
+   */
+  async mergeSplitPdfs(
+    coverPath: string,
+    contentPath: string,
+    outputPath: string,
+  ): Promise<void> {
+    const coverDoc = await PDFDocument.load(await fs.readFile(coverPath));
+    const contentDoc = await PDFDocument.load(await fs.readFile(contentPath));
+
+    const mergedDoc = await PDFDocument.create();
+
+    // 표지 페이지 복사
+    const coverPages = await mergedDoc.copyPages(
+      coverDoc,
+      coverDoc.getPageIndices(),
+    );
+    coverPages.forEach((page) => mergedDoc.addPage(page));
+
+    // 내지 페이지 복사
+    const contentPages = await mergedDoc.copyPages(
+      contentDoc,
+      contentDoc.getPageIndices(),
+    );
+    contentPages.forEach((page) => mergedDoc.addPage(page));
+
+    await fs.writeFile(outputPath, await mergedDoc.save());
+
+    this.logger.log(
+      `Merged PDF created: ${outputPath} (${mergedDoc.getPageCount()} pages)`,
+    );
+  }
+
+  // ============================================================================
+  // File Download & Utils
+  // ============================================================================
+
   /**
    * Download file from URL
    */
-  private async downloadFile(url: string): Promise<Uint8Array> {
+  async downloadFile(url: string): Promise<Uint8Array> {
     // Check if it's a local file path
     if (url.startsWith('/') || url.startsWith('./')) {
       const buffer = await fs.readFile(url);
@@ -358,5 +562,267 @@ export class PdfSynthesizerService {
     } catch (error) {
       this.logger.debug(`Could not delete temp file: ${filePath}`);
     }
+  }
+
+  // ============================================================================
+  // Spread Synthesis (스프레드 PDF 합성) - ★ v2.5 설계서
+  // ============================================================================
+
+  /**
+   * 스프레드 합성 처리
+   *
+   * @param options.sessionId EditSession ID (스냅샷 검증용)
+   * @param options.spreadPdfFileId 스프레드 PDF 파일 ID (1페이지)
+   * @param options.contentPdfFileIds 내지 PDF 파일 ID 배열 (순서 보장)
+   * @param options.jobTempDir 임시 디렉토리 경로
+   * @param options.alsoGenerateMerged merged.pdf도 생성할지 여부
+   * @returns SpreadSynthesisLocalResult
+   */
+  async handleSpreadSynthesis(options: {
+    sessionId: string;
+    spreadPdfFileId: string;
+    contentPdfFileIds: string[];
+    jobTempDir: string;
+    alsoGenerateMerged: boolean;
+  }): Promise<SpreadSynthesisLocalResult> {
+    const {
+      sessionId,
+      spreadPdfFileId,
+      contentPdfFileIds,
+      jobTempDir,
+      alsoGenerateMerged,
+    } = options;
+
+    this.logger.log(
+      `Spread synthesis: session=${sessionId}, spreadPdf=${spreadPdfFileId}, contentPdfs=${contentPdfFileIds.length}`,
+    );
+
+    // 1. EditSession 조회 (스냅샷 검증용)
+    const session = await this.getEditSession(sessionId);
+    if (!session) {
+      throw new DomainError(
+        ErrorCodes.SESSION_NOT_FOUND,
+        'EditSession을 찾을 수 없습니다',
+      );
+    }
+
+    // 1-1. 스냅샷 검증 (하드 실패)
+    this.validateSpreadSnapshot(session);
+
+    const { spine, spread } = session.metadata;
+
+    // 2. 스프레드 PDF 다운로드 + 검증
+    const spreadFile = await this.getFileById(spreadPdfFileId);
+    if (!spreadFile) {
+      throw new DomainError(
+        ErrorCodes.FILE_NOT_FOUND,
+        '스프레드 PDF 파일을 찾을 수 없습니다',
+      );
+    }
+
+    const spreadPdfPath = path.join(jobTempDir, `spread_${spreadPdfFileId}.pdf`);
+    const spreadBytes = await this.downloadFile(spreadFile.filePath);
+    await fs.writeFile(spreadPdfPath, spreadBytes);
+
+    // 2-1. 스프레드 PDF 검증: 1페이지 + MediaBox 일치
+    const spreadPdf = await PDFDocument.load(spreadBytes);
+    const spreadPageCount = spreadPdf.getPageCount();
+
+    if (spreadPageCount !== 1) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_PDF_INVALID_PAGE_COUNT,
+        `스프레드 PDF는 1페이지여야 합니다 (현재: ${spreadPageCount}페이지)`,
+      );
+    }
+
+    // MediaBox 사이즈 검증 (오차 허용: 0.2mm 또는 1px@dpi)
+    const spreadPage = spreadPdf.getPage(0);
+    const { width: pdfWidthPt, height: pdfHeightPt } = spreadPage.getSize();
+    const pdfWidthMm = pdfWidthPt * 25.4 / 72;
+    const pdfHeightMm = pdfHeightPt * 25.4 / 72;
+
+    const expectedWidthMm = spread.totalWidthMm;
+    const expectedHeightMm = spread.totalHeightMm;
+    const dpi = spread.dpi || 300;
+    const toleranceMm = Math.max(0.2, (1 / dpi) * 25.4);
+
+    if (
+      Math.abs(pdfWidthMm - expectedWidthMm) > toleranceMm ||
+      Math.abs(pdfHeightMm - expectedHeightMm) > toleranceMm
+    ) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_PDF_SIZE_MISMATCH,
+        `스프레드 PDF 사이즈가 일치하지 않습니다. ` +
+          `예상: ${expectedWidthMm}x${expectedHeightMm}mm, ` +
+          `실제: ${pdfWidthMm.toFixed(2)}x${pdfHeightMm.toFixed(2)}mm (허용 오차: ${toleranceMm.toFixed(2)}mm)`,
+      );
+    }
+
+    // 3. 내지 PDF들 다운로드
+    const contentPdfPaths: string[] = [];
+    for (const fileId of contentPdfFileIds) {
+      const contentFile = await this.getFileById(fileId);
+      if (!contentFile) {
+        throw new DomainError(
+          ErrorCodes.FILE_NOT_FOUND,
+          `내지 PDF 파일을 찾을 수 없습니다: ${fileId}`,
+        );
+      }
+
+      const contentPdfPath = path.join(jobTempDir, `content_${fileId}.pdf`);
+      const contentBytes = await this.downloadFile(contentFile.filePath);
+      await fs.writeFile(contentPdfPath, contentBytes);
+      contentPdfPaths.push(contentPdfPath);
+    }
+
+    // 4. cover.pdf 생성 (스프레드 PDF 그대로 복사)
+    const coverPath = path.join(jobTempDir, 'cover.pdf');
+    await fs.copyFile(spreadPdfPath, coverPath);
+
+    // 5. content.pdf 생성 (내지 PDF들 순서대로 병합)
+    const contentPath = path.join(jobTempDir, 'content.pdf');
+    const mergedContentPdf = await PDFDocument.create();
+
+    let totalContentPages = 0;
+    for (const contentPdfPath of contentPdfPaths) {
+      const contentPdfBytes = await fs.readFile(contentPdfPath);
+      const contentPdf = await PDFDocument.load(contentPdfBytes);
+      const pageCount = contentPdf.getPageCount();
+
+      for (let i = 0; i < pageCount; i++) {
+        const [copiedPage] = await mergedContentPdf.copyPages(contentPdf, [i]);
+        mergedContentPdf.addPage(copiedPage);
+        totalContentPages++;
+      }
+    }
+
+    const mergedContentBytes = await mergedContentPdf.save();
+    await fs.writeFile(contentPath, mergedContentBytes);
+
+    // 6. merged.pdf 생성 (선택)
+    let mergedPath: string | undefined = undefined;
+    if (alsoGenerateMerged) {
+      mergedPath = path.join(jobTempDir, 'merged.pdf');
+      const finalMergedPdf = await PDFDocument.create();
+
+      // cover.pdf 추가 (1페이지)
+      const coverPdfBytes = await fs.readFile(coverPath);
+      const coverPdf = await PDFDocument.load(coverPdfBytes);
+      const [copiedCoverPage] = await finalMergedPdf.copyPages(coverPdf, [0]);
+      finalMergedPdf.addPage(copiedCoverPage);
+
+      // content.pdf 추가 (N페이지)
+      const contentPdfBytes = await fs.readFile(contentPath);
+      const contentPdf = await PDFDocument.load(contentPdfBytes);
+      const contentPageCount = contentPdf.getPageCount();
+
+      for (let i = 0; i < contentPageCount; i++) {
+        const [copiedPage] = await finalMergedPdf.copyPages(contentPdf, [i]);
+        finalMergedPdf.addPage(copiedPage);
+      }
+
+      const finalMergedBytes = await finalMergedPdf.save();
+      await fs.writeFile(mergedPath, finalMergedBytes);
+
+      this.logger.log(`Generated merged.pdf with ${1 + totalContentPages} pages`);
+    }
+
+    this.logger.log(
+      `Spread synthesis completed: cover (1p) + content (${totalContentPages}p)`,
+    );
+
+    return {
+      success: true,
+      coverPath,
+      contentPath,
+      mergedPath,
+      coverPageCount: 1,
+      contentPageCount: totalContentPages,
+    };
+  }
+
+  /**
+   * EditSession 조회 (API 호출)
+   */
+  private async getEditSession(sessionId: string): Promise<any> {
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4000/api';
+    try {
+      const response = await axios.get(
+        `${apiBaseUrl}/edit-sessions/${sessionId}`,
+        {
+          headers: { 'X-API-Key': process.env.WORKER_API_KEY },
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to get EditSession ${sessionId}: ${error.message}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * File 조회 (API 호출)
+   */
+  private async getFileById(fileId: string): Promise<any> {
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4000/api';
+    try {
+      const response = await axios.get(`${apiBaseUrl}/files/${fileId}`, {
+        headers: { 'X-API-Key': process.env.WORKER_API_KEY },
+      });
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Failed to get File ${fileId}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * 스프레드 스냅샷 검증 (하드 실패)
+   */
+  private validateSpreadSnapshot(session: any): void {
+    if (!session.metadata?.spine) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_SNAPSHOT_MISSING,
+        'metadata.spine이 누락되었습니다',
+      );
+    }
+
+    const { spine } = session.metadata;
+    if (
+      !spine.spineWidthMm ||
+      !spine.pageCount ||
+      !spine.paperType ||
+      !spine.bindingType ||
+      !spine.formulaVersion
+    ) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_SNAPSHOT_INVALID,
+        'metadata.spine의 필수 필드가 누락되었습니다',
+      );
+    }
+
+    if (!session.metadata?.spread) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_SNAPSHOT_MISSING,
+        'metadata.spread가 누락되었습니다',
+      );
+    }
+
+    const { spread } = session.metadata;
+    if (
+      !spread.spec ||
+      !spread.totalWidthMm ||
+      !spread.totalHeightMm ||
+      !spread.dpi
+    ) {
+      throw new DomainError(
+        ErrorCodes.SPREAD_SNAPSHOT_INVALID,
+        'metadata.spread의 필수 필드가 누락되었습니다',
+      );
+    }
+
+    this.logger.log(`Spread snapshot validated for session ${session.id}`);
   }
 }

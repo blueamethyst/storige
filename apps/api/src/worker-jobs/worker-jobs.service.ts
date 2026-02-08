@@ -1,16 +1,30 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  UnprocessableEntityException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository } from 'typeorm';
 import { Queue } from 'bull';
 import { WorkerJob } from './entities/worker-job.entity';
-import { WorkerJobType, WorkerJobStatus } from '@storige/types';
+import {
+  WorkerJobType,
+  WorkerJobStatus,
+  SynthesisWebhookPayload,
+  TemplateType,
+  PageTypes,
+} from '@storige/types';
 import {
   CreateValidationJobDto,
   CreateConversionJobDto,
   CreateSynthesisJobDto,
   UpdateJobStatusDto,
 } from './dto/worker-job.dto';
+import { CreateSplitSynthesisJobDto } from './dto/create-split-synthesis-job.dto';
+import { CreateSpreadSynthesisJobDto } from './dto/create-spread-synthesis-job.dto';
 import {
   CheckMergeableDto,
   CheckMergeableResponseDto,
@@ -19,7 +33,7 @@ import {
 import * as fs from 'fs/promises';
 import axios from 'axios';
 import { FilesService } from '../files/files.service';
-import { WebhookService, SynthesisWebhookPayload } from '../webhook/webhook.service';
+import { WebhookService } from '../webhook/webhook.service';
 import { EditSessionEntity, WorkerStatus } from '../edit-sessions/entities/edit-session.entity';
 
 @Injectable()
@@ -278,6 +292,8 @@ export class WorkerJobsService {
       contentUrl = contentFile.filePath;
     }
 
+    const outputFormat = createSynthesisJobDto.outputFormat || 'merged';
+
     const job = this.workerJobRepository.create({
       jobType: WorkerJobType.SYNTHESIZE,
       status: WorkerJobStatus.PENDING,
@@ -292,6 +308,7 @@ export class WorkerJobsService {
         spineWidth: createSynthesisJobDto.spineWidth,
         orderId: createSynthesisJobDto.orderId,
         callbackUrl: createSynthesisJobDto.callbackUrl,
+        outputFormat, // 출력 형식 저장
       },
     });
 
@@ -318,15 +335,407 @@ export class WorkerJobsService {
         spineWidth: createSynthesisJobDto.spineWidth,
         orderId: createSynthesisJobDto.orderId,
         callbackUrl: createSynthesisJobDto.callbackUrl,
+        outputFormat, // 출력 형식 전달
       },
       jobOptions,
     );
 
     this.logger.log(
-      `Synthesis job created: ${savedJob.id}, orderId: ${createSynthesisJobDto.orderId || 'N/A'}, priority: ${createSynthesisJobDto.priority || 'normal'}`,
+      `Synthesis job created: ${savedJob.id}, orderId: ${createSynthesisJobDto.orderId || 'N/A'}, priority: ${createSynthesisJobDto.priority || 'normal'}, format: ${outputFormat}`,
     );
 
     return savedJob;
+  }
+
+  // ============================================================================
+  // Split Synthesis Jobs (단일 PDF 분리)
+  // ============================================================================
+
+  /**
+   * 분리 합성 작업 생성 (★ v1.1.4 설계서 기준)
+   *
+   * 단일 PDF에서 표지/내지를 분리하는 작업
+   * - pdfFileId: 업로드된 PDF 파일 ID (pdfUrl 완전 제거)
+   * - sessionId: EditSession ID (pageTypes 추출용)
+   * - requestId: 멱등성 키 (클라이언트 UUID)
+   */
+  async createSplitSynthesisJob(dto: CreateSplitSynthesisJobDto): Promise<WorkerJob> {
+    // 0. ★ 멱등성 체크 (requestId required)
+    const existingJob = await this.workerJobRepository.findOne({
+      where: {
+        sessionId: dto.sessionId,
+        pdfFileId: dto.pdfFileId,
+        requestId: dto.requestId,
+      },
+    });
+    if (existingJob) {
+      this.logger.log(
+        `Idempotent hit: returning existing job ${existingJob.id} for requestId=${dto.requestId}`,
+      );
+      return existingJob;
+    }
+
+    // 0-1. ★ 옵션 조합 검증 (INVALID_OUTPUT_OPTIONS)
+    const outputFormat = dto.outputFormat ?? 'merged';
+    const alsoGenerateMerged = dto.alsoGenerateMerged ?? false;
+
+    if (outputFormat === 'merged' && alsoGenerateMerged === true) {
+      throw new BadRequestException({
+        code: 'INVALID_OUTPUT_OPTIONS',
+        message: "outputFormat='merged' 일 때 alsoGenerateMerged는 사용할 수 없습니다.",
+      });
+    }
+
+    // 1. EditSession 조회
+    const session = await this.editSessionRepository.findOne({
+      where: { id: dto.sessionId },
+    });
+    if (!session) {
+      throw new NotFoundException({
+        code: 'SESSION_NOT_FOUND',
+        message: 'EditSession을 찾을 수 없습니다.',
+      });
+    }
+
+    // 2. PDF 파일 조회 + 검증 (★ pdfUrl 제거, pdfFileId로 조회)
+    const file = await this.filesService.findById(dto.pdfFileId);
+    if (!file) {
+      throw new NotFoundException({
+        code: 'FILE_NOT_FOUND',
+        message: '파일을 찾을 수 없습니다.',
+      });
+    }
+
+    // 2-1. ★ 편집기 산출물 검증
+    if (file.metadata?.generatedBy !== 'editor') {
+      throw new BadRequestException({
+        code: 'PDF_NOT_FROM_EDITOR',
+        message: '편집기에서 생성된 PDF만 지원합니다.',
+      });
+    }
+
+    // 2-2. ★ session-file 일치 검증 (400, 계약 위반)
+    if (file.metadata?.editSessionId !== dto.sessionId) {
+      throw new BadRequestException({
+        code: 'SESSION_FILE_MISMATCH',
+        message: '세션과 파일이 일치하지 않습니다.',
+      });
+    }
+
+    // 3. ★ 빈 세션 검증 (pages 존재 확인)
+    // 페이지 정보는 canvasData 또는 metadata에 저장됨
+    const pages = session.metadata?.pages || session.canvasData?.pages || [];
+    if (pages.length === 0) {
+      throw new UnprocessableEntityException({
+        code: 'EMPTY_SESSION_PAGES',
+        message: '세션에 페이지가 없습니다.',
+      });
+    }
+
+    // 3-1. ★ sortOrder 무결성 검증 (중복/누락/타입/연속성 오류 방어)
+    const sortOrders = pages.map((p: any) => p.sortOrder);
+    const n = sortOrders.length;
+
+    // 검증 조건:
+    // 1. 모든 값이 정수
+    // 2. 모든 값이 0 이상
+    // 3. 중복 없음 (Set 크기 == 배열 길이)
+    // 4. ★ 연속성: min === 0, max === n-1 (0..n-1 범위 강제)
+    const allIntegers = sortOrders.every(
+      (o: any) => typeof o === 'number' && Number.isInteger(o) && o >= 0,
+    );
+    const uniqueSet = new Set(sortOrders);
+    const noDuplicates = uniqueSet.size === n;
+    const minOrder = Math.min(...sortOrders);
+    const maxOrder = Math.max(...sortOrders);
+    const isContiguous = minOrder === 0 && maxOrder === n - 1;
+
+    if (!allIntegers || !noDuplicates || !isContiguous) {
+      throw new UnprocessableEntityException({
+        code: 'INVALID_SORT_ORDER',
+        message: 'sortOrder가 유효하지 않습니다 (중복/누락/비정수/비연속).',
+      });
+    }
+
+    // 4. sortOrder ASC 기준으로 정렬 (★ 연속성 강제로 동률 불가능)
+    const sortedPages = [...pages].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+
+    // 5. ★ pageTypes 배열 생성 (객체 대신 배열 권장)
+    const pageTypes: PageTypes = sortedPages.map((page: any) =>
+      page.templateType === TemplateType.PAGE ? 'content' : 'cover',
+    );
+
+    // 6. cover/content 존재성 검증
+    if (!pageTypes.includes('cover')) {
+      throw new UnprocessableEntityException({
+        code: 'NO_COVER_PAGES',
+        message: '표지 페이지가 없습니다.',
+      });
+    }
+    if (!pageTypes.includes('content')) {
+      throw new UnprocessableEntityException({
+        code: 'NO_CONTENT_PAGES',
+        message: '내지 페이지가 없습니다.',
+      });
+    }
+
+    // 7. WorkerJob 생성 (★ pdfUrl 대신 pdfFileId + sessionId)
+    const job = this.workerJobRepository.create({
+      jobType: WorkerJobType.SYNTHESIZE,
+      status: WorkerJobStatus.PENDING,
+      editSessionId: dto.sessionId,
+      sessionId: dto.sessionId,
+      pdfFileId: dto.pdfFileId,
+      requestId: dto.requestId,
+      options: {
+        mode: 'split',
+        pageTypes,
+        totalExpectedPages: sortedPages.length,
+        outputFormat,
+        alsoGenerateMerged,
+        callbackUrl: dto.callbackUrl,
+      },
+    });
+
+    // ★ Race condition 방어: unique violation 시 기존 job 반환
+    let savedJob: WorkerJob;
+    try {
+      savedJob = await this.workerJobRepository.save(job);
+    } catch (error: any) {
+      if (this.isUniqueViolation(error)) {
+        const existing = await this.workerJobRepository.findOne({
+          where: {
+            sessionId: dto.sessionId,
+            pdfFileId: dto.pdfFileId,
+            requestId: dto.requestId,
+          },
+        });
+        if (existing) {
+          this.logger.log(
+            `Race condition resolved: returning existing job ${existing.id}`,
+          );
+          return existing;
+        }
+      }
+      throw error;
+    }
+
+    // 8. Bull Queue에 추가 (★ mode: 'split' 필수)
+    const jobOptions: { priority?: number } = {};
+    if (dto.priority === 'high') {
+      jobOptions.priority = 1;
+    } else if (dto.priority === 'low') {
+      jobOptions.priority = 10;
+    } else {
+      jobOptions.priority = 5;
+    }
+
+    await this.synthesisQueue.add(
+      'synthesize-pdf',
+      {
+        jobId: savedJob.id,
+        mode: 'split', // ★ 필수: handleSynthesis()에서 분기 기준
+        sessionId: dto.sessionId,
+        pdfFileId: dto.pdfFileId,
+        pageTypes,
+        totalExpectedPages: sortedPages.length,
+        outputFormat,
+        alsoGenerateMerged,
+        callbackUrl: dto.callbackUrl,
+      },
+      jobOptions,
+    );
+
+    this.logger.log(
+      `Split synthesis job created: ${savedJob.id}, sessionId=${dto.sessionId}, ` +
+        `pages=${sortedPages.length}, format=${outputFormat}, priority=${dto.priority || 'normal'}`,
+    );
+
+    return savedJob;
+  }
+
+  /**
+   * 스프레드 합성 작업 생성
+   * - spreadPdfFileId: 스프레드 PDF (1페이지)
+   * - contentPdfFileIds: 내지 PDF들 (순서대로 병합)
+   * - sessionId: EditSession ID (스냅샷 검증용)
+   * - requestId: 멱등성 키
+   */
+  async createSpreadSynthesisJob(dto: CreateSpreadSynthesisJobDto): Promise<WorkerJob> {
+    // 0. 멱등성 체크
+    const existingJob = await this.workerJobRepository.findOne({
+      where: {
+        sessionId: dto.sessionId,
+        pdfFileId: dto.spreadPdfFileId, // spreadPdfFileId를 pdfFileId로 저장
+        requestId: dto.requestId,
+      },
+    });
+    if (existingJob) {
+      this.logger.log(
+        `Idempotent hit: returning existing spread job ${existingJob.id} for requestId=${dto.requestId}`,
+      );
+      return existingJob;
+    }
+
+    // 0-1. outputFormat 고정 검증 (spread 모드는 항상 separate)
+    const outputFormat = dto.outputFormat ?? 'separate';
+    if (outputFormat !== 'separate') {
+      throw new BadRequestException({
+        code: 'INVALID_OUTPUT_FORMAT',
+        message: 'spread 모드는 outputFormat=separate만 지원합니다.',
+      });
+    }
+
+    // 1. EditSession 조회
+    const session = await this.editSessionRepository.findOne({
+      where: { id: dto.sessionId },
+    });
+    if (!session) {
+      throw new NotFoundException({
+        code: 'SESSION_NOT_FOUND',
+        message: 'EditSession을 찾을 수 없습니다.',
+      });
+    }
+
+    // 2. 스프레드 PDF 파일 조회 + 검증
+    const spreadFile = await this.filesService.findById(dto.spreadPdfFileId);
+    if (!spreadFile) {
+      throw new NotFoundException({
+        code: 'FILE_NOT_FOUND',
+        message: '스프레드 PDF 파일을 찾을 수 없습니다.',
+      });
+    }
+
+    if (spreadFile.metadata?.generatedBy !== 'editor') {
+      throw new BadRequestException({
+        code: 'PDF_NOT_FROM_EDITOR',
+        message: '편집기에서 생성된 PDF만 지원합니다.',
+      });
+    }
+
+    if (spreadFile.metadata?.editSessionId !== dto.sessionId) {
+      throw new BadRequestException({
+        code: 'SESSION_FILE_MISMATCH',
+        message: '스프레드 PDF와 세션이 일치하지 않습니다.',
+      });
+    }
+
+    // 3. 내지 PDF 파일들 조회 + 검증
+    for (const fileId of dto.contentPdfFileIds) {
+      const contentFile = await this.filesService.findById(fileId);
+      if (!contentFile) {
+        throw new NotFoundException({
+          code: 'FILE_NOT_FOUND',
+          message: `내지 PDF 파일을 찾을 수 없습니다: ${fileId}`,
+        });
+      }
+
+      if (contentFile.metadata?.generatedBy !== 'editor') {
+        throw new BadRequestException({
+          code: 'PDF_NOT_FROM_EDITOR',
+          message: '편집기에서 생성된 PDF만 지원합니다.',
+        });
+      }
+
+      if (contentFile.metadata?.editSessionId !== dto.sessionId) {
+        throw new BadRequestException({
+          code: 'SESSION_FILE_MISMATCH',
+          message: `내지 PDF와 세션이 일치하지 않습니다: ${fileId}`,
+        });
+      }
+    }
+
+    // 4. WorkerJob 생성
+    const job = this.workerJobRepository.create({
+      jobType: WorkerJobType.SYNTHESIZE,
+      status: WorkerJobStatus.PENDING,
+      editSessionId: dto.sessionId,
+      sessionId: dto.sessionId,
+      pdfFileId: dto.spreadPdfFileId, // spreadPdfFileId를 pdfFileId로 저장
+      requestId: dto.requestId,
+      options: {
+        mode: 'spread',
+        spreadPdfFileId: dto.spreadPdfFileId,
+        contentPdfFileIds: dto.contentPdfFileIds,
+        totalExpectedPages: 1 + dto.contentPdfFileIds.length, // spread 1p + content Np
+        outputFormat: 'separate',
+        alsoGenerateMerged: dto.alsoGenerateMerged ?? false,
+        callbackUrl: dto.callbackUrl,
+      },
+    });
+
+    // Race condition 방어
+    let savedJob: WorkerJob;
+    try {
+      savedJob = await this.workerJobRepository.save(job);
+    } catch (error: any) {
+      if (this.isUniqueViolation(error)) {
+        const existing = await this.workerJobRepository.findOne({
+          where: {
+            sessionId: dto.sessionId,
+            pdfFileId: dto.spreadPdfFileId,
+            requestId: dto.requestId,
+          },
+        });
+        if (existing) {
+          this.logger.log(
+            `Race condition resolved: returning existing spread job ${existing.id}`,
+          );
+          return existing;
+        }
+      }
+      throw error;
+    }
+
+    // 5. Bull Queue에 추가
+    const jobOptions: { priority?: number } = {};
+    if (dto.priority === 'high') {
+      jobOptions.priority = 1;
+    } else if (dto.priority === 'low') {
+      jobOptions.priority = 10;
+    } else {
+      jobOptions.priority = 5;
+    }
+
+    await this.synthesisQueue.add(
+      'synthesize-pdf',
+      {
+        jobId: savedJob.id,
+        mode: 'spread',
+        sessionId: dto.sessionId,
+        spreadPdfFileId: dto.spreadPdfFileId,
+        contentPdfFileIds: dto.contentPdfFileIds,
+        totalExpectedPages: 1 + dto.contentPdfFileIds.length,
+        outputFormat: 'separate',
+        alsoGenerateMerged: dto.alsoGenerateMerged ?? false,
+        callbackUrl: dto.callbackUrl,
+      },
+      jobOptions,
+    );
+
+    this.logger.log(
+      `Spread synthesis job created: ${savedJob.id}, sessionId=${dto.sessionId}, ` +
+        `spreadPdf=${dto.spreadPdfFileId}, contentPdfs=${dto.contentPdfFileIds.length}, ` +
+        `priority=${dto.priority || 'normal'}`,
+    );
+
+    return savedJob;
+  }
+
+  /**
+   * DB unique violation 체크 (DB 중립적)
+   */
+  private isUniqueViolation(error: any): boolean {
+    // MySQL: ER_DUP_ENTRY (1062)
+    // PostgreSQL: 23505
+    // SQLite: SQLITE_CONSTRAINT_UNIQUE
+    const code = error.code || error.errno;
+    return (
+      code === 'ER_DUP_ENTRY' ||
+      code === '23505' ||
+      code === 1062 ||
+      error.message?.includes('UNIQUE constraint failed')
+    );
   }
 
   // ============================================================================
@@ -398,6 +807,7 @@ export class WorkerJobsService {
 
   /**
    * Synthesis 작업 완료/실패 시 콜백 전송
+   * 설계서 기준: 하위호환 유지 (outputFileUrl은 항상 merged URL)
    */
   private async sendSynthesisCallback(job: WorkerJob): Promise<void> {
     const callbackUrl = job.options?.callbackUrl;
@@ -407,21 +817,35 @@ export class WorkerJobsService {
 
     try {
       const isCompleted = job.status === WorkerJobStatus.COMPLETED;
+      const outputFormat = job.options?.outputFormat || 'merged';
+
       const payload: SynthesisWebhookPayload = {
         event: isCompleted ? 'synthesis.completed' : 'synthesis.failed',
-        jobId: job.id,
+        jobId: job.id, // domain ID (worker_jobs.id)
         orderId: job.options?.orderId,
         status: isCompleted ? 'completed' : 'failed',
-        outputFileUrl: isCompleted ? (job.outputFileUrl ?? undefined) : undefined,
-        result: isCompleted ? job.result : undefined,
-        errorMessage: !isCompleted ? (job.errorMessage ?? undefined) : undefined,
+
+        // 하위호환: 항상 merged URL (failed면 '')
+        outputFileUrl: isCompleted ? (job.outputFileUrl || '') : '',
+
+        // separate 모드에서만 추가 (cover→content 순서 보장)
+        outputFiles: isCompleted ? job.result?.outputFiles : undefined,
+
+        // 요청 옵션 echo-back
+        outputFormat,
+
+        // 실패 시
+        errorMessage: !isCompleted ? (job.errorMessage || undefined) : undefined,
+
         timestamp: new Date().toISOString(),
       };
 
       const success = await this.webhookService.sendCallback(callbackUrl, payload);
 
       if (success) {
-        this.logger.log(`Synthesis callback sent successfully for job ${job.id}`);
+        this.logger.log(
+          `Synthesis callback sent successfully for job ${job.id}, format=${outputFormat}, hasOutputFiles=${!!payload.outputFiles}`,
+        );
       } else {
         this.logger.warn(`Synthesis callback failed for job ${job.id}`);
       }

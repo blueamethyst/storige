@@ -1,6 +1,6 @@
-import { IsString, IsNotEmpty, IsObject, IsEnum, IsOptional, IsUUID, ValidateIf, IsNumber, IsIn, IsUrl } from 'class-validator';
+import { IsString, IsNotEmpty, IsObject, IsEnum, IsOptional, IsUUID, ValidateIf, IsNumber, IsIn, IsUrl, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { WorkerJobType } from '@storige/types';
+import { WorkerJobType, OutputFile } from '@storige/types';
 
 export class CreateValidationJobDto {
   @ApiPropertyOptional({ example: 'uuid', description: '편집 세션 ID' })
@@ -116,6 +116,15 @@ export class CreateSynthesisJobDto {
   @IsOptional()
   @IsString()
   callbackUrl?: string;
+
+  @ApiPropertyOptional({
+    enum: ['merged', 'separate'],
+    default: 'merged',
+    description: '출력 형식 (merged: 병합 PDF만, separate: 병합 + 표지/내지 분리)',
+  })
+  @IsOptional()
+  @IsIn(['merged', 'separate'])
+  outputFormat?: 'merged' | 'separate';
 }
 
 export class UpdateJobStatusDto {
@@ -134,6 +143,17 @@ export class UpdateJobStatusDto {
   @IsString()
   outputFileUrl?: string;
 
+  @ApiPropertyOptional({
+    example: [
+      { type: 'cover', url: '/storage/outputs/xxx/cover.pdf' },
+      { type: 'content', url: '/storage/outputs/xxx/content.pdf' },
+    ],
+    description: '분리 출력 파일 목록 (separate 모드에서만)',
+  })
+  @IsOptional()
+  @IsArray()
+  outputFiles?: OutputFile[];
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsObject()
@@ -143,4 +163,8 @@ export class UpdateJobStatusDto {
   @IsOptional()
   @IsString()
   errorMessage?: string;
+
+  @ApiPropertyOptional({ example: '123', description: 'Bull queue job ID (디버깅용)' })
+  @IsOptional()
+  queueJobId?: string | number;
 }

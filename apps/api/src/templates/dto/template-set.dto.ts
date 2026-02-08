@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { TemplateSetType, TemplateRef } from '@storige/types';
+import { TemplateSetType, TemplateRef, EditorMode } from '@storige/types';
 
 /**
  * 템플릿 참조 DTO
@@ -79,6 +79,15 @@ export class CreateTemplateSetDto {
   @Type(() => TemplateRefDto)
   templates?: TemplateRefDto[];
 
+  @ApiPropertyOptional({
+    enum: ['single', 'book'],
+    example: 'single',
+    description: '에디터 모드: single(개별 캔버스) | book(스프레드)',
+  })
+  @IsOptional()
+  @IsEnum(['single', 'book'])
+  editorMode?: EditorMode;
+
   @ApiPropertyOptional({ example: 'category-id-123' })
   @IsOptional()
   @IsString()
@@ -139,6 +148,15 @@ export class UpdateTemplateSetDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateRefDto)
   templates?: TemplateRefDto[];
+
+  @ApiPropertyOptional({
+    enum: ['single', 'book'],
+    example: 'single',
+    description: '에디터 모드: single(개별 캔버스) | book(스프레드)',
+  })
+  @IsOptional()
+  @IsEnum(['single', 'book'])
+  editorMode?: EditorMode;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

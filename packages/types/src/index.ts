@@ -58,6 +58,7 @@ export enum TemplateType {
   COVER = 'cover',
   SPINE = 'spine',
   PAGE = 'page',
+  SPREAD = 'spread',
 }
 
 /**
@@ -84,6 +85,7 @@ export interface Template {
   editable: boolean;          // 편집 가능 여부
   deleteable: boolean;        // 삭제 가능 여부
   canvasData: CanvasData;     // Fabric.js JSON
+  spreadConfig?: SpreadConfig | null; // spread 타입일 때만 사용
   isDeleted: boolean;         // 소프트 삭제
   // Legacy fields (하위 호환)
   categoryId?: string;
@@ -141,6 +143,7 @@ export interface TemplateSet {
   name: string;
   thumbnailUrl?: string;
   type: TemplateSetType;
+  editorMode: EditorMode;     // 에디터 모드 (단일/책)
   width: number;              // 판형 (mm)
   height: number;             // 판형 (mm)
   canAddPage: boolean;        // 내지 추가 가능 여부
@@ -268,6 +271,7 @@ export interface EditSession {
   templateSet?: TemplateSet;  // 조인된 템플릿셋 정보 (optional)
   pages: EditPage[];          // 페이지별 캔버스 데이터
   status: EditStatus;
+  metadata?: EditSessionMetadata; // 스프레드 모드 스냅샷
   // 동시 편집 방지
   lockedBy?: string;
   lockedAt?: Date;
@@ -487,13 +491,131 @@ export interface SynthesisOptions {
   coverUrl: string;
   contentUrl: string;
   spineWidth: number;
+  bindingType?: 'perfect' | 'saddle' | 'hardcover';
+  generatePreview?: boolean;
+  outputFormat?: 'merged' | 'separate'; // 요청 옵션, 기본값: 'merged'
 }
 
+// ============================================================================
+// Split Synthesis (단일 PDF 분리)
+// ============================================================================
+
+/**
+ * 페이지 타입 배열 (★ v1.1+ 권장: 객체 대신 배열 사용)
+ * - 길이 == totalPages로 완전성 자연스럽게 강제
+ * - 검증이 pageTypes.length !== totalPages로 단순화
+ * - 누락 불가능 (배열은 인덱스 존재)
+ */
+export type PageTypes = Array<'cover' | 'content'>;
+
+/**
+ * 페이지 타입 맵 (하위호환용, 권장하지 않음)
+ */
+export interface PageTypeMap {
+  [pageIndex: number]: 'cover' | 'content';
+}
+
+/**
+ * PDF 분리 결과 (내부용)
+ */
+export interface SplitResult {
+  coverPath: string;
+  contentPath: string;
+  coverPageCount: number;
+  contentPageCount: number;
+}
+
+/**
+ * Split Synthesis Job 옵션
+ */
+export interface SplitSynthesisOptions {
+  mode: 'split';
+  pageTypes: PageTypes;
+  totalExpectedPages: number;
+  outputFormat: 'merged' | 'separate';
+  alsoGenerateMerged?: boolean;
+}
+
+/**
+ * Split Synthesis Job Data (Worker Queue Payload)
+ * ★ mode는 Queue payload의 단일 진실 공급원
+ */
+export interface SplitSynthesisJobData {
+  jobId: string;
+  mode: 'split';               // ★ 필수: handleSynthesis() 분기 기준
+  sessionId: string;           // ★ 이중 검증용
+  pdfFileId: string;           // ★ pdfUrl 대신 fileId (Worker가 조회)
+  pageTypes: PageTypes;        // ★ 배열 방식 권장
+  totalExpectedPages: number;
+  outputFormat: 'merged' | 'separate';
+  alsoGenerateMerged?: boolean;
+  callbackUrl?: string;
+}
+
+/**
+ * PDF Synthesizer 내부 결과 (로컬 파일 경로)
+ * Synthesizer → Processor 전달용
+ */
+export interface SynthesisLocalResult {
+  success: boolean;
+
+  // 다운로드 원본 (cleanup 대상)
+  sourceCoverPath: string;
+  sourceContentPath: string;
+
+  // 출력 파일 (cleanup 대상)
+  mergedPath: string;
+  coverPath?: string; // separate 모드에서만
+  contentPath?: string; // separate 모드에서만
+
+  totalPages: number;
+}
+
+/**
+ * 분리 출력 시 개별 파일 정보
+ */
+export interface OutputFile {
+  type: 'cover' | 'content';
+  url: string;
+  pageCount?: number;
+}
+
+/**
+ * 최종 결과 (Processor → API)
+ */
 export interface SynthesisResult {
   success: boolean;
-  outputFileUrl: string;
-  previewUrl: string;
-  totalPages: number;
+  outputFileUrl?: string; // merged URL (하위호환). spread 모드에서는 merged 없으면 undefined
+  outputFiles?: OutputFile[]; // separate 모드에서만 추가 (cover → content 순서)
+  previewUrl?: string;
+  totalPages?: number; // merged PDF 기준 총 페이지 수
+}
+
+/**
+ * Synthesis 웹훅 페이로드
+ */
+export interface SynthesisWebhookPayload {
+  event: 'synthesis.completed' | 'synthesis.failed';
+  jobId: string;
+  orderId?: string;
+  status: 'completed' | 'failed';
+
+  // 하위호환 필수
+  outputFileUrl: string; // 항상 merged URL (failed면 '')
+
+  // separate 모드에서만 추가 (존재 시 cover→content 순서 보장)
+  outputFiles?: OutputFile[];
+
+  // 요청 옵션 echo-back
+  outputFormat?: 'merged' | 'separate';
+
+  // 디버깅용
+  queueJobId?: string | number; // Bull queue ID
+
+  // 실패 시
+  errorMessage?: string;
+
+  timestamp: string;
 }
 
 // ============================================================================
@@ -836,3 +958,253 @@ export const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
     canViewAllSessions: true,
   },
 };
+
+// ============================================================================
+// Editor Mode (에디터 모드)
+// ============================================================================
+
+/**
+ * 에디터 모드
+ * - single: 개별 캔버스 편집 (기존)
+ * - book: 표지 스프레드 편집 (신규)
+ */
+export enum EditorMode {
+  SINGLE = 'single',
+  BOOK = 'book',
+}
+
+// ============================================================================
+// Spread Editor (스프레드 편집)
+// ============================================================================
+
+/**
+ * 스프레드 영역 위치
+ * 좌→우 순서: back-wing, back-cover, spine, front-cover, front-wing
+ */
+export type SpreadRegionPosition =
+  | 'back-wing'
+  | 'back-cover'
+  | 'spine'
+  | 'front-cover'
+  | 'front-wing';
+
+/**
+ * 객체 앵커 메타데이터
+ * - region: 영역 기준 정규화 좌표 (0~1, 범위 외 허용 -1.0~2.0)
+ * - canvas: 캔버스 절대 좌표 (자유 객체용)
+ * 기준점: 항상 객체의 중심점(center)
+ */
+export type ObjectAnchor =
+  | { kind: 'region'; xNorm: number; yNorm: number }
+  | { kind: 'canvas'; x: number; y: number };
+
+/**
+ * 스프레드 객체 메타 (Fabric object.meta에 저장)
+ */
+export interface SpreadObjectMeta {
+  regionRef: SpreadRegionPosition | null;
+  primaryRegionHint: SpreadRegionPosition | null;
+  anchor: ObjectAnchor;
+}
+
+/**
+ * 시스템 객체 식별 메타 (플러그인 생성 오브젝트에만 부여)
+ */
+export type SystemObjectType =
+  | 'workspace'
+  | 'cutBorder'
+  | 'safeBorder'
+  | 'spreadGuide'
+  | 'dimensionLabel';
+
+/**
+ * 스프레드 스펙 (최소 입력 - 레이아웃 계산 입력)
+ */
+export interface SpreadSpec {
+  coverWidthMm: number;
+  coverHeightMm: number;
+  spineWidthMm: number;
+  wingEnabled: boolean;
+  wingWidthMm: number;
+  cutSizeMm: number;
+  safeSizeMm: number;
+  dpi: number;
+}
+
+/**
+ * 스프레드 영역 (레이아웃 계산 결과)
+ */
+export interface SpreadRegion {
+  type: 'wing' | 'cover' | 'spine';
+  position: SpreadRegionPosition;
+  x: number;           // workspace px
+  width: number;        // workspace px
+  height: number;       // workspace px
+  widthMm: number;
+  heightMm: number;
+  label: string;
+}
+
+/**
+ * 가이드라인 스펙
+ */
+export interface GuideLineSpec {
+  x: number;            // workspace px
+  y1: number;
+  y2: number;
+  type: 'region-border';
+}
+
+/**
+ * 치수 라벨 스펙
+ */
+export interface DimensionLabel {
+  x: number;            // workspace px (영역 중앙)
+  y: number;            // workspace px (상단)
+  text: string;         // 예: "210mm"
+  regionPosition: SpreadRegionPosition;
+}
+
+/**
+ * 스프레드 레이아웃 (계산 결과)
+ */
+export interface SpreadLayout {
+  regions: SpreadRegion[];
+  guides: GuideLineSpec[];
+  labels: DimensionLabel[];
+  totalWidthPx: number;
+  totalHeightPx: number;
+  totalWidthMm: number;
+  totalHeightMm: number;
+}
+
+/**
+ * 스프레드 설정 (저장용)
+ */
+export interface SpreadConfig {
+  spec: SpreadSpec;
+  regions: SpreadRegion[];
+  totalWidthMm: number;
+  totalHeightMm: number;
+}
+
+/**
+ * 스프레드 리사이즈 이벤트
+ */
+export interface SpreadResizeEvent {
+  oldSpineWidth: number;    // mm
+  newSpineWidth: number;    // mm
+  oldLayout: SpreadLayout;
+  newLayout: SpreadLayout;
+}
+
+/**
+ * 객체 재배치 결과
+ */
+export interface RepositionResult {
+  x: number;
+  y: number;
+  scaleX?: number;
+  scaleY?: number;
+  regionRef: SpreadRegionPosition | null;
+  anchor: ObjectAnchor;
+}
+
+/**
+ * RegionRef 판정 결과
+ */
+export interface RegionRefResult {
+  regionRef: SpreadRegionPosition | null;
+  primaryRegionHint: SpreadRegionPosition | null;
+  anchor: ObjectAnchor;
+}
+
+// ============================================================================
+// Spread Session Snapshot (세션 스냅샷)
+// ============================================================================
+
+/**
+ * 책등 스냅샷 (EditSession.metadata.spine)
+ */
+export interface SpineSnapshot {
+  pageCount: number;
+  paperType: string;
+  bindingType: string;
+  spineWidthMm: number;
+  formulaVersion: string;
+}
+
+/**
+ * 스프레드 스냅샷 (EditSession.metadata.spread)
+ */
+export interface SpreadSnapshot {
+  spec: SpreadSpec;
+  totalWidthMm: number;
+  totalHeightMm: number;
+  dpi: number;
+}
+
+/**
+ * 편집 세션 메타데이터
+ */
+export interface EditSessionMetadata {
+  spine?: SpineSnapshot;
+  spread?: SpreadSnapshot;
+}
+
+// ============================================================================
+// Spread Synthesis (스프레드 PDF 합성)
+// ============================================================================
+
+/**
+ * Spread Synthesis Job 옵션
+ */
+export interface SpreadSynthesisOptions {
+  mode: 'spread';
+  outputFormat: 'separate';
+  alsoGenerateMerged?: boolean;
+}
+
+/**
+ * Spread Synthesis Job Data (Worker Queue Payload)
+ */
+export interface SpreadSynthesisJobData {
+  jobId: string;
+  mode: 'spread';
+  sessionId: string;
+  spreadPdfFileId: string;
+  contentPdfFileIds: string[];
+  totalExpectedPages: number;
+  outputFormat: 'separate';
+  alsoGenerateMerged?: boolean;
+  callbackUrl?: string;
+}
+
+/**
+ * Spread Synthesis 로컬 결과
+ */
+export interface SpreadSynthesisLocalResult {
+  success: boolean;
+  coverPath: string;
+  contentPath: string;
+  mergedPath?: string;
+  coverPageCount: number;
+  contentPageCount: number;
+}
+
+/**
+ * Spread Synthesis 웹훅 페이로드
+ */
+export interface SpreadSynthesisWebhookPayload {
+  event: 'synthesis.completed' | 'synthesis.failed';
+  jobId: string;
+  orderId?: string;
+  status: 'completed' | 'failed';
+  outputFileUrl: string | null;  // merged가 없으면 null (미포함이 아닌 null)
+  outputFiles: OutputFile[];     // 항상 cover/content 2개
+  outputFormat: 'separate';
+  spreadMode: true;
+  queueJobId?: string | number;
+  errorMessage?: string;
+  timestamp: string;
+}
