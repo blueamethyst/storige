@@ -24,20 +24,20 @@ export const SpreadThumbnailItem = memo(function SpreadThumbnailItem({
       )}
       onClick={onClick}
     >
-      {/* 썸네일 - 스프레드는 가로로 넓은 형태 (200x60px) */}
+      {/* 썸네일 - 스프레드는 가로로 넓은 형태 */}
       <div
         className={cn(
           'relative rounded overflow-hidden bg-gray-100 border-2 transition-colors',
           'hover:border-blue-400',
           isActive ? 'border-blue-500 shadow-md' : 'border-gray-300'
         )}
-        style={{ width: 200, height: 60 }}
+        style={{ width: 200, height: 100 }}
       >
         {thumbnailUrl ? (
           <img
             src={thumbnailUrl}
             alt={label}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">

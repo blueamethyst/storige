@@ -25,7 +25,7 @@ test.describe('SpreadPagePanel 상호작용', () => {
 
     // 스프레드 썸네일의 부모 요소에서 활성 스타일 확인
     // SpreadThumbnailItem: isActive → border-blue-500
-    const activeBorder = page.locator('.h-\\[100px\\] [class*="border-blue-500"]').first()
+    const activeBorder = page.locator('.h-\\[180px\\] [class*="border-blue-500"]').first()
     await expect(activeBorder).toBeVisible()
   })
 
@@ -39,12 +39,12 @@ test.describe('SpreadPagePanel 상호작용', () => {
     // pageCount=4로 진입, 템플릿에 내지가 2개 + 2개 추가 = 총 4개
     await page.waitForTimeout(2000)
 
-    // 하단 패널에 내지 항목 (텍스트 "내지") 확인
-    const bottomPanel = page.locator('.h-\\[100px\\].border-t')
+    // 하단 패널에 내지 항목 확인 (각 PageItem에 페이지 번호 표시)
+    const bottomPanel = page.locator('.h-\\[180px\\].border-t')
     await expect(bottomPanel).toBeVisible()
 
-    // 내지 페이지 아이템들 확인 (각 PageItem에 "내지" 텍스트)
-    const innerPageItems = bottomPanel.getByText('내지')
+    // 내지 페이지 아이템들 확인 (PageItem의 썸네일 영역으로 카운트)
+    const innerPageItems = bottomPanel.locator('.w-20.h-28.bg-white')
     const count = await innerPageItems.count()
     expect(count).toBeGreaterThanOrEqual(4)
   })
@@ -56,7 +56,7 @@ test.describe('SpreadPagePanel 상호작용', () => {
     await spreadLabel.click()
 
     // 스프레드 썸네일이 활성 상태 유지
-    const activeBorder = page.locator('.h-\\[100px\\] [class*="border-blue-500"]').first()
+    const activeBorder = page.locator('.h-\\[180px\\] [class*="border-blue-500"]').first()
     await expect(activeBorder).toBeVisible()
   })
 

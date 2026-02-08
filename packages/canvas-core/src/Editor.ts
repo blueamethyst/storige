@@ -62,8 +62,7 @@ class Editor extends EventEmitter {
   }
 
   dispose() {
-    for (const pluginName in this.pluginMap) {
-      const plugin = this.pluginMap[pluginName]
+    for (const plugin of this.plugins.values()) {
       plugin.dispose && plugin.dispose()
     }
 

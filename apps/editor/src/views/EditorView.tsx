@@ -455,42 +455,45 @@ export default function EditorView() {
       />
 
       {/* Main Layout */}
-      <div className={`flex-1 flex ${isSpreadMode ? 'flex-col' : screenMode !== 'desktop' ? 'flex-col' : 'flex-row'} relative overflow-hidden`}>
+      <div className={`flex-1 flex ${screenMode !== 'desktop' ? 'flex-col' : 'flex-row'} relative overflow-hidden`}>
         {/* Tool Sidebar - horizontal in tablet/mobile mode */}
-        {!isSpreadMode && <ToolBar horizontal={screenMode !== 'desktop'} />}
+        <ToolBar horizontal={screenMode !== 'desktop'} />
 
-        {/* Content area - flex-row for sidebar + canvas (스프레드 모드도 동일) */}
-        <div className="flex-1 flex flex-row relative overflow-hidden">
-          {/* Feature Sidebar or Control Bar - mutually exclusive */}
-          {!isSpreadMode && <FeatureSidebar />}
-          {ready && !isSpreadMode && <ControlBar />}
+        {/* Content area - flex-col로 캔버스 영역 + 하단 패널 배치 */}
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          {/* Upper row: sidebar + canvas */}
+          <div className="flex-1 flex flex-row relative overflow-hidden">
+            {/* Feature Sidebar or Control Bar - mutually exclusive */}
+            <FeatureSidebar />
+            {ready && <ControlBar />}
 
-          {/* Canvas Area */}
-          <main className="flex-1 relative overflow-hidden bg-editor-workspace">
-            {/* Canvas Container */}
-            <div
-              id="canvas-wrapper"
-              className="h-full w-full overflow-hidden relative"
-            >
-              {/* Workspace background - id="workspace"는 WorkspacePlugin에서 사용 */}
-              <div id="workspace" className="workspace absolute inset-0 flex items-center justify-center">
-                <div className="inside-shadow absolute inset-0 shadow-inner pointer-events-none" />
-                <div
-                  ref={canvasContainerRef}
-                  id="canvas-containers"
-                  className="relative"
-                  style={{ width: '100%', height: '100%' }}
-                />
+            {/* Canvas Area */}
+            <main className="flex-1 relative overflow-hidden bg-editor-workspace">
+              {/* Canvas Container */}
+              <div
+                id="canvas-wrapper"
+                className="h-full w-full overflow-hidden relative"
+              >
+                {/* Workspace background - id="workspace"는 WorkspacePlugin에서 사용 */}
+                <div id="workspace" className="workspace absolute inset-0 flex items-center justify-center">
+                  <div className="inside-shadow absolute inset-0 shadow-inner pointer-events-none" />
+                  <div
+                    ref={canvasContainerRef}
+                    id="canvas-containers"
+                    className="relative"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </div>
               </div>
-            </div>
-          </main>
+            </main>
 
-          {/* Side Panel (스프레드 모드에서는 숨김) */}
-          {!isSpreadMode && <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />}
+            {/* Side Panel (스프레드 모드에서는 숨김) */}
+            {!isSpreadMode && <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />}
+          </div>
+
+          {/* 스프레드 모드 전용 하단 페이지 패널 */}
+          {isSpreadMode && <SpreadPagePanel />}
         </div>
-
-        {/* 스프레드 모드 전용 하단 페이지 패널 */}
-        {isSpreadMode && <SpreadPagePanel />}
       </div>
 
       {/* Loading Overlay */}

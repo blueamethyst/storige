@@ -103,6 +103,26 @@ class SpreadPlugin extends PluginBase {
   }
 
   // ============================================================================
+  // Coordinate Helpers
+  // ============================================================================
+
+  /**
+   * 레이아웃 좌표계 → Fabric 캔버스 좌표계 변환을 위한 원점 계산
+   *
+   * SpreadLayoutEngine은 (0,0)이 콘텐츠 영역 좌상단인 좌표계를 사용.
+   * Fabric.js workspace는 originX/Y='center'로 (0,0)이 워크스페이스 중앙.
+   * workspace = (totalWidth + cutSize) 크기, 콘텐츠 = totalWidth 크기.
+   * 둘 다 중앙 정렬이므로 cutSize가 상쇄되어 콘텐츠 원점 = -totalPx/2.
+   */
+  private getContentOrigin(): { x: number; y: number } {
+    if (!this.currentLayout) return { x: 0, y: 0 }
+    return {
+      x: -this.currentLayout.totalWidthPx / 2,
+      y: -this.currentLayout.totalHeightPx / 2,
+    }
+  }
+
+  // ============================================================================
   // Core Methods
   // ============================================================================
 
@@ -154,10 +174,16 @@ class SpreadPlugin extends PluginBase {
       }
 
       // 3. WorkspacePlugin.setOptions 호출 (workspace 크기 변경)
+      // 주의: size 객체를 완전히 전달해야 함 (shallow merge로 전체 교체되므로)
       const workspacePlugin = this._editor.getPlugin('WorkspacePlugin')
       if (workspacePlugin) {
         await workspacePlugin.setOptions({
-          size: { width: newLayout.totalWidthMm },
+          size: {
+            width: newLayout.totalWidthMm,
+            height: newLayout.totalHeightMm,
+            cutSize: this.currentSpec.cutSizeMm,
+            safeSize: this.currentSpec.safeSizeMm,
+          },
         })
       }
 
@@ -302,8 +328,14 @@ class SpreadPlugin extends PluginBase {
    * 가이드라인 렌더링 (영역 경계 점선)
    */
   private renderGuides(layout: SpreadLayout): void {
+    const origin = this.getContentOrigin()
+
     layout.guides.forEach((guide, index) => {
-      const line = new fabric.Line([guide.x, guide.y1, guide.x, guide.y2], {
+      const x = origin.x + guide.x
+      const y1 = origin.y + guide.y1
+      const y2 = origin.y + guide.y2
+
+      const line = new fabric.Line([x, y1, x, y2], {
         id: `spread-guide-${index}`,
         stroke: '#999',
         strokeWidth: 1,
@@ -328,10 +360,12 @@ class SpreadPlugin extends PluginBase {
    * 치수 라벨 렌더링 (영역별 mm 표시)
    */
   private renderLabels(layout: SpreadLayout): void {
+    const origin = this.getContentOrigin()
+
     for (const label of layout.labels) {
       const text = new fabric.Text(label.text, {
-        left: label.x,
-        top: label.y,
+        left: origin.x + label.x,
+        top: origin.y + label.y,
         fontSize: 14,
         fill: '#666',
         selectable: false,

@@ -77,44 +77,29 @@ export const PageItem = memo(function PageItem({
         )}
       </div>
 
-      {/* 페이지 정보 */}
+      {/* 페이지 번호 */}
       <div className="mt-1 text-center">
         <div className="text-xs font-medium text-gray-700">
           {index + 1}
         </div>
-        <div
-          className={cn(
-            'text-[10px] px-1.5 py-0.5 rounded-full mt-0.5',
-            templateTypeColors[page.templateType]
-          )}
-        >
-          {templateTypeLabels[page.templateType]}
-        </div>
       </div>
 
-      {/* 필수 표시 */}
-      {page.required && (
-        <div className="absolute top-1 left-1">
-          <span className="text-[10px] bg-red-500 text-white px-1 rounded">
-            필수
-          </span>
-        </div>
-      )}
 
       {/* 삭제 버튼 */}
       {canDelete && onDelete && (
         <button
           className={cn(
-            'absolute -top-1 -right-1 w-5 h-5 rounded-full',
-            'bg-red-500 text-white text-xs',
+            'absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full',
+            'bg-gray-400 text-white text-[10px] leading-none',
             'flex items-center justify-center',
             'opacity-0 group-hover:opacity-100 transition-opacity',
-            'hover:bg-red-600'
+            'hover:bg-gray-600',
+            'shadow-sm'
           )}
           onClick={handleDelete}
           title="페이지 삭제"
         >
-          x
+          ✕
         </button>
       )}
     </div>

@@ -17,6 +17,7 @@ export default function AppBackground() {
   const canvas = useAppStore((state) => state.canvas)
   const getPlugin = useAppStore((state) => state.getPlugin)
   const setContentsBrowser = useAppStore((state) => state.setContentsBrowser)
+  const updateObjects = useAppStore((state) => state.updateObjects)
   const upload = useImageStore((state) => state.upload)
   const isCustomer = useIsCustomer()
   const { setupAsset } = useEditorContents()
@@ -205,7 +206,8 @@ export default function AppBackground() {
     workspace.fill = rgbaString
     workspace.dirty = true
     canvas.renderAll()
-  }, [workspace, canvas])
+    updateObjects()
+  }, [workspace, canvas, updateObjects])
 
   // Handle lid color change
   const onLidColorChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,7 +224,8 @@ export default function AppBackground() {
     lidObject.dirty = true
     canvas.renderAll()
     canvas.fire('object:modified', { target: lidObject })
-  }, [lidObject, canvas])
+    updateObjects()
+  }, [lidObject, canvas, updateObjects])
 
   // Add content to canvas
   const addContentToCanvas = useCallback(async (content: unknown) => {

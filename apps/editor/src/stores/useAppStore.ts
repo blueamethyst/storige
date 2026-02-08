@@ -13,6 +13,8 @@ import Editor, {
 } from '@storige/canvas-core'
 import type { AppMenu } from '@/types/menu'
 import { recalculateSpineWidth } from '@/utils/spineCalculator'
+import { useEditorStore } from '@/stores/useEditorStore'
+import { TemplateType } from '@storige/types'
 
 // Fabric.js 타입 (실제 fabric 타입은 런타임에 로드됨)
  
@@ -183,11 +185,25 @@ const debouncedTakeScreenshot = debounce((allCanvas: any[], set: any) => {
     try {
       // 캔버스가 disposed되었는지 확인
       if (cvs && !cvs.disposed && cvs.getContext()) {
-        newScreenshots[index] = cvs.toDataURL({
-          format: 'png',
-          quality: 0.8,
-          multiplier: 0.2
-        })
+        // 워크스페이스 영역만 캡처 (회색 배경 제외)
+        const workspace = cvs.getObjects().find((obj: any) => obj.id === 'workspace')
+        if (workspace) {
+          const bound = workspace.getBoundingRect()
+          newScreenshots[index] = cvs.toDataURL({
+            format: 'png',
+            quality: 0.8,
+            left: bound.left,
+            top: bound.top,
+            width: bound.width,
+            height: bound.height,
+          })
+        } else {
+          newScreenshots[index] = cvs.toDataURL({
+            format: 'png',
+            quality: 0.8,
+            multiplier: 0.2
+          })
+        }
       }
     } catch (e) {
       // disposed된 캔버스에서 발생하는 에러 무시
@@ -462,20 +478,56 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       const newEditor = new Editor()
       newEditor.init(newCanvas)
 
-      // WorkspacePlugin 초기화
-      const workspacePlugin = newEditor.getPlugin<WorkspacePlugin>('WorkspacePlugin')
-      if (workspacePlugin) {
-        // TODO: 현재 설정에서 사이즈 가져오기
-        workspacePlugin.setSize(400, 400)
-        workspacePlugin.initWorkspace()
+      // WorkspacePlugin 등록 (현재 설정에서 사이즈 가져오기)
+      const settingsStore = (await import('@/stores/useSettingsStore')).useSettingsStore.getState()
+      const spreadConfig = settingsStore.spreadConfig
+      const currentSettings = settingsStore.currentSettings
+
+      let pageSize: { width: number; height: number; cutSize: number; safeSize: number }
+      if (spreadConfig?.spec) {
+        // 스프레드 모드: 내지는 표지 크기 사용
+        pageSize = {
+          width: spreadConfig.spec.coverWidthMm,
+          height: spreadConfig.spec.coverHeightMm,
+          cutSize: spreadConfig.spec.cutSizeMm,
+          safeSize: spreadConfig.spec.safeSizeMm,
+        }
+      } else {
+        // 일반 모드: 현재 설정 사용
+        pageSize = currentSettings.size
       }
+
+      const workspaceOptions = {
+        ...currentSettings,
+        size: pageSize,
+      }
+      const workspacePlugin = new WorkspacePlugin(newCanvas, newEditor, workspaceOptions)
+      newEditor.use(workspacePlugin)
 
       // 스토어에 등록 (initializationId 전달하여 등록 허용)
       init(newCanvas, newEditor, initializationId || undefined)
 
-      // 새 페이지로 전환
+      // 새 페이지로 전환 (컨테이너가 display:block으로 변경됨)
       const nextIndex = allCanvas.length // init 후에는 allCanvas가 업데이트됨
       setPage(nextIndex)
+
+      // 컨테이너가 표시된 후 WorkspacePlugin 초기화
+      // init()이 workspace Rect 생성 + 이벤트 바인딩 + setZoomAuto()까지 처리
+      workspacePlugin.init()
+
+      // useEditorStore.pages에 새 EditPage 추가 (SpreadPagePanel 동기화)
+      const editorStore = useEditorStore.getState()
+      editorStore.addPage({
+        id: canvasId,
+        templateId: canvasId,
+        templateType: TemplateType.PAGE,
+        canvasData: { version: '5.3.0', objects: [] },
+        sortOrder: editorStore.pages.length,
+        required: false,
+        deleteable: true,
+      })
+      // currentPageIndex도 동기화
+      editorStore.setCurrentPageIndex(nextIndex)
 
       // 객체 목록 및 스크린샷 업데이트
       updateObjects()
@@ -487,6 +539,8 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       recalculateSpineWidth().then((result) => {
         if (result.success) {
           console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+        } else if (result.error) {
+          console.warn(`[AppStore] 책등 재계산 스킵: ${result.error}`)
         }
       }).catch((error) => {
         console.error('[AppStore] 책등 재계산 오류:', error)
@@ -545,6 +599,9 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
     // 캔버스 렌더링
     allCanvas[index].requestRenderAll()
 
+    // useEditorStore.currentPageIndex 동기화
+    useEditorStore.getState().setCurrentPageIndex(index)
+
     // 객체 목록 업데이트
     updateObjects()
   },
@@ -601,6 +658,13 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       allCanvas: newCanvases,
       allEditors: newEditors
     })
+
+    // useEditorStore.pages에서도 해당 페이지 제거
+    const editorStore = useEditorStore.getState()
+    const editorPages = editorStore.pages
+    if (indexOfCanvas < editorPages.length) {
+      editorStore.deletePage(editorPages[indexOfCanvas].id)
+    }
 
     // 필요한 경우 다른 페이지로 이동
     if (indexOfCanvas === currentIndex) {
@@ -1064,3 +1128,8 @@ export const useSelectionType = () => useAppStore((state) => {
 })
 
 export const useHasCutlineTemplate = () => useAppStore((state) => state.hasCutlineTemplate)
+
+// 개발/테스트 환경에서 Playwright 등 외부 도구가 스토어에 접근할 수 있도록 노출
+if (import.meta.env.DEV) {
+  ;(window as any).__appStore = useAppStore
+}

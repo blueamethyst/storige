@@ -121,7 +121,7 @@ export function computeLayout(spec: SpreadSpec): SpreadLayout {
   // 5. 치수 라벨 생성
   const labels: DimensionLabel[] = regions.map((region) => ({
     x: region.x + region.width / 2,
-    y: -20, // 상단 고정 여백 (나중에 줌 보정 적용)
+    y: 20, // 콘텐츠 영역 상단에서 20px 아래 (workspace clipPath 안쪽)
     text: `${region.widthMm.toFixed(1)}mm`,
     regionPosition: region.position,
   }))

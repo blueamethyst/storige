@@ -19,8 +19,8 @@ test.describe('스프레드 모드 UI 레이아웃', () => {
   })
 
   test('하단 SpreadPagePanel이 표시된다', async ({ page }) => {
-    // SpreadPagePanel: h-[100px] bg-white border-t
-    const bottomPanel = page.locator('.h-\\[100px\\].border-t')
+    // SpreadPagePanel: h-[180px] bg-white border-t
+    const bottomPanel = page.locator('.h-\\[180px\\].border-t')
     await expect(bottomPanel).toBeVisible({ timeout: 10000 })
   })
 
@@ -46,17 +46,16 @@ test.describe('스프레드 모드 UI 레이아웃', () => {
     expect(anyVisible).toBe(true)
   })
 
-  test('스프레드 모드에서 FeatureSidebar가 숨겨진다', async ({ page }) => {
-    // EditorView: {!isSpreadMode && <FeatureSidebar />}
-    // FeatureSidebar는 스프레드 모드에서 렌더링되지 않음
-    // FeatureSidebar의 고유 요소가 없는지 간접 확인
-    // 기존 모드에서만 보이는 사이드바 확인
+  test('스프레드 모드에서 ToolBar가 표시된다', async ({ page }) => {
+    // 스프레드 모드에서도 좌측 ToolBar(이미지/텍스트/요소/배경)가 표시됨
     await page.waitForTimeout(1000)
 
-    // 메인 레이아웃 방향이 flex-col인지 확인 (스프레드 모드)
-    const editorLayout = page.locator('#editor > div:nth-child(2)')
-    const classNames = await editorLayout.getAttribute('class')
-    expect(classNames).toContain('flex-col')
+    // ToolBar 버튼들이 보이는지 확인
+    const imageButton = page.getByRole('button', { name: '이미지' })
+    await expect(imageButton).toBeVisible()
+
+    const textButton = page.getByRole('button', { name: '텍스트' })
+    await expect(textButton).toBeVisible()
   })
 
   test('3D 미리보기 버튼이 헤더에 표시된다', async ({ page }) => {
@@ -84,7 +83,7 @@ test.describe('스프레드 모드 UI 레이아웃', () => {
     const canvasWrapper = page.locator('#canvas-wrapper')
     await expect(canvasWrapper).toBeVisible()
 
-    const bottomPanel = page.locator('.h-\\[100px\\].border-t')
+    const bottomPanel = page.locator('.h-\\[180px\\].border-t')
     await expect(bottomPanel).toBeVisible()
 
     // 캔버스 영역의 y 좌표가 하단 패널보다 작은지 확인

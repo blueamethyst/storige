@@ -22,6 +22,7 @@ export enum SessionMode {
   CONTENT = 'content',
   BOTH = 'both',
   TEMPLATE = 'template',
+  SPREAD = 'spread',
 }
 
 export enum WorkerStatus {

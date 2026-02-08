@@ -67,12 +67,24 @@ class DraggingPlugin extends PluginBase {
     }
   }
 
+  private isCanvasVisible(): boolean {
+    if (!this._canvas) return false
+    const el = this._canvas.wrapperEl || this._canvas.getElement()?.parentElement
+    if (!el) return false
+    return el.offsetParent !== null && getComputedStyle(el).display !== 'none'
+  }
+
   private startDragging() {
     // 캔버스가 dispose되었거나 컨텍스트가 없으면 무시
     if (!this._canvas || (this._canvas as any).disposed || !(this._canvas as any).contextContainer) return
+    // 숨겨진 캔버스에서는 드래그 모드 활성화 안함
+    if (!this.isCanvasVisible()) return
 
     this.dragMode = true
     this._canvas.defaultCursor = 'grab'
+    // 드래그 모드에서는 타겟 탐색 비활성화 → defaultCursor가 항상 적용됨
+    // (workspace Rect의 hoverCursor가 defaultCursor를 덮어쓰는 문제 방지)
+    this._canvas.skipTargetFind = true
     this._editor.emit('startDragging')
     this._canvas.renderAll()
   }
@@ -83,6 +95,7 @@ class DraggingPlugin extends PluginBase {
 
     this.dragMode = false
     this._canvas.defaultCursor = 'default'
+    this._canvas.skipTargetFind = false
     this._canvas.isDragging = false
     this._canvas.selection = true // 선택 기능 다시 활성화
     this._editor.emit('endDragging')
@@ -144,7 +157,12 @@ class DraggingPlugin extends PluginBase {
       if (!this.viewportTransform) return
       this.setViewportTransform(this.viewportTransform)
       this.isDragging = false
-      vm._canvas.defaultCursor = 'default'
+      if (!vm.dragMode) {
+        vm._canvas.defaultCursor = 'default'
+        vm._canvas.skipTargetFind = false
+      } else {
+        vm._canvas.defaultCursor = 'grab'
+      }
       this.requestRenderAll()
     }
 

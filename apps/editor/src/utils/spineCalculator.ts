@@ -258,19 +258,15 @@ async function recalculateSpineWidthSpreadMode(
   const appStore = useAppStore.getState()
   const spineConfig = settingsStore.spineConfig
 
-  // paperType과 bindingType 결정
-  const paperType = options?.paperType || spineConfig.paperType
-  const bindingType = options?.bindingType || spineConfig.bindingType
+  // paperType과 bindingType 결정 (옵션 > spineConfig > URL 파라미터 > 기본값)
+  const urlParams = new URLSearchParams(window.location.search)
+  const paperType = options?.paperType || spineConfig.paperType || urlParams.get('paperType') || 'mojo_80g'
+  const bindingType = options?.bindingType || spineConfig.bindingType || urlParams.get('bindingType') || 'perfect'
 
-  if (!paperType || !bindingType) {
-    console.log('[SpineCalculator:Spread] paperType 또는 bindingType 미설정, 스킵')
-    return {
-      success: false,
-      spineWidth: null,
-      pageCount: 0,
-      warnings: [],
-      error: 'paperType 또는 bindingType이 설정되지 않았습니다.',
-    }
+  if (!spineConfig.paperType || !spineConfig.bindingType) {
+    // spineConfig에 저장되지 않은 경우 지금 저장 (이후 호출에서 재사용)
+    console.log(`[SpineCalculator:Spread] spineConfig에 paperType/bindingType 미설정, 기본값 사용: ${paperType}/${bindingType}`)
+    settingsStore.setSpineConfig({ paperType, bindingType })
   }
 
   // 내지 페이지 수 계산 (스프레드 모드에서는 allCanvas[1~N]이 내지)

@@ -97,4 +97,114 @@ test.describe('스프레드 캔버스 요소', () => {
     const canvasCount = await page.locator('canvas').count()
     expect(canvasCount).toBeGreaterThanOrEqual(1)
   })
+
+  test('스프레드 가이드라인이 캔버스에 렌더링된다', async ({ page }) => {
+    // __appStore를 통해 Fabric 캔버스 객체에 접근
+    const result = await page.evaluate(() => {
+      const store = (window as any).__appStore
+      if (!store) return { error: 'store not found' }
+
+      const state = store.getState()
+      const canvas = state.allCanvas?.[0]
+      if (!canvas) return { error: 'canvas not found' }
+
+      const objects = canvas.getObjects()
+      const guides = objects.filter((obj: any) => obj.meta?.system === 'spreadGuide')
+      const labels = objects.filter((obj: any) => obj.meta?.system === 'dimensionLabel')
+
+      return {
+        guideCount: guides.length,
+        labelCount: labels.length,
+        guides: guides.map((g: any) => ({
+          x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+          stroke: g.stroke,
+        })),
+        labels: labels.map((l: any) => ({
+          text: l.text,
+          left: l.left,
+          top: l.top,
+        })),
+      }
+    })
+
+    // 에러 없이 접근 가능해야 함
+    expect(result).not.toHaveProperty('error')
+
+    // 날개 없는 스프레드: 뒷표지-책등-앞표지 → 2개 영역 경계 가이드
+    expect(result.guideCount).toBe(2)
+
+    // 3개 영역 (뒷표지, 책등, 앞표지) → 3개 치수 라벨
+    expect(result.labelCount).toBe(3)
+  })
+
+  test('가이드라인이 올바른 좌표에 배치된다', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const store = (window as any).__appStore
+      if (!store) return null
+
+      const state = store.getState()
+      const canvas = state.allCanvas?.[0]
+      if (!canvas) return null
+
+      const objects = canvas.getObjects()
+      const guides = objects.filter((obj: any) => obj.meta?.system === 'spreadGuide')
+
+      // workspace 객체 찾기
+      const workspace = objects.find((obj: any) => obj.id === 'workspace')
+
+      return {
+        guides: guides.map((g: any) => ({ x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2 })),
+        workspaceWidth: workspace?.width,
+        workspaceHeight: workspace?.height,
+      }
+    })
+
+    expect(result).not.toBeNull()
+
+    // 가이드라인이 workspace 범위 내에 있어야 함 (center 원점 기준으로 -w/2 ~ w/2)
+    const halfW = result!.workspaceWidth / 2
+    const halfH = result!.workspaceHeight / 2
+    for (const guide of result!.guides) {
+      // x 좌표가 workspace 범위 내
+      expect(guide.x1).toBeGreaterThanOrEqual(-halfW - 1)
+      expect(guide.x1).toBeLessThanOrEqual(halfW + 1)
+      // y 좌표가 workspace 높이 범위 내
+      expect(guide.y1).toBeGreaterThanOrEqual(-halfH - 1)
+      expect(guide.y2).toBeLessThanOrEqual(halfH + 1)
+    }
+  })
+
+  test('치수 라벨에 올바른 mm 값이 표시된다', async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const store = (window as any).__appStore
+      if (!store) return null
+
+      const state = store.getState()
+      const canvas = state.allCanvas?.[0]
+      if (!canvas) return null
+
+      const objects = canvas.getObjects()
+      const labels = objects.filter((obj: any) => obj.meta?.system === 'dimensionLabel')
+
+      return labels.map((l: any) => ({
+        text: l.text,
+        regionPosition: l.meta?.regionPosition,
+      }))
+    })
+
+    expect(result).not.toBeNull()
+    expect(result).toHaveLength(3)
+
+    // mock 데이터: coverWidthMm=210, spineWidthMm=7.5
+    const texts = result!.map((l: any) => l.text)
+    expect(texts).toContain('210.0mm')  // 뒷표지
+    expect(texts).toContain('7.5mm')    // 책등
+    // 앞표지도 210.0mm
+
+    // regionPosition이 올바르게 설정되어야 함
+    const positions = result!.map((l: any) => l.regionPosition)
+    expect(positions).toContain('back-cover')
+    expect(positions).toContain('spine')
+    expect(positions).toContain('front-cover')
+  })
 })

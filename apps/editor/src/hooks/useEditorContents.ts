@@ -11,7 +11,7 @@ import {
   type EmptyEditorSetupConfig,
   type GeneralSetupConfig,
 } from '@/stores/useSettingsStore'
-import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay, computeLayout } from '@storige/canvas-core'
+import Editor, { ServicePlugin, SvgUtils, TemplatePlugin, mmToPxDisplay, computeLayout, SpreadPlugin } from '@storige/canvas-core'
 import { contentsApi, storageApi, templateSetsApi, templatesApi } from '@/api'
 import { createCanvas } from '@/utils/createCanvas'
 import { recalculateSpineWidth, initSpineConfig } from '@/utils/spineCalculator'
@@ -1347,37 +1347,66 @@ export function useEditorContents(): UseEditorContentsReturn {
       // 4. settingsStore에 SpreadConfig 저장
       useSettingsStore.getState().setSpreadConfig(spreadConfig)
 
-      // 5. 빈 에디터 스토어 설정 (spread 캔버스용)
+      // 5. 빈 에디터 스토어 설정 (spread 캔버스용 - totalWidth/Height 사용)
       await setupEmptyEditorStore({
         name: templateSet.name,
         size: {
-          width: spreadSpec.coverWidthMm,
-          height: spreadSpec.coverHeightMm,
+          width: spreadConfig.totalWidthMm,
+          height: spreadConfig.totalHeightMm,
           cutSize: spreadSpec.cutSizeMm,
           safeSize: spreadSpec.safeSizeMm,
         },
         unit: 'mm',
       })
 
-      // 6. spread 캔버스 생성 (createCanvas가 SpreadPlugin을 자동 등록함)
-      // 첫 번째 캔버스가 spread 캔버스로 생성됨
+      // 5-1. 워크스페이스 초기화 + canvasData 로드
+      // NOTE: SpreadPlugin 등록보다 먼저 실행해야 함.
+      // WorkspacePlugin.init() → reset()이 모든 비-workspace 객체를 제거하므로,
+      // SpreadPlugin의 가이드/라벨이 제거되는 것을 방지하기 위함.
       const spreadCanvasData = spreadTemplate.canvasData
         ? typeof spreadTemplate.canvasData === 'string'
           ? JSON.parse(spreadTemplate.canvasData)
           : spreadTemplate.canvasData
         : null
 
-      if (spreadCanvasData) {
-        console.log('[EditorContents:Spread] Loading spread canvas data')
+      // canvasData에 실제 객체가 있는지 확인
+      const hasObjects = spreadCanvasData && (
+        Array.isArray(spreadCanvasData)
+          ? spreadCanvasData.some((c: any) => c?.objects?.length > 0)
+          : spreadCanvasData?.objects?.length > 0
+      )
+
+      if (hasObjects) {
+        console.log('[EditorContents:Spread] Loading spread canvas data with objects')
         const canvases = Array.isArray(spreadCanvasData) ? spreadCanvasData : [spreadCanvasData]
         await loadCanvasData(canvases)
       } else {
-        console.log('[EditorContents:Spread] No spread canvasData, initializing workspace only')
+        console.log('[EditorContents:Spread] No spread objects, initializing workspace only')
         await initWorkspace()
+      }
+
+      // 6. SpreadPlugin 동적 등록 (워크스페이스 초기화 이후)
+      // createCanvas()는 spreadConfig 설정 전에 실행되므로 SpreadPlugin이 미등록 상태.
+      // 여기서 직접 생성하여 editor에 등록한다.
+      // initWorkspace() 이후에 등록해야 가이드/라벨이 reset()에 의해 제거되지 않음.
+      const latestAppStore = useAppStore.getState()
+      const latestCanvas = latestAppStore.canvas
+      const latestEditor = latestAppStore.editor
+
+      if (latestCanvas && latestEditor) {
+        const existingSpread = latestEditor.getPlugin('SpreadPlugin')
+        if (!existingSpread) {
+          console.log('[EditorContents:Spread] Dynamically registering SpreadPlugin')
+          const spreadPlugin = new SpreadPlugin(latestCanvas, latestEditor, { spec: spreadSpec })
+          latestEditor.use(spreadPlugin)
+        }
       }
 
       // 7. isSpreadMode 설정
       useAppStore.getState().setSpreadMode(true)
+
+      // 7-1. 책등 설정 초기화 (내지 추가 시 debouncedRecalcSpine이 호출되므로 미리 설정)
+      initSpineConfig(config.paperType || null, config.bindingType || null)
 
       // 8. 내지 페이지 템플릿 필터링 (type === 'page')
       const pageTemplates = originalTemplateDetails.filter((t: any) => t.type === 'page')
@@ -1549,9 +1578,7 @@ export function useEditorContents(): UseEditorContentsReturn {
 
       setEditorTemplates([spreadMetadata, ...pageMetadata])
 
-      // 12. 책등 설정 초기화 및 자동 리사이징
-      initSpineConfig(config.paperType || null, config.bindingType || null)
-
+      // 12. 책등 자동 리사이징 (initSpineConfig는 step 7-1에서 이미 호출됨)
       if (config.paperType && config.bindingType) {
         const spineResult = await recalculateSpineWidth({
           paperType: config.paperType,
