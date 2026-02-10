@@ -49,6 +49,7 @@ const templateTypeLabels: Record<TemplateType, string> = {
   [TemplateType.COVER]: '표지',
   [TemplateType.SPINE]: '책등',
   [TemplateType.PAGE]: '내지',
+  [TemplateType.SPREAD]: '스프레드',
 };
 
 export const ReviewDetail = () => {
