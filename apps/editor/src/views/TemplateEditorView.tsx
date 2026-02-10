@@ -6,7 +6,9 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTemplateSave } from '@/hooks/useTemplateSave'
 import { templatesApi } from '@/api'
 import { createCanvas } from '@/utils/createCanvas'
-import { ServicePlugin } from '@storige/canvas-core'
+import { ServicePlugin, computeLayout } from '@storige/canvas-core'
+import { normalizeSpreadSpec, computeSpreadDimensions, TemplateType } from '@storige/types'
+import type { SpreadSpec, SpreadConfig, SpreadLayout } from '@storige/types'
 import ToolBar from '@/components/editor/ToolBar'
 import FeatureSidebar from '@/components/editor/FeatureSidebar'
 import ControlBar from '@/components/editor/ControlBar'
@@ -24,7 +26,6 @@ import {
   X,
   Check,
 } from 'lucide-react'
-import type { TemplateType } from '@storige/types'
 
 // PostMessage 이벤트 타입
 interface TemplateEditorMessage {
@@ -56,6 +57,34 @@ export default function TemplateEditorView() {
   const widthParam = searchParams.get('width')
   const heightParam = searchParams.get('height')
   const typeParam = searchParams.get('type') as TemplateType | null
+  const modeParam = searchParams.get('mode')
+  const specParam = searchParams.get('spec')
+
+  // Spread mode detection & spec parsing
+  const [spreadError, setSpreadError] = useState<string | null>(null)
+  const spreadSpecRef = useRef<SpreadSpec | null>(null)
+  const spreadLayoutRef = useRef<SpreadLayout | null>(null)
+
+  const isSpreadMode = modeParam === 'spread' && specParam != null
+
+  // Parse and validate spread spec (once)
+  if (isSpreadMode && !spreadSpecRef.current && !spreadError) {
+    try {
+      const parsed = JSON.parse(specParam!)
+      const normalized = normalizeSpreadSpec(parsed)
+      // Validate finite + positive
+      if (normalized.coverWidthMm <= 0 || normalized.coverHeightMm <= 0) {
+        throw new Error('coverWidthMm, coverHeightMm은 양수여야 합니다')
+      }
+      if (normalized.wingEnabled && normalized.wingWidthMm <= 0) {
+        throw new Error('wingEnabled=true일 때 wingWidthMm은 양수여야 합니다')
+      }
+      spreadSpecRef.current = normalized
+      spreadLayoutRef.current = computeLayout(normalized)
+    } catch (e) {
+      setSpreadError(e instanceof Error ? e.message : 'spec 파싱 실패')
+    }
+  }
 
   // Stores
   const { setToken, initializeFromStorage } = useAuthStore()
@@ -70,7 +99,7 @@ export default function TemplateEditorView() {
     editor,
     canvas,
   } = useAppStore()
-  const { updateSettings } = useSettingsStore()
+  const { updateSettings, setSpreadConfig } = useSettingsStore()
 
   // Template save hook
   const { saving, saveTemplate, updateExistingTemplate } = useTemplateSave()
@@ -118,20 +147,46 @@ export default function TemplateEditorView() {
 
         const initId = startInitialization()
 
-        // 캔버스 크기 설정
-        const width = widthParam ? parseInt(widthParam) : 210
-        const height = heightParam ? parseInt(heightParam) : 297
+        // 캔버스 크기 설정: spread 모드일 때 spec이 권위
+        let width: number
+        let height: number
+        let cutSize = 3
+        let safeSize = 3
+
+        if (isSpreadMode && spreadSpecRef.current) {
+          const dims = computeSpreadDimensions(spreadSpecRef.current)
+          width = dims.totalWidthMm
+          height = dims.totalHeightMm
+          cutSize = spreadSpecRef.current.cutSizeMm
+          safeSize = spreadSpecRef.current.safeSizeMm
+        } else {
+          width = widthParam ? parseInt(widthParam) : 210
+          height = heightParam ? parseInt(heightParam) : 297
+        }
 
         // 설정 업데이트
         updateSettings({
           size: {
             width,
             height,
-            cutSize: 3,
-            safeSize: 3,
+            cutSize,
+            safeSize,
           },
           unit: 'mm',
         })
+
+        // 스프레드 모드: spreadConfig을 settings store에 설정
+        // createCanvas에서 SpreadPlugin 등록 여부를 spreadConfig?.spec으로 판단
+        if (isSpreadMode && spreadSpecRef.current && spreadLayoutRef.current) {
+          const dims = computeSpreadDimensions(spreadSpecRef.current)
+          setSpreadConfig({
+            version: 1,
+            spec: spreadSpecRef.current,
+            regions: spreadLayoutRef.current.regions,
+            totalWidthMm: dims.totalWidthMm,
+            totalHeightMm: dims.totalHeightMm,
+          })
+        }
 
         // 캔버스 초기화
         const fabricCanvas = await createCanvas({}, canvasContainerRef.current!, initId)
@@ -252,39 +307,61 @@ export default function TemplateEditorView() {
       }
 
       reset()
+      setSpreadConfig(null)
       isInitializedRef.current = false
 
       console.log('[TemplateEditorView] Editor cleanup completed')
     }
-  }, [templateId, widthParam, heightParam, updateSettings, startInitialization, cancelInitialization, setReady, updateObjects, sendMessageToParent])
+  }, [templateId, widthParam, heightParam, updateSettings, setSpreadConfig, startInitialization, cancelInitialization, setReady, updateObjects, sendMessageToParent])
 
   // 템플릿 저장 핸들러
   const handleSaveTemplate = useCallback(async () => {
     if (!ready || saving) return
+    if (isSpreadMode && spreadError) return
 
     try {
       setIsLoading(true)
       setLoadingMessage('템플릿을 저장하는 중...')
 
-      const width = widthParam ? parseInt(widthParam) : 210
-      const height = heightParam ? parseInt(heightParam) : 297
+      // spread 모드: spec 기반 크기 + spreadConfig 포함
+      let width: number
+      let height: number
+      let spreadConfig: SpreadConfig | undefined
+
+      if (isSpreadMode && spreadSpecRef.current && spreadLayoutRef.current) {
+        const dims = computeSpreadDimensions(spreadSpecRef.current)
+        width = dims.totalWidthMm
+        height = dims.totalHeightMm
+        spreadConfig = {
+          version: 1,
+          spec: spreadSpecRef.current,
+          regions: spreadLayoutRef.current.regions,
+          totalWidthMm: dims.totalWidthMm,
+          totalHeightMm: dims.totalHeightMm,
+        }
+      } else {
+        width = widthParam ? parseInt(widthParam) : 210
+        height = heightParam ? parseInt(heightParam) : 297
+      }
 
       let savedTemplate
       if (templateId) {
         // 기존 템플릿 업데이트
         savedTemplate = await updateExistingTemplate(templateId, {
           name: templateName,
-          type: typeParam || 'page',
+          type: typeParam || TemplateType.PAGE,
           width,
           height,
+          spreadConfig,
         })
       } else {
         // 새 템플릿 생성
         savedTemplate = await saveTemplate({
           name: templateName,
-          type: typeParam || 'page',
+          type: typeParam || TemplateType.PAGE,
           width,
           height,
+          spreadConfig,
         })
       }
 
@@ -311,7 +388,7 @@ export default function TemplateEditorView() {
       setIsLoading(false)
       setLoadingMessage('')
     }
-  }, [ready, saving, templateId, templateName, typeParam, widthParam, heightParam, saveTemplate, updateExistingTemplate, sendMessageToParent])
+  }, [ready, saving, templateId, templateName, typeParam, widthParam, heightParam, isSpreadMode, spreadError, saveTemplate, updateExistingTemplate, sendMessageToParent])
 
   // 닫기 핸들러
   const handleClose = useCallback(() => {
@@ -344,7 +421,10 @@ export default function TemplateEditorView() {
               onKeyDown={handleNameChange}
             />
             <span className="text-xs text-editor-text-muted">
-              {typeParam || 'page'} | {widthParam || 210}×{heightParam || 297}mm
+              {isSpreadMode && spreadSpecRef.current ? (() => {
+                const dims = computeSpreadDimensions(spreadSpecRef.current)
+                return `spread | ${dims.totalWidthMm} × ${dims.totalHeightMm} mm (표지 ${spreadSpecRef.current.coverWidthMm}×${spreadSpecRef.current.coverHeightMm})`
+              })() : `${typeParam || TemplateType.PAGE} | ${widthParam || 210}×${heightParam || 297}mm`}
             </span>
           </div>
 
@@ -437,6 +517,17 @@ export default function TemplateEditorView() {
           {/* Side Panel */}
           <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />
         </div>
+
+        {/* Spread Error Overlay */}
+        {spreadError && (
+          <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-4 max-w-md">
+              <p className="text-red-600 font-medium">스프레드 설정 오류</p>
+              <p className="text-sm text-gray-600">{spreadError}</p>
+              <p className="text-xs text-gray-400">저장할 수 없습니다. 관리자 페이지에서 설정을 확인해주세요.</p>
+            </div>
+          </div>
+        )}
 
         {/* Loading Overlay */}
         {isLoading && (

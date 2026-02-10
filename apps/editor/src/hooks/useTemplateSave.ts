@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { ServicePlugin, core } from '@storige/canvas-core'
 import { templatesApi, storageApi } from '@/api'
 import type { CreateTemplateDto, UpdateTemplateDto, Template } from '@/api/templates'
-import type { CanvasData, TemplateType } from '@storige/types'
+import type { CanvasData, TemplateType, SpreadConfig } from '@storige/types'
 
 // Fabric.js 타입 (런타임에 로드됨)
  
@@ -24,6 +24,7 @@ export interface SaveTemplateOptions {
   height?: number
   categoryId?: string
   isActive?: boolean
+  spreadConfig?: SpreadConfig
 }
 
 export interface UpdateTemplateOptions {
@@ -33,6 +34,7 @@ export interface UpdateTemplateOptions {
   height?: number
   categoryId?: string
   isActive?: boolean
+  spreadConfig?: SpreadConfig
 }
 
 /**
@@ -210,6 +212,7 @@ export function useTemplateSave(): UseTemplateSaveReturn {
         categoryId: options.categoryId,
         thumbnailUrl,
         canvasData,
+        spreadConfig: options.spreadConfig,
         isActive: options.isActive ?? true,
       }
 
@@ -255,6 +258,7 @@ export function useTemplateSave(): UseTemplateSaveReturn {
         categoryId: options.categoryId,
         thumbnailUrl,
         canvasData,
+        spreadConfig: options.spreadConfig,
         isActive: options.isActive,
       }
 

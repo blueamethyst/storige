@@ -4,6 +4,7 @@
  */
 import { spineApi } from '@/api'
 import { useAppStore } from '@/stores/useAppStore'
+import { useEditorStore } from '@/stores/useEditorStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { mmToPxDisplay, SpreadPlugin } from '@storige/canvas-core'
 import type { fabric } from 'fabric'
@@ -149,9 +150,9 @@ export async function recalculateSpineWidth(
     }
   }
 
-  // 내지 페이지 수 계산 (양면 인쇄이므로 × 2)
+  // 내지 페이지 수 계산 (단면 인쇄: 캔버스 1개 = 인쇄 1p)
   const pageTemplateCount = countPageTemplates()
-  const pageCount = pageTemplateCount * 2
+  const pageCount = pageTemplateCount
 
   console.log(`[SpineCalculator] 책등 너비 계산: pageCount=${pageCount}, paperType=${paperType}, bindingType=${bindingType}`)
 
@@ -269,9 +270,18 @@ async function recalculateSpineWidthSpreadMode(
     settingsStore.setSpineConfig({ paperType, bindingType })
   }
 
-  // 내지 페이지 수 계산 (스프레드 모드에서는 allCanvas[1~N]이 내지)
+  // 내지 페이지 수 계산 (useEditorStore.pages를 주요 소스로 사용)
+  // allCanvas.length는 React Strict Mode race condition으로 부정확할 수 있음
+  const editorPages = useEditorStore.getState().pages
+  const editorPageCount = editorPages.filter((p) => p.templateType === 'page').length
+
+  // fallback: editorPages가 아직 설정되지 않은 경우 (초기 로드 시) allCanvas 사용
   const allCanvas = appStore.allCanvas
-  if (allCanvas.length <= 1) {
+  const allCanvasInnerCount = allCanvas.length - 1
+
+  const innerPageCanvasCount = editorPageCount > 0 ? editorPageCount : Math.max(allCanvasInnerCount, 0)
+
+  if (innerPageCanvasCount <= 0) {
     console.log('[SpineCalculator:Spread] 내지 캔버스 없음, 스킵')
     return {
       success: false,
@@ -282,10 +292,18 @@ async function recalculateSpineWidthSpreadMode(
     }
   }
 
-  const innerPageCanvasCount = allCanvas.length - 1 // 첫 번째는 스프레드 캔버스
-  const pageCount = innerPageCanvasCount * 2 // 양면 인쇄
+  const pageCount = innerPageCanvasCount // 단면 인쇄: 캔버스 1개 = 인쇄 1p
 
-  console.log(`[SpineCalculator:Spread] 책등 너비 계산: pageCount=${pageCount}, paperType=${paperType}, bindingType=${bindingType}`)
+  // 현재 책등 너비 (변경 전)
+  const currentSpineWidth = settingsStore.spineConfig.calculatedSpineWidth ?? settingsStore.spreadConfig?.spec?.spineWidthMm ?? null
+
+  console.log(`[SpineCalculator:Spread] 책등 너비 계산 시작:`)
+  console.log(`  - 내지 수 (editorStore.pages): ${editorPageCount}개`)
+  console.log(`  - 내지 수 (allCanvas fallback): ${allCanvasInnerCount}개`)
+  console.log(`  - 사용된 내지 수: ${innerPageCanvasCount}개`)
+  console.log(`  - 인쇄 페이지 수 (단면): ${pageCount}p`)
+  console.log(`  - 용지: ${paperType}, 제본: ${bindingType}`)
+  console.log(`  - 현재 책등 너비: ${currentSpineWidth}mm`)
 
   try {
     // API로 책등 폭 계산
@@ -295,7 +313,7 @@ async function recalculateSpineWidthSpreadMode(
       bindingType,
     })
 
-    console.log(`[SpineCalculator:Spread] 계산된 책등 너비: ${spineResult.spineWidth}mm`)
+    console.log(`[SpineCalculator:Spread] API 응답: 책등 너비 ${spineResult.spineWidth}mm (${currentSpineWidth}mm → ${spineResult.spineWidth}mm, 변화: ${currentSpineWidth != null ? (spineResult.spineWidth - currentSpineWidth).toFixed(1) : 'N/A'}mm)`)
 
     // 경고 메시지 출력
     if (spineResult.warnings.length > 0) {
@@ -313,8 +331,10 @@ async function recalculateSpineWidthSpreadMode(
       const spreadPlugin = spreadEditor.getPlugin<SpreadPlugin>('SpreadPlugin')
 
       if (spreadPlugin) {
+        const layoutBefore = spreadPlugin.getLayout()
         await spreadPlugin.resizeSpine(spineResult.spineWidth)
-        console.log('[SpineCalculator:Spread] SpreadPlugin.resizeSpine() 완료')
+        const layoutAfter = spreadPlugin.getLayout()
+        console.log(`[SpineCalculator:Spread] resizeSpine 완료: 스프레드 총폭 ${layoutBefore?.totalWidthMm?.toFixed(1)}mm → ${layoutAfter?.totalWidthMm?.toFixed(1)}mm`)
       } else {
         console.warn('[SpineCalculator:Spread] SpreadPlugin을 찾을 수 없습니다.')
       }

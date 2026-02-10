@@ -70,8 +70,8 @@ class SpreadPlugin extends PluginBase {
   // ============================================================================
 
   async mounted(): Promise<void> {
-    // 초기 레이아웃 계산 및 렌더링
-    this.init(this.currentSpec)
+    // init()은 createCanvas의 initPlugins()에서 workspace.init() 이후에 호출됨
+    // (가이드/라벨이 workspace 위에 렌더링되어야 하므로)
 
     // 이벤트 핸들러 등록
     this._boundHandleObjectModified = this.handleObjectModified.bind(this)
@@ -128,12 +128,17 @@ class SpreadPlugin extends PluginBase {
 
   /**
    * 스프레드 초기화
+   * spec이 제공되면 갱신, 없으면 생성자에서 설정된 currentSpec 사용
    */
-  init(spec: SpreadSpec): void {
-    this.currentSpec = spec
-    this.currentLayout = computeLayout(spec)
+  init(spec?: SpreadSpec): void {
+    if (spec) {
+      this.currentSpec = spec
+    }
+    this.currentLayout = computeLayout(this.currentSpec)
 
-    // 가이드/라벨 렌더링
+    // 기존 가이드/라벨 제거 후 재렌더링 (init 중복 호출 시 중복 방지)
+    this.clearGuides()
+    this.clearLabels()
     this.renderGuides(this.currentLayout)
     this.renderLabels(this.currentLayout)
 
@@ -145,12 +150,15 @@ class SpreadPlugin extends PluginBase {
    */
   async resizeSpine(newSpineWidthMm: number): Promise<void> {
     if (!this.currentLayout) {
-      console.warn('SpreadPlugin: currentLayout is null')
+      console.warn('SpreadPlugin.resizeSpine: currentLayout is null, init() 호출 필요')
       return
     }
 
-    if (newSpineWidthMm === this.currentSpec.spineWidthMm) {
-      // 동일한 폭이면 skip
+    const oldSpineWidthMm = this.currentSpec.spineWidthMm
+    console.log(`[SpreadPlugin] resizeSpine: 책등 ${oldSpineWidthMm}mm → ${newSpineWidthMm}mm (변화: ${(newSpineWidthMm - oldSpineWidthMm).toFixed(1)}mm)`)
+
+    if (newSpineWidthMm === oldSpineWidthMm) {
+      console.log(`[SpreadPlugin] resizeSpine: 동일한 폭 (${newSpineWidthMm}mm), skip`)
       return
     }
 
@@ -211,7 +219,14 @@ class SpreadPlugin extends PluginBase {
       }
       this._canvas.requestRenderAll()
 
-      // 9. 이벤트 발행
+      // 9. 결과 로그
+      const spineRegion = newLayout.regions.find((r) => r.position === 'spine')
+      console.log(`[SpreadPlugin] resizeSpine 완료:`)
+      console.log(`  - 책등: ${oldSpineWidthMm}mm → ${newSpineWidthMm}mm`)
+      console.log(`  - 스프레드 총폭: ${oldLayout.totalWidthMm}mm → ${newLayout.totalWidthMm}mm`)
+      console.log(`  - 책등 영역: x=${spineRegion?.x?.toFixed(0)}px, w=${spineRegion?.width?.toFixed(0)}px (${spineRegion?.widthMm}mm)`)
+
+      // 10. 이벤트 발행
       this._editor.emit('spineWidthChange', {
         oldSpineWidth: oldLayout.regions.find((r) => r.position === 'spine')?.widthMm ?? 0,
         newSpineWidth: newSpineWidthMm,
@@ -219,7 +234,7 @@ class SpreadPlugin extends PluginBase {
         newLayout,
       })
 
-      // 10. 캔버스 밖 객체 경고 (선택 사항)
+      // 11. 캔버스 밖 객체 경고 (선택 사항)
       this.checkObjectsOutOfBounds(newLayout)
     } finally {
       // 트랜잭션 종료
@@ -306,12 +321,15 @@ class SpreadPlugin extends PluginBase {
    * 캔버스 밖 객체 경고
    */
   private checkObjectsOutOfBounds(layout: SpreadLayout): void {
+    const origin = this.getContentOrigin()
     const objects = this._canvas.getObjects()
     const outOfBounds = objects.filter((obj) => {
       if (obj.meta?.system) return false
       const boundingRect = obj.getBoundingRect()
-      return boundingRect.left + boundingRect.width > layout.totalWidthPx ||
-             boundingRect.left < 0
+      return boundingRect.left + boundingRect.width > origin.x + layout.totalWidthPx ||
+             boundingRect.left < origin.x ||
+             boundingRect.top + boundingRect.height > origin.y + layout.totalHeightPx ||
+             boundingRect.top < origin.y
     })
 
     if (outOfBounds.length > 0) {

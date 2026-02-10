@@ -331,6 +331,15 @@ export const TemplateSetForm = () => {
       return;
     }
 
+    // 스프레드 템플릿 추가 시 자동으로 책모드로 전환
+    if (template.type === TemplateType.SPREAD) {
+      const currentMode = form.getFieldValue('editorMode');
+      if (currentMode !== EditorMode.BOOK) {
+        form.setFieldsValue({ editorMode: EditorMode.BOOK });
+        message.info('스프레드 템플릿이 추가되어 에디터 모드가 책모드로 전환되었습니다.');
+      }
+    }
+
     setTemplates([
       ...templates,
       {
@@ -343,7 +352,18 @@ export const TemplateSetForm = () => {
   };
 
   const handleRemoveTemplate = (templateId: string) => {
-    setTemplates(templates.filter((t) => t.templateId !== templateId));
+    const removedTemplate = templates.find((t) => t.templateId === templateId);
+    const remaining = templates.filter((t) => t.templateId !== templateId);
+    setTemplates(remaining);
+
+    // 스프레드 템플릿 제거 시 남은 스프레드가 없으면 단일모드로 복원
+    if (removedTemplate?.template?.type === TemplateType.SPREAD) {
+      const hasSpread = remaining.some((t) => t.template?.type === TemplateType.SPREAD);
+      if (!hasSpread && form.getFieldValue('editorMode') === EditorMode.BOOK) {
+        form.setFieldsValue({ editorMode: EditorMode.SINGLE });
+        message.info('스프레드 템플릿이 제거되어 에디터 모드가 단일모드로 전환되었습니다.');
+      }
+    }
   };
 
   const handleToggleRequired = (templateId: string) => {
@@ -371,12 +391,23 @@ export const TemplateSetForm = () => {
 
   // Filter templates by current size
   // - 책등(spine)은 높이만 같으면 표시 (너비는 책 두께에 따라 다름)
+  // - 스프레드(spread)는 spreadConfig.spec의 표지 크기로 비교
+  //   (template.width는 총 스프레드 크기이므로 직접 비교 불가)
   // - 다른 타입은 너비와 높이 모두 일치해야 표시
   const width = Form.useWatch('width', form);
   const height = Form.useWatch('height', form);
   const filteredTemplates = allTemplates?.filter((t) => {
     if (t.type === TemplateType.SPINE) {
       // 책등은 높이만 일치하면 OK
+      return t.height === height;
+    }
+    if (t.type === TemplateType.SPREAD) {
+      // 스프레드는 표지 크기(coverWidth/Height)로 비교
+      const spec = t.spreadConfig?.spec;
+      if (spec) {
+        return spec.coverWidthMm === width && spec.coverHeightMm === height;
+      }
+      // spreadConfig 없으면 높이만 비교 (fallback)
       return t.height === height;
     }
     // 그 외 타입은 너비와 높이 모두 일치

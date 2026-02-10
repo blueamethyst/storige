@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, message, Modal, Form, Input, Select, InputNumber, Space, Spin, Switch, Divider } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
+import { computeSpreadDimensions, normalizeSpreadSpec } from '@storige/types';
 
 const { Option } = Select;
 
@@ -57,6 +58,7 @@ export const TemplateEditor = () => {
   const [editorReady, setEditorReady] = useState(false);
   const [templateConfig, setTemplateConfig] = useState<TemplateConfig | null>(null);
   const [spreadConfig, setSpreadConfig] = useState<SpreadMinimalConfig | null>(null);
+  const [selectedType, setSelectedType] = useState<TemplateType>('page');
 
   // 폼 인스턴스
   const [form] = Form.useForm();
@@ -72,14 +74,16 @@ export const TemplateEditor = () => {
 
     if (config) {
       params.set('name', config.name);
-      params.set('width', config.width.toString());
-      params.set('height', config.height.toString());
       params.set('type', config.type);
 
-      // 스프레드 모드인 경우
       if (config.type === 'spread' && spread) {
+        // spread일 때는 width/height를 URL에 넣지 않음 (spec이 권위)
         params.set('mode', 'spread');
         params.set('spec', JSON.stringify(spread));
+      } else {
+        // 일반 타입은 width/height 전달
+        params.set('width', config.width.toString());
+        params.set('height', config.height.toString());
       }
     }
 
@@ -225,7 +229,13 @@ export const TemplateEditor = () => {
         </span>
         {templateConfig && (
           <span style={{ marginLeft: 16, color: '#888' }}>
-            {templateConfig.type} | {templateConfig.width} × {templateConfig.height} mm
+            {templateConfig.type === 'spread'
+              ? (spreadConfig ? (() => {
+                  const spec = normalizeSpreadSpec(spreadConfig);
+                  const dims = computeSpreadDimensions(spec);
+                  return `spread | ${dims.totalWidthMm} × ${dims.totalHeightMm} mm (표지 ${spreadConfig.coverWidthMm}×${spreadConfig.coverHeightMm})`;
+                })() : 'spread | 설정 중...')
+              : `${templateConfig.type} | ${templateConfig.width} × ${templateConfig.height} mm`}
           </span>
         )}
       </div>
@@ -256,7 +266,8 @@ export const TemplateEditor = () => {
         )}
 
         {/* iframe - 설정이 완료되었거나 편집 모드일 때만 표시 */}
-        {(templateConfig || templateId) && (
+        {/* spread 타입은 spreadConfig까지 완료되어야 iframe 렌더링 */}
+        {((templateConfig && (templateConfig.type !== 'spread' || spreadConfig)) || templateId) && (
           <iframe
             ref={iframeRef}
             src={getEditorUrl(
@@ -281,7 +292,7 @@ export const TemplateEditor = () => {
         open={configModalVisible}
         onOk={handleConfigSubmit}
         onCancel={handleConfigCancel}
-        okText={form.getFieldValue('type') === 'spread' ? '다음' : '에디터 열기'}
+        okText={selectedType === 'spread' ? '다음' : '에디터 열기'}
         cancelText="취소"
         maskClosable={false}
         closable={false}
@@ -309,7 +320,12 @@ export const TemplateEditor = () => {
             label="템플릿 타입"
             rules={[{ required: true, message: '템플릿 타입을 선택해주세요' }]}
           >
-            <Select>
+            <Select onChange={(value: TemplateType) => {
+              setSelectedType(value);
+              if (value === 'spread' || form.getFieldValue('type') === 'spread') {
+                form.resetFields(['width', 'height']);
+              }
+            }}>
               <Option value="page">내지 (Page)</Option>
               <Option value="cover">표지 (Cover)</Option>
               <Option value="spine">책등 (Spine)</Option>
@@ -318,23 +334,29 @@ export const TemplateEditor = () => {
             </Select>
           </Form.Item>
 
-          <Space size="middle" style={{ display: 'flex' }}>
-            <Form.Item
-              name="width"
-              label="가로 (mm)"
-              rules={[{ required: true, message: '가로 크기를 입력해주세요' }]}
-            >
-              <InputNumber min={10} max={1000} style={{ width: 120 }} />
-            </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.type !== curr.type}>
+            {({ getFieldValue }) =>
+              getFieldValue('type') !== 'spread' && (
+                <Space size="middle" style={{ display: 'flex' }}>
+                  <Form.Item
+                    name="width"
+                    label="가로 (mm)"
+                    rules={[{ required: true, message: '가로 크기를 입력해주세요' }]}
+                  >
+                    <InputNumber min={10} max={1000} style={{ width: 120 }} />
+                  </Form.Item>
 
-            <Form.Item
-              name="height"
-              label="세로 (mm)"
-              rules={[{ required: true, message: '세로 크기를 입력해주세요' }]}
-            >
-              <InputNumber min={10} max={1000} style={{ width: 120 }} />
-            </Form.Item>
-          </Space>
+                  <Form.Item
+                    name="height"
+                    label="세로 (mm)"
+                    rules={[{ required: true, message: '세로 크기를 입력해주세요' }]}
+                  >
+                    <InputNumber min={10} max={1000} style={{ width: 120 }} />
+                  </Form.Item>
+                </Space>
+              )
+            }
+          </Form.Item>
 
           <div style={{ color: '#888', fontSize: 12, marginTop: 8 }}>
             일반적인 판형:

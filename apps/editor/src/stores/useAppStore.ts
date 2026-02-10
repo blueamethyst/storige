@@ -538,7 +538,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       // 내지 추가 시 책등 너비 재계산
       recalculateSpineWidth().then((result) => {
         if (result.success) {
-          console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+          console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}p)`)
         } else if (result.error) {
           console.warn(`[AppStore] 책등 재계산 스킵: ${result.error}`)
         }
@@ -681,7 +681,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
     // 내지 삭제 시 책등 너비 재계산
     recalculateSpineWidth().then((result) => {
       if (result.success) {
-        console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+        console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}p)`)
       }
     }).catch((error) => {
       console.error('[AppStore] 책등 재계산 오류:', error)
@@ -1051,7 +1051,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       recalculateSpineWidth()
         .then((result) => {
           if (result.success) {
-            console.log(`[AppStore] 책등 너비 재계산 완료 (즉시): ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+            console.log(`[AppStore] 책등 너비 재계산 완료 (즉시): ${result.spineWidth}mm (내지 ${result.pageCount}p)`)
           }
         })
         .catch((error) => {
@@ -1082,7 +1082,7 @@ export const useAppStore = create<AppState & AppActions>()((set, get) => ({
       recalculateSpineWidth()
         .then((result) => {
           if (result.success) {
-            console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}페이지)`)
+            console.log(`[AppStore] 책등 너비 재계산 완료: ${result.spineWidth}mm (내지 ${result.pageCount}p)`)
           }
         })
         .catch((error) => {

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { CanvasData, TemplateType, TemplateSetType, TemplateRef, PaginatedResponse } from '@storige/types';
+import type { CanvasData, TemplateType, TemplateSetType, TemplateRef, PaginatedResponse, SpreadConfig } from '@storige/types';
 
 export interface Template {
   id: string;
@@ -10,6 +10,7 @@ export interface Template {
   height?: number;
   thumbnailUrl: string | null;
   canvasData: CanvasData;
+  spreadConfig?: SpreadConfig | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +39,7 @@ export interface CreateTemplateDto {
   height?: number;
   thumbnailUrl?: string;
   canvasData: CanvasData;
+  spreadConfig?: SpreadConfig;
   isActive?: boolean;
 }
 
@@ -49,6 +51,7 @@ export interface UpdateTemplateDto {
   height?: number;
   thumbnailUrl?: string;
   canvasData?: CanvasData;
+  spreadConfig?: SpreadConfig;
   isActive?: boolean;
 }
 

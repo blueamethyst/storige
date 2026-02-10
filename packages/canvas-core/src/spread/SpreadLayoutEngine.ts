@@ -18,6 +18,7 @@ import type {
   ObjectAnchor,
   RegionRefResult,
 } from '@storige/types'
+import { computeSpreadDimensions } from '@storige/types'
 
 // ============================================================================
 // Constants
@@ -71,9 +72,10 @@ export function computeLayout(spec: SpreadSpec): SpreadLayout {
     'front-wing': wingEnabled ? wingWidthMm : 0,
   }
 
-  // 2. 총 폭 계산
-  const totalWidthMm = Object.values(regionWidths).reduce((sum, w) => sum + w, 0)
-  const totalHeightMm = coverHeightMm
+  // 2. 총 폭 계산 (공용 함수 위임)
+  const dims = computeSpreadDimensions(spec)
+  const totalWidthMm = dims.totalWidthMm
+  const totalHeightMm = dims.totalHeightMm
   const totalWidthPx = mmToPx(totalWidthMm, dpi)
   const totalHeightPx = mmToPx(totalHeightMm, dpi)
 

@@ -906,6 +906,61 @@ export function calculateSpineWidth(config: SpineConfig): SpineCalculationResult
 }
 
 // ============================================================================
+// Spread 공용 계산 함수
+// ============================================================================
+
+/**
+ * mm 값을 0.1mm 단위로 반올림
+ * @throws {Error} NaN/Infinity 입력 시
+ */
+export function roundMm01(x: number): number {
+  if (!Number.isFinite(x)) throw new Error(`roundMm01: non-finite value ${x}`);
+  return Math.round(x * 10) / 10;
+}
+
+/**
+ * SpreadSpec 기본값 보충 + 0.1mm 정규화 (Editor/API 공용)
+ */
+export function normalizeSpreadSpec(raw: Partial<SpreadSpec> & {
+  coverWidthMm: number;
+  coverHeightMm: number;
+  initialSpineWidthMm?: number;
+}): SpreadSpec {
+  return {
+    coverWidthMm: roundMm01(raw.coverWidthMm),
+    coverHeightMm: roundMm01(raw.coverHeightMm),
+    spineWidthMm: roundMm01(raw.spineWidthMm ?? raw.initialSpineWidthMm ?? 7.5),
+    wingEnabled: raw.wingEnabled ?? false,
+    wingWidthMm: roundMm01(raw.wingWidthMm ?? 0),
+    cutSizeMm: roundMm01(raw.cutSizeMm ?? 3),
+    safeSizeMm: roundMm01(raw.safeSizeMm ?? 3),
+    dpi: raw.dpi ?? 150,
+  };
+}
+
+/**
+ * 스프레드 총 크기 계산 결과
+ */
+export interface SpreadDimensions {
+  totalWidthMm: number;   // roundMm01 적용
+  totalHeightMm: number;  // roundMm01 적용
+}
+
+/**
+ * 스프레드 총 크기 계산 (단일 소스 - Admin/Editor/API 공용)
+ */
+export function computeSpreadDimensions(spec: SpreadSpec): SpreadDimensions {
+  const rawWidth =
+    (spec.wingEnabled ? spec.wingWidthMm * 2 : 0)
+    + spec.coverWidthMm * 2
+    + spec.spineWidthMm;
+  return {
+    totalWidthMm: roundMm01(rawWidth),
+    totalHeightMm: roundMm01(spec.coverHeightMm),
+  };
+}
+
+// ============================================================================
 // 권한 관련 타입
 // ============================================================================
 
@@ -1082,6 +1137,7 @@ export interface SpreadLayout {
  * 스프레드 설정 (저장용)
  */
 export interface SpreadConfig {
+  version: number;        // 1 (향후 계산식 변경 대비)
   spec: SpreadSpec;
   regions: SpreadRegion[];
   totalWidthMm: number;

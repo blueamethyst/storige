@@ -202,7 +202,7 @@ function initPlugins(
 
   // SpreadPlugin은 스프레드 모드일 때만 등록
   const spreadConfig = settingsStore.spreadConfig
-  const spread = spreadConfig?.spec ? new SpreadPlugin(canvas, editor, spreadConfig.spec) : null
+  const spread = spreadConfig?.spec ? new SpreadPlugin(canvas, editor, { spec: spreadConfig.spec }) : null
 
   const workspace = new WorkspacePlugin(canvas, editor, mergedOptions)
   const object = new ObjectPlugin(canvas, editor, mergedOptions)

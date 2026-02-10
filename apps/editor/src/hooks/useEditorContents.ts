@@ -879,7 +879,13 @@ export function useEditorContents(): UseEditorContentsReturn {
       console.log('[EditorContents] Original template details count:', originalTemplateDetails.length)
 
       // 2. EditorMode 확인 및 분기
-      const editorMode = (templateSet as any).editorMode as EditorMode
+      // DB의 editorMode를 우선 사용하되, 스프레드 템플릿이 존재하면 book 모드로 자동 전환
+      let editorMode = (templateSet as any).editorMode as EditorMode
+      const hasSpreadTemplate = originalTemplateDetails.some((t: any) => t.type === 'spread')
+      if (hasSpreadTemplate && editorMode !== 'book') {
+        console.log('[EditorContents] Spread template detected, switching to book mode')
+        editorMode = 'book' as EditorMode
+      }
       console.log('[EditorContents] EditorMode:', editorMode)
 
       if (editorMode === 'book') {
@@ -1399,6 +1405,8 @@ export function useEditorContents(): UseEditorContentsReturn {
           console.log('[EditorContents:Spread] Dynamically registering SpreadPlugin')
           const spreadPlugin = new SpreadPlugin(latestCanvas, latestEditor, { spec: spreadSpec })
           latestEditor.use(spreadPlugin)
+          // init() 호출하여 currentLayout 설정 + 가이드/라벨 렌더링
+          spreadPlugin.init()
         }
       }
 
@@ -1465,8 +1473,16 @@ export function useEditorContents(): UseEditorContentsReturn {
       // 10. 내지 페이지 캔버스 생성 및 로드
       if (adjustedPageTemplates.length > 0) {
         const appStore = useAppStore.getState()
+        // 초기화 세션 ID 캡처 (React Strict Mode 대응: 루프 중 초기화가 취소되면 중단)
+        const capturedInitId = useAppStore.getState().initializationId
 
         for (let i = 0; i < adjustedPageTemplates.length; i++) {
+          // 초기화 세션이 바뀌었으면 루프 중단 (Strict Mode 두 번째 마운트가 reset/restart한 경우)
+          if (useAppStore.getState().initializationId !== capturedInitId) {
+            console.warn(`[EditorContents:Spread] initializationId changed during inner page creation (page ${i + 1}), aborting loop`)
+            return
+          }
+
           const pageTemplate = adjustedPageTemplates[i]
 
           console.log(`[EditorContents:Spread] Creating inner page ${i + 1}/${adjustedPageTemplates.length}`)

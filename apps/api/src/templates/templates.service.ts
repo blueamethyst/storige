@@ -1,12 +1,15 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { normalizeSpreadSpec, computeSpreadDimensions } from '@storige/types';
 import { Template } from './entities/template.entity';
 import { TemplateSet } from './entities/template-set.entity';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/template.dto';
 
 @Injectable()
 export class TemplatesService {
+  private readonly logger = new Logger(TemplatesService.name);
+
   constructor(
     @InjectRepository(Template)
     private templateRepository: Repository<Template>,
@@ -42,25 +45,9 @@ export class TemplatesService {
   }
 
   async create(createTemplateDto: CreateTemplateDto, userId?: string): Promise<Template> {
-    // spread 타입 검증: spreadConfig 필수
+    // spread 타입 검증 및 정규화
     if (createTemplateDto.type === 'spread') {
-      if (!createTemplateDto.spreadConfig) {
-        throw new BadRequestException('type=spread일 때 spreadConfig는 필수입니다.');
-      }
-
-      // spreadConfig 필수 필드 검증
-      const { spec } = createTemplateDto.spreadConfig;
-      if (!spec || !spec.coverWidthMm || !spec.coverHeightMm) {
-        throw new BadRequestException('spreadConfig.spec에 coverWidthMm, coverHeightMm이 필요합니다.');
-      }
-
-      // 판형 검증 (width, height와 일치 여부)
-      if (createTemplateDto.width && Math.abs(createTemplateDto.width - spec.coverWidthMm) > 0.1) {
-        throw new BadRequestException('spreadConfig.spec.coverWidthMm은 템플릿 width와 일치해야 합니다.');
-      }
-      if (createTemplateDto.height && Math.abs(createTemplateDto.height - spec.coverHeightMm) > 0.1) {
-        throw new BadRequestException('spreadConfig.spec.coverHeightMm은 템플릿 height와 일치해야 합니다.');
-      }
+      this.validateAndNormalizeSpreadConfig(createTemplateDto);
     }
 
     // 템플릿 코드와 편집 코드 자동 생성
@@ -144,9 +131,66 @@ export class TemplatesService {
       }
     }
 
+    // spread 타입 검증 및 정규화
+    const effectiveType = updateTemplateDto.type || template.type;
+    if (effectiveType === 'spread' && updateTemplateDto.spreadConfig) {
+      this.validateAndNormalizeSpreadConfig(updateTemplateDto);
+    }
+
     Object.assign(template, updateTemplateDto);
 
     return await this.templateRepository.save(template);
+  }
+
+  /**
+   * spread 타입 검증 및 정규화 (create/update 공용)
+   */
+  private validateAndNormalizeSpreadConfig(dto: CreateTemplateDto | UpdateTemplateDto): void {
+    if (!dto.spreadConfig) {
+      throw new BadRequestException('type=spread일 때 spreadConfig는 필수입니다.');
+    }
+
+    const rawSpec = dto.spreadConfig.spec;
+    if (!rawSpec || !Number.isFinite(rawSpec.coverWidthMm) || !Number.isFinite(rawSpec.coverHeightMm)) {
+      throw new BadRequestException('spreadConfig.spec에 유효한 coverWidthMm, coverHeightMm이 필요합니다.');
+    }
+    if (rawSpec.coverWidthMm <= 0 || rawSpec.coverHeightMm <= 0) {
+      throw new BadRequestException('coverWidthMm, coverHeightMm은 양수여야 합니다.');
+    }
+    if (rawSpec.wingEnabled === true && (!rawSpec.wingWidthMm || rawSpec.wingWidthMm <= 0)) {
+      throw new BadRequestException('wingEnabled=true일 때 wingWidthMm은 양수여야 합니다.');
+    }
+    if (rawSpec.spineWidthMm !== undefined && rawSpec.spineWidthMm < 0) {
+      throw new BadRequestException('spineWidthMm은 0 이상이어야 합니다.');
+    }
+
+    // 정규화
+    const normalizedSpec = normalizeSpreadSpec(rawSpec);
+    const dims = computeSpreadDimensions(normalizedSpec);
+
+    // 클라이언트 값과 서버 계산값 차이 경고
+    if (dto.width && Math.abs(dto.width - dims.totalWidthMm) > 0.2) {
+      this.logger.warn(
+        `Template width mismatch: client=${dto.width}mm, server=${dims.totalWidthMm}mm`,
+      );
+    }
+    if (dto.height && Math.abs(dto.height - dims.totalHeightMm) > 0.2) {
+      this.logger.warn(
+        `Template height mismatch: client=${dto.height}mm, server=${dims.totalHeightMm}mm`,
+      );
+    }
+
+    // 서버 계산값으로 override
+    dto.width = dims.totalWidthMm;
+    dto.height = dims.totalHeightMm;
+
+    // spreadConfig도 정규화
+    dto.spreadConfig.spec = normalizedSpec;
+    dto.spreadConfig.totalWidthMm = dims.totalWidthMm;
+    dto.spreadConfig.totalHeightMm = dims.totalHeightMm;
+    if (!dto.spreadConfig.version) {
+      dto.spreadConfig.version = 1;
+    }
   }
 
   /**
