@@ -1,4 +1,5 @@
 import { Module, DynamicModule } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
@@ -15,6 +16,7 @@ import { HealthModule } from './health/health.module';
 import { SeedModule } from './database/seeds/seed.module';
 import { FilesModule } from './files/files.module';
 import { EditSessionsModule } from './edit-sessions/edit-sessions.module';
+import { PayloadTooLargeFilter } from './common/filters/payload-too-large.filter';
 
 // Bookmoa 모듈 조건부 로드 (BOOKMOA_DB_PASSWORD가 설정된 경우에만)
 const conditionalModules: DynamicModule[] = [];
@@ -92,6 +94,11 @@ if (process.env.BOOKMOA_DB_PASSWORD) {
     ...conditionalModules,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: PayloadTooLargeFilter,
+    },
+  ],
 })
 export class AppModule {}

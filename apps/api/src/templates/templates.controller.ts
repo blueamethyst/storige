@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiExtraModels, getSchemaPath } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/template.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,9 +17,11 @@ import { User } from '../auth/entities/user.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '@storige/types';
+import { PayloadTooLargeResponseDto } from '../common/dto/error-response.dto';
 
 @ApiTags('Templates')
 @ApiBearerAuth()
+@ApiExtraModels(PayloadTooLargeResponseDto)
 @Controller('templates')
 export class TemplatesController {
   constructor(private readonly templatesService: TemplatesService) {}
@@ -29,6 +31,11 @@ export class TemplatesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new template' })
   @ApiResponse({ status: 201, description: 'Template created successfully' })
+  @ApiResponse({
+    status: 413,
+    description: '요청 데이터 크기 초과',
+    schema: { $ref: getSchemaPath(PayloadTooLargeResponseDto) },
+  })
   create(@Body() createTemplateDto: CreateTemplateDto, @CurrentUser() user?: User) {
     return this.templatesService.create(createTemplateDto, user?.id);
   }
@@ -78,6 +85,11 @@ export class TemplatesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Update template' })
   @ApiResponse({ status: 200, description: 'Template updated successfully' })
+  @ApiResponse({
+    status: 413,
+    description: '요청 데이터 크기 초과',
+    schema: { $ref: getSchemaPath(PayloadTooLargeResponseDto) },
+  })
   update(@Param('id') id: string, @Body() updateTemplateDto: UpdateTemplateDto) {
     return this.templatesService.update(id, updateTemplateDto);
   }

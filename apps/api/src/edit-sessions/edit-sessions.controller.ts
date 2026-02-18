@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
+  ApiExtraModels,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { EditSessionsService } from './edit-sessions.service';
 import { CreateEditSessionDto } from './dto/create-edit-session.dto';
@@ -26,9 +28,11 @@ import {
   EditSessionListResponseDto,
 } from './dto/edit-session-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { PayloadTooLargeResponseDto } from '../common/dto/error-response.dto';
 
 @ApiTags('Edit Sessions')
 @ApiBearerAuth()
+@ApiExtraModels(PayloadTooLargeResponseDto)
 @Controller('edit-sessions')
 export class EditSessionsController {
   constructor(private readonly editSessionsService: EditSessionsService) {}
@@ -44,6 +48,11 @@ export class EditSessionsController {
     type: EditSessionResponseDto,
   })
   @ApiResponse({ status: 400, description: '잘못된 요청' })
+  @ApiResponse({
+    status: 413,
+    description: '요청 데이터 크기 초과',
+    schema: { $ref: getSchemaPath(PayloadTooLargeResponseDto) },
+  })
   async create(
     @Body() dto: CreateEditSessionDto,
     @CurrentUser() user: any,
@@ -138,6 +147,11 @@ export class EditSessionsController {
   })
   @ApiResponse({ status: 403, description: '권한 없음' })
   @ApiResponse({ status: 404, description: '세션을 찾을 수 없음' })
+  @ApiResponse({
+    status: 413,
+    description: '요청 데이터 크기 초과',
+    schema: { $ref: getSchemaPath(PayloadTooLargeResponseDto) },
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEditSessionDto,
