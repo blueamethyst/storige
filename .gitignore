@@ -60,3 +60,5 @@ docker-compose.override.yml
 
 # TypeScript
 *.tsbuildinfo
+.vercel
+.env*.local
