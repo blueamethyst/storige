@@ -7,6 +7,10 @@
     {
       "source": "/storage/:path*",
       "destination": "http://58.229.105.98:4000/storage/:path*"
+    },
+    {
+      "source": "/((?!api|storage|assets).*)",
+      "destination": "/index.html"
     }
   ]
 }
