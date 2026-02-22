@@ -20,7 +20,12 @@ import {
   EditSessionResponseDto,
   FileInfoDto,
 } from './dto/edit-session-response.dto';
+import {
+  ExternalSessionResponseDto,
+  ExternalSessionFilesDto,
+} from './dto/external-session-response.dto';
 import { WorkerJobsService } from '../worker-jobs/worker-jobs.service';
+import { WorkerJobStatus } from '@storige/types';
 
 @Injectable()
 export class EditSessionsService {
@@ -75,6 +80,93 @@ export class EditSessionsService {
       relations: ['coverFile', 'contentFile'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * 주문 번호로 외부 조회 (워커잡 포함, nimda용)
+   */
+  async findByOrderExternal(orderSeqno: number): Promise<ExternalSessionResponseDto[]> {
+    const sessions = await this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.coverFile', 'coverFile')
+      .leftJoinAndSelect('session.contentFile', 'contentFile')
+      .where('session.orderSeqno = :orderSeqno', { orderSeqno })
+      .andWhere('session.deletedAt IS NULL')
+      .orderBy('session.createdAt', 'DESC')
+      .getMany();
+
+    const results: ExternalSessionResponseDto[] = [];
+
+    for (const session of sessions) {
+      // 해당 세션의 최신 SYNTHESIZE 워커잡 조회
+      const workerJob = await this.sessionRepository.manager
+        .createQueryBuilder()
+        .select('job.status', 'status')
+        .addSelect('job.result', 'result')
+        .addSelect('job.output_file_url', 'outputFileUrl')
+        .from('worker_jobs', 'job')
+        .where('job.edit_session_id = :sessionId', { sessionId: session.id })
+        .andWhere('job.job_type = :jobType', { jobType: 'SYNTHESIZE' })
+        .orderBy('job.created_at', 'DESC')
+        .limit(1)
+        .getRawOne();
+
+      const files = this.resolveFiles(session, workerJob);
+
+      results.push({
+        sessionId: session.id,
+        orderSeqno: Number(session.orderSeqno),
+        status: session.status,
+        mode: session.mode,
+        files,
+        completedAt: session.completedAt,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * 파일 URL 결정 (워커 출력 > 에디터 원본 fallback)
+   */
+  private resolveFiles(
+    session: EditSessionEntity,
+    workerJob: any,
+  ): ExternalSessionFilesDto {
+    let cover: string | null = null;
+    let content: string | null = null;
+    let merged: string | null = null;
+
+    if (workerJob && workerJob.status === WorkerJobStatus.COMPLETED) {
+      // 워커잡 결과에서 파일 URL 추출
+      const result = typeof workerJob.result === 'string'
+        ? JSON.parse(workerJob.result)
+        : workerJob.result;
+
+      if (result?.outputFiles) {
+        for (const file of result.outputFiles) {
+          if (file.type === 'cover') cover = file.url;
+          if (file.type === 'content') content = file.url;
+        }
+      }
+      if (result?.outputFileUrl) {
+        merged = result.outputFileUrl;
+      }
+      // job-level outputFileUrl fallback for merged
+      if (!merged && workerJob.outputFileUrl) {
+        merged = workerJob.outputFileUrl;
+      }
+    }
+
+    // 에디터 원본 fallback
+    if (!cover && session.coverFile) {
+      cover = session.coverFile.fileUrl ?? null;
+    }
+    if (!content && session.contentFile) {
+      content = session.contentFile.fileUrl ?? null;
+    }
+
+    return { cover, content, merged };
   }
 
   /**

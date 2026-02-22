@@ -26,14 +26,15 @@ export class ApiKeyStrategy extends PassportStrategy(Strategy, 'api-key') {
       .filter((key) => key.length > 0);
 
     if (validApiKeys.length === 0) {
-      done(new UnauthorizedException('API Keys not configured'), null);
+      // done(error)는 passport에서 uncaught exception → done(null, false) 사용
+      done(null, false);
       return;
     }
 
     if (validApiKeys.includes(apiKey)) {
       done(null, { apiKey, source: 'shop' });
     } else {
-      done(new UnauthorizedException('Invalid API Key'), null);
+      done(null, false);
     }
   }
 }

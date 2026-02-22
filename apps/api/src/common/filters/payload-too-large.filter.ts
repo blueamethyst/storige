@@ -1,15 +1,17 @@
 import {
   Catch,
-  ExceptionFilter,
   ArgumentsHost,
   HttpStatus,
 } from '@nestjs/common';
+import { BaseExceptionFilter } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 
 @Catch()
-export class PayloadTooLargeFilter implements ExceptionFilter {
-  constructor(private readonly configService: ConfigService) {}
+export class PayloadTooLargeFilter extends BaseExceptionFilter {
+  constructor(private readonly configService: ConfigService) {
+    super();
+  }
 
   catch(exception: any, host: ArgumentsHost) {
     // body-parser의 PayloadTooLargeError만 처리
@@ -18,7 +20,8 @@ export class PayloadTooLargeFilter implements ExceptionFilter {
       exception?.type === 'entity.too.large';
 
     if (!isPayloadTooLarge) {
-      throw exception;
+      super.catch(exception, host);
+      return;
     }
 
     const ctx = host.switchToHttp();

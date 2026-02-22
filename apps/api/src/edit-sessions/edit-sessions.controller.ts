@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
+  ApiSecurity,
   ApiExtraModels,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -27,7 +28,12 @@ import {
   EditSessionResponseDto,
   EditSessionListResponseDto,
 } from './dto/edit-session-response.dto';
+import {
+  ExternalSessionListResponseDto,
+} from './dto/external-session-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
 import { PayloadTooLargeResponseDto } from '../common/dto/error-response.dto';
 
 @ApiTags('Edit Sessions')
@@ -73,6 +79,58 @@ export class EditSessionsController {
     });
 
     return this.editSessionsService.toResponseDto(session);
+  }
+
+  /**
+   * 외부 시스템용 주문별 편집세션 + PDF 파일 조회 (API Key 인증)
+   */
+  @Get('external')
+  @Public()
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({
+    summary: '주문별 편집세션 + PDF 파일 조회 (외부 API Key 인증)',
+    description: `nimda 등 외부 시스템에서 주문번호로 편집세션과 PDF 파일 URL을 조회합니다.
+
+**인증**: X-API-Key 헤더 필수
+
+**파일 URL 우선순위**:
+- cover/content: 워커 출력 > 에디터 원본 fallback
+- merged: 워커 출력만 (에디터 원본 없음)
+
+**운영 경로 예시**:
+- API 호출: GET http://58.229.105.98:4000/api/edit-sessions/external?orderSeqno=12345
+- 파일 다운로드: http://58.229.105.98:4000{files.cover 값}
+  예: http://58.229.105.98:4000/storage/outputs/job-uuid/merged.pdf`,
+  })
+  @ApiQuery({ name: 'orderSeqno', required: true, description: '주문 번호', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: '세션 + 파일 목록',
+    type: ExternalSessionListResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'orderSeqno 누락 또는 비숫자' })
+  @ApiResponse({ status: 401, description: 'API Key 누락 또는 유효하지 않음' })
+  async findByOrderExternal(
+    @Query('orderSeqno') orderSeqno?: string,
+  ): Promise<ExternalSessionListResponseDto> {
+    if (!orderSeqno) {
+      throw new BadRequestException({
+        code: 'ORDER_SEQNO_REQUIRED',
+        message: 'orderSeqno 파라미터가 필요합니다.',
+      });
+    }
+
+    const parsed = parseInt(orderSeqno, 10);
+    if (isNaN(parsed)) {
+      throw new BadRequestException({
+        code: 'INVALID_ORDER_SEQNO',
+        message: 'orderSeqno는 숫자여야 합니다.',
+      });
+    }
+
+    const data = await this.editSessionsService.findByOrderExternal(parsed);
+    return { success: true, data };
   }
 
   /**
