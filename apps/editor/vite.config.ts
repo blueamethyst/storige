@@ -125,7 +125,7 @@ export default defineConfig(({ mode }) => {
                   return 'vendor-codes'
                 }
                 // UI components (radix, etc)
-                if (id.includes('@radix-ui') || id.includes('lucide-react')) {
+                if (id.includes('@radix-ui') || id.includes('@phosphor-icons')) {
                   return 'vendor-ui'
                 }
                 // Other vendor libs
