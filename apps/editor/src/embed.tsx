@@ -21,6 +21,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import { IconContext } from '@phosphor-icons/react'
 import { useAppStore } from './stores/useAppStore'
 import { useSaveStore } from './stores/useSaveStore'
 import { useEditorContents } from './hooks/useEditorContents'
@@ -901,7 +902,11 @@ class StorigeEditorInstance {
 
     this.root = createRoot(this.container)
     // Note: StrictMode disabled for embed build to prevent double initialization of canvas
-    this.root.render(<EmbeddedEditor {...this.config} instanceRef={this.methodsRef} />)
+    this.root.render(
+      <IconContext.Provider value={{ size: 24, weight: 'duotone' }}>
+        <EmbeddedEditor {...this.config} instanceRef={this.methodsRef} />
+      </IconContext.Provider>
+    )
   }
 
   unmount(): void {
