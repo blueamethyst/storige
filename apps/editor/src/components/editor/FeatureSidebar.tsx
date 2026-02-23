@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { useAppStore } from '@/stores/useAppStore'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 // Feature flag for image processing (OpenCV) features
@@ -99,13 +99,13 @@ export default function FeatureSidebar({ className }: FeatureSidebarProps) {
     <div
       className={cn(
         'feature-sidebar bg-editor-panel border-r border-editor-border flex flex-col',
-        'w-[280px] min-w-[280px] max-w-[280px] h-full overflow-hidden z-[100] scrollbar-hide',
+        'w-[300px] min-w-[300px] max-w-[300px] h-full overflow-hidden z-[100] scrollbar-hide',
         className
       )}
     >
       {/* Header with close button */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-editor-border">
-        <h2 className="text-sm font-medium text-editor-text">{currentMenu.label}</h2>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-editor-border bg-[var(--color-surface-container)]">
+        <h2 className="text-sm font-semibold text-editor-text">{currentMenu.label}</h2>
         <button
           onClick={handleClose}
           className="p-1 rounded hover:bg-editor-hover text-editor-text-muted hover:text-editor-text transition-colors"

@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react'
-import { Lock, Unlock } from 'lucide-react'
+import { LockSimple, LockSimpleOpen } from '@phosphor-icons/react'
 import { useActiveSelection, useHasSelection } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
 
@@ -83,9 +83,9 @@ export const ElementLockControl = memo(function ElementLockControl({
       title={isLocked ? (canUnlock ? '잠금 해제' : '잠금됨 (해제 권한 없음)') : '요소 잠금'}
     >
       {isLocked ? (
-        <Lock className="w-4 h-4" />
+        <LockSimple className="w-4 h-4" />
       ) : (
-        <Unlock className="w-4 h-4" />
+        <LockSimpleOpen className="w-4 h-4" />
       )}
       <span className="text-xs font-medium">
         {isLocked ? '잠김' : '잠금'}
@@ -111,7 +111,7 @@ export const LockBadge = memo(function LockBadge({
         className
       )}
     >
-      <Lock className="w-3 h-3" />
+      <LockSimple className="w-3 h-3" />
       <span>잠김</span>
     </div>
   )

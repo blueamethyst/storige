@@ -1,5 +1,10 @@
 import { memo } from 'react'
-import { Eye, Lock, X, RefreshCw } from 'lucide-react'
+import {
+  Eye,
+  LockSimple,
+  X,
+  ArrowsClockwise,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { formatLockInfo } from '@/hooks/useEditLock'
 
@@ -42,14 +47,14 @@ export const ReadOnlyBanner = memo(function ReadOnlyBanner({
     switch (reason) {
       case 'locked':
         return {
-          icon: Lock,
+          icon: LockSimple,
           title: '읽기 전용 모드',
           description: formatLockInfo(lockedBy || null, lockedAt || null),
           canRequest: true,
         }
       case 'submitted':
         return {
-          icon: Lock,
+          icon: LockSimple,
           title: '편집 완료됨',
           description: '이 작업은 이미 제출되어 수정할 수 없습니다.',
           canRequest: false,
@@ -63,7 +68,7 @@ export const ReadOnlyBanner = memo(function ReadOnlyBanner({
         }
       case 'permission':
         return {
-          icon: Lock,
+          icon: LockSimple,
           title: '권한 없음',
           description: '이 작업을 편집할 권한이 없습니다.',
           canRequest: false,
@@ -104,7 +109,7 @@ export const ReadOnlyBanner = memo(function ReadOnlyBanner({
               'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
             )}
           >
-            <RefreshCw className="w-4 h-4" />
+            <ArrowsClockwise className="w-4 h-4" />
             편집 시도
           </button>
         )}

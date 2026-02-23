@@ -1,5 +1,11 @@
 import { memo, useState, useCallback, useMemo } from 'react'
-import { X, Eye, EyeOff, Settings, Calculator } from 'lucide-react'
+import {
+  X,
+  Eye,
+  EyeSlash,
+  GearSix,
+  Calculator,
+} from '@phosphor-icons/react'
 import {
   PaperType,
   BindingType,
@@ -161,7 +167,7 @@ export const SpineEditor = memo(function SpineEditor({
             )}
             title={showGuidelines ? '가이드라인 숨기기' : '가이드라인 표시'}
           >
-            {showGuidelines ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            {showGuidelines ? <Eye className="w-5 h-5" /> : <EyeSlash className="w-5 h-5" />}
           </button>
           {onClose && (
             <button
@@ -186,7 +192,7 @@ export const SpineEditor = memo(function SpineEditor({
         <TabButton
           active={activeTab === 'settings'}
           onClick={() => setActiveTab('settings')}
-          icon={<Settings className="w-4 h-4" />}
+          icon={<GearSix className="w-4 h-4" />}
           label="설정"
         />
         <TabButton

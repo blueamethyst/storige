@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Check, Layers } from 'lucide-react'
+import { Check, Stack } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import type { TemplateSetType } from '@storige/types'
 
@@ -51,7 +51,7 @@ export const TemplateSetCard = memo(function TemplateSetCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <Layers className="w-8 h-8" />
+            <Stack className="w-8 h-8" />
           </div>
         )}
       </div>

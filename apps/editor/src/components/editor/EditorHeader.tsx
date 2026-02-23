@@ -12,15 +12,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  Layers,
-  HelpCircle,
-  Save,
-  Download,
-  Upload,
+  Stack,
+  Question,
+  FloppyDisk,
+  DownloadSimple,
+  UploadSimple,
   Monitor,
   Check,
-  Box,
-} from 'lucide-react'
+  Cube,
+} from '@phosphor-icons/react'
 import { AutoSaveIndicator } from './AutoSaveIndicator'
 import { BookMockup3D } from '../Mockup3D/BookMockup3D'
 
@@ -333,7 +333,7 @@ export default function EditorHeader({
 
   return (
     <TooltipProvider>
-      <nav className="h-14 bg-editor-panel border-b border-editor-border flex items-center px-4 z-[100]">
+      <nav className="h-12 bg-editor-panel border-t-[3px] border-t-[var(--color-primary)] border-b border-b-editor-border flex items-center px-4 z-[100]">
         {/* 왼쪽: 작업 제목 + 자동저장 상태 */}
         <div className="flex items-center gap-4">
           <input
@@ -377,7 +377,7 @@ export default function EditorHeader({
                     onClick={() => setShow3DMockup(true)}
                     disabled={!ready}
                   >
-                    <Box className="h-5 w-5" />
+                    <Cube className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>3D 미리보기</TooltipContent>
@@ -393,7 +393,7 @@ export default function EditorHeader({
                   onClick={saveAllPagesToSinglePDF}
                   disabled={!ready}
                 >
-                  <Download className="h-5 w-5" />
+                  <DownloadSimple className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>PDF 저장</TooltipContent>
@@ -411,7 +411,7 @@ export default function EditorHeader({
                   {saving ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-editor-text" />
                   ) : (
-                    <Upload className="h-5 w-5" />
+                    <UploadSimple className="h-5 w-5" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -427,9 +427,9 @@ export default function EditorHeader({
             variant="outline"
             size="sm"
             onClick={handleOpenWorkspace}
-            className="hidden md:flex"
+            className="hidden md:flex rounded-full"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <FloppyDisk className="h-4 w-4 mr-2" />
             불러오기
           </Button>
 
@@ -438,7 +438,7 @@ export default function EditorHeader({
             <Button
               onClick={handleFinish}
               disabled={!ready || finishing}
-              className="bg-editor-accent hover:bg-editor-accent-hover text-white"
+              className="bg-editor-accent hover:bg-editor-accent-hover text-white rounded-full"
             >
               {finishing ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -454,7 +454,7 @@ export default function EditorHeader({
             <Button
               onClick={() => handleSaveForAdmin(true)}
               disabled={!ready || finishing}
-              className="bg-editor-accent hover:bg-editor-accent-hover text-white"
+              className="bg-editor-accent hover:bg-editor-accent-hover text-white rounded-full"
             >
               {finishing ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
@@ -468,21 +468,13 @@ export default function EditorHeader({
           {/* 구분선 */}
           <div className="w-px h-6 bg-editor-border" />
 
-          {/* 레이어 패널 토글 */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onToggleSidePanel}>
-                <Layers className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>레이어 패널</TooltipContent>
-          </Tooltip>
+          {/* 레이어 패널 토글 - 숨김 처리 */}
 
           {/* 도움말 */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon">
-                <HelpCircle className="h-5 w-5" />
+                <Question className="h-5 w-5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>도움말</TooltipContent>

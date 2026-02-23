@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react'
-import { Upload } from 'lucide-react'
+import { UploadSimple } from '@phosphor-icons/react'
 import { useAppStore, useHasCutlineTemplate } from '@/stores/useAppStore'
 import { useSettingsStore, useEditorTemplates } from '@/stores/useSettingsStore'
 import { useIsCustomer } from '@/stores/useAuthStore'
@@ -56,7 +56,7 @@ export default function AppTemplate() {
     setupTemplateContent(content as any)
   }, [setupTemplateContent])
 
-  // Upload SVG template
+  // UploadSimple SVG template
   const handleUpload = useCallback(async () => {
     if (!ready) {
       console.error('에디터가 준비되지 않았습니다.')
@@ -94,7 +94,7 @@ export default function AppTemplate() {
     }
   }, [ready, getPlugin, setupTemplateFromSvgString])
 
-  // Upload cutline template
+  // UploadSimple cutline template
   const handleUploadCutTemplate = useCallback(async () => {
     if (!ready) {
       console.error('에디터가 준비되지 않았습니다.')
@@ -175,7 +175,7 @@ export default function AppTemplate() {
             onClick={handleUpload}
             disabled={isLoading}
           >
-            <Upload className="h-4 w-4 mr-2" />
+            <UploadSimple className="h-4 w-4 mr-2" />
             {isLoading ? '업로드 중...' : '업로드'}
           </Button>
 
@@ -186,7 +186,7 @@ export default function AppTemplate() {
               onClick={handleUploadCutTemplate}
               disabled={isLoading}
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <UploadSimple className="h-4 w-4 mr-2" />
               칼선 업로드
             </Button>
           ) : (
@@ -196,7 +196,7 @@ export default function AppTemplate() {
               onClick={handleRemoveCutTemplate}
               disabled={isLoading}
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <UploadSimple className="h-4 w-4 mr-2" />
               칼선 제거
             </Button>
           )}

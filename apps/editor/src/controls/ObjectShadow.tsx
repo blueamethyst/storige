@@ -4,7 +4,7 @@ import AppSection from '@/components/AppSection'
 import ControlInput from '@/components/ControlInput'
 import { Button } from '@/components/ui/button'
 import { parseColorValue, rgbaToHex8 } from '@storige/canvas-core'
-import { MoveHorizontal, MoveVertical, CircleDot } from 'lucide-react'
+import { ArrowsHorizontal, ArrowsVertical, RadioButton } from '@phosphor-icons/react'
 
 // Debounce helper
 function debounce<T extends (...args: Parameters<T>) => void>(
@@ -399,7 +399,7 @@ export default function ObjectShadow() {
                   type="number"
                   step={1}
                 >
-                  <MoveHorizontal className="h-4 w-4" />
+                  <ArrowsHorizontal className="h-4 w-4" />
                 </ControlInput>
                 <ControlInput
                   value={offsetY}
@@ -407,7 +407,7 @@ export default function ObjectShadow() {
                   type="number"
                   step={1}
                 >
-                  <MoveVertical className="h-4 w-4" />
+                  <ArrowsVertical className="h-4 w-4" />
                 </ControlInput>
                 <ControlInput
                   value={blur}
@@ -417,7 +417,7 @@ export default function ObjectShadow() {
                   step={1}
                   className="max-w-16"
                 >
-                  <CircleDot className="h-4 w-4" />
+                  <RadioButton className="h-4 w-4" />
                 </ControlInput>
               </div>
             </div>

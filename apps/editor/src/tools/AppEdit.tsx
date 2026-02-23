@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
-import { Crop, Trash2 } from 'lucide-react'
+import { Crop, Trash } from '@phosphor-icons/react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useImageStore } from '@/stores/useImageStore'
 import { useRenderType } from '@/stores/useSettingsStore'
@@ -384,7 +384,7 @@ export default function AppEdit() {
               onClick={removeOutline}
               disabled={!ready || !hasPageOutline}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash className="h-4 w-4 mr-2" />
               외곽선 제거
             </Button>
           )}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ChevronDown, Search, AlertCircle } from 'lucide-react'
+import { CaretDown, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import type { FontSource } from '@/utils/fonts'
 import { useFontPreview, isFontLoaded, SAMPLE_TEXT } from '@/hooks/useFontPreview'
@@ -166,7 +166,7 @@ function FontPreviewItem({ font, selected, onClick }: FontPreviewItemProps) {
         <div className="flex flex-col gap-1">
           <div className="text-sm font-medium text-editor-text">{font.name}</div>
           <div className="flex items-center gap-1 text-xs text-red-500">
-            <AlertCircle className="h-3.5 w-3.5" />
+            <WarningCircle className="h-3.5 w-3.5" />
             <span>로딩 실패</span>
           </div>
         </div>
@@ -400,7 +400,7 @@ export default function FontPreviewDropdown({
         >
           {selectedFontName || placeholder}
         </span>
-        <ChevronDown
+        <CaretDown
           className={cn(
             'h-4 w-4 text-editor-text-muted transition-transform flex-shrink-0',
             isOpen && 'rotate-180'
@@ -415,10 +415,10 @@ export default function FontPreviewDropdown({
           className="bg-editor-panel border border-editor-border border-t-0 rounded-b-lg shadow-lg overflow-hidden"
           style={panelStyle}
         >
-          {/* Search input */}
+          {/* MagnifyingGlass input */}
           <div className="border-b border-editor-border bg-editor-surface">
             <div className="flex items-center px-3 py-2 gap-2">
-              <Search className="h-4 w-4 text-editor-text-muted flex-shrink-0" />
+              <MagnifyingGlass className="h-4 w-4 text-editor-text-muted flex-shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -465,7 +465,7 @@ export default function FontPreviewDropdown({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-8 text-editor-text-muted">
-              <Search className="h-6 w-6" />
+              <MagnifyingGlass className="h-6 w-6" />
               <span className="text-sm">검색 결과가 없습니다.</span>
             </div>
           )}

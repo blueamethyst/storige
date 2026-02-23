@@ -1,5 +1,13 @@
 import { memo, useState, useEffect, useCallback } from 'react'
-import { FolderOpen, X, Loader2, FileText, Clock, Trash2, AlertCircle } from 'lucide-react'
+import {
+  FolderOpen,
+  X,
+  CircleNotch,
+  FileText,
+  Clock,
+  Trash,
+  WarningCircle,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { editSessionsApi, type EditSessionResponse } from '@/api'
 
@@ -150,12 +158,12 @@ export const WorkspaceModal = memo(function WorkspaceModal({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+              <CircleNotch className="w-8 h-8 animate-spin text-blue-500 mb-4" />
               <p className="text-gray-500">작업 목록을 불러오는 중...</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+              <WarningCircle className="w-12 h-12 text-red-400 mb-4" />
               <p className="text-red-600 mb-4">{error}</p>
               <button
                 onClick={loadSessions}
@@ -222,9 +230,9 @@ export const WorkspaceModal = memo(function WorkspaceModal({
                       )}
                     >
                       {isDeleting === session.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <CircleNotch className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" />
                       )}
                     </button>
                   </div>

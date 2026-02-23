@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react'
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { PageList } from './PageList'
 import { useEditorStore, useCanAddPage } from '@/stores/useEditorStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -71,7 +71,7 @@ export const PagePanel = memo(function PagePanel({
           className="p-2 hover:bg-gray-100 rounded"
           title="페이지 패널 열기"
         >
-          <ChevronRight className="w-4 h-4" />
+          <CaretRight className="w-4 h-4" />
         </button>
         <div className="mt-4 text-xs text-gray-500 writing-vertical">
           {currentPageIndex + 1}/{pages.length}
@@ -108,7 +108,7 @@ export const PagePanel = memo(function PagePanel({
               className="p-1 rounded hover:bg-gray-100"
               title="페이지 패널 접기"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <CaretLeft className="w-4 h-4" />
             </button>
           )}
         </div>

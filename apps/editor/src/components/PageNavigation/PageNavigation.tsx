@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useEditorStore, usePageCount } from '@/stores/useEditorStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { cn } from '@/lib/utils'
@@ -88,7 +88,7 @@ export const PageNavigation = memo(function PageNavigation({
         )}
         title="이전 페이지"
       >
-        <ChevronLeft className={sizes.icon} />
+        <CaretLeft className={sizes.icon} />
       </button>
 
       {/* 페이지 카운터 */}
@@ -121,7 +121,7 @@ export const PageNavigation = memo(function PageNavigation({
         )}
         title="다음 페이지"
       >
-        <ChevronRight className={sizes.icon} />
+        <CaretRight className={sizes.icon} />
       </button>
     </div>
   )

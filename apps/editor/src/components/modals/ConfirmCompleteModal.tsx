@@ -1,5 +1,11 @@
 import { memo, useState } from 'react'
-import { CheckCircle, AlertTriangle, X, FileCheck, Loader2 } from 'lucide-react'
+import {
+  CheckCircle,
+  Warning,
+  X,
+  FileDashed,
+  CircleNotch,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 interface ConfirmCompleteModalProps {
@@ -50,9 +56,9 @@ export const ConfirmCompleteModal = memo(function ConfirmCompleteModal({
               hasErrors ? 'bg-red-100' : 'bg-green-100'
             )}>
               {hasErrors ? (
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <Warning className="w-5 h-5 text-red-600" />
               ) : (
-                <FileCheck className="w-5 h-5 text-green-600" />
+                <FileDashed className="w-5 h-5 text-green-600" />
               )}
             </div>
             <h3 className="text-lg font-semibold text-gray-900">
@@ -73,7 +79,7 @@ export const ConfirmCompleteModal = memo(function ConfirmCompleteModal({
           {/* 미저장 경고 */}
           {hasUnsavedChanges && (
             <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-100 mb-4">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <Warning className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-yellow-800">
                 <p className="font-medium">저장되지 않은 변경사항이 있습니다.</p>
                 <p>완료하기 전에 자동으로 저장됩니다.</p>
@@ -149,7 +155,7 @@ export const ConfirmCompleteModal = memo(function ConfirmCompleteModal({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <CircleNotch className="w-4 h-4 animate-spin" />
                 처리 중...
               </>
             ) : (

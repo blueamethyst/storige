@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Wand2, Loader2, Check, X, RefreshCw } from 'lucide-react';
+import {
+  MagicWand,
+  CircleNotch,
+  Check,
+  X,
+  ArrowsClockwise,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import {
@@ -187,7 +193,7 @@ export function GenerationPanel({
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div className="flex items-center gap-2 p-4 border-b">
-        <Wand2 className="w-5 h-5 text-purple-500" />
+        <MagicWand className="w-5 h-5 text-purple-500" />
         <h3 className="font-medium">AI 템플릿 생성</h3>
       </div>
 
@@ -238,7 +244,7 @@ export function GenerationPanel({
         {isGenerating && (
           <div className="space-y-6">
             <div className="text-center py-8">
-              <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto" />
+              <CircleNotch className="w-12 h-12 animate-spin text-purple-500 mx-auto" />
               <h4 className="font-medium mt-4">{status?.statusMessage}</h4>
               <p className="text-gray-500 text-sm mt-1">
                 잠시만 기다려주세요...
@@ -394,7 +400,7 @@ export function GenerationPanel({
               onClick={handleGenerate}
               disabled={!prompt.trim()}
             >
-              <Wand2 className="w-5 h-5 mr-2" />
+              <MagicWand className="w-5 h-5 mr-2" />
               템플릿 생성하기
             </Button>
 
@@ -433,7 +439,7 @@ function StepIndicator({
         {status === 'completed' ? (
           <Check className="w-4 h-4 text-white" />
         ) : status === 'active' ? (
-          <Loader2 className="w-4 h-4 text-white animate-spin" />
+          <CircleNotch className="w-4 h-4 text-white animate-spin" />
         ) : (
           <div className="w-2 h-2 bg-gray-400 rounded-full" />
         )}

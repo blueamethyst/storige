@@ -4,21 +4,21 @@ import { GroupPlugin, ObjectPlugin, SelectionType } from '@storige/canvas-core'
 
 import {
   Image,
-  Type,
-  Shapes,
-  Frame,
+  TextT,
+  SquaresFour,
+  FrameCorners,
   QrCode,
-  Layers,
+  Stack,
   Hexagon,
-  Lock,
-  LockOpen,
+  LockSimple,
+  LockSimpleOpen,
   Eye,
-  EyeOff,
-  Trash2,
+  EyeSlash,
+  Trash,
   Link,
-  Unlink,
+  LinkBreak,
   Scissors,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import ObjectSize from '@/controls/ObjectSize'
 import ObjectFill from '@/controls/ObjectFill'
@@ -34,21 +34,21 @@ const getIconByType = (type: SelectionType) => {
     case SelectionType.background:
       return Image
     case SelectionType.frame:
-      return Frame
+      return FrameCorners
     case SelectionType.group:
     case SelectionType.multiple:
-      return Layers
+      return Stack
     case SelectionType.image:
       return Image
     case SelectionType.templateElement:
     case SelectionType.shape:
       return Hexagon
     case SelectionType.text:
-      return Type
+      return TextT
     case SelectionType.smartCode:
       return QrCode
     default:
-      return Shapes
+      return SquaresFour
   }
 }
 
@@ -181,7 +181,7 @@ export default function ControlBar() {
     canvas?.requestRenderAll()
   }
 
-  const Icon = selectionType ? getIconByType(selectionType) : Shapes
+  const Icon = selectionType ? getIconByType(selectionType) : SquaresFour
 
   if (!showBar || !selectionType) {
     return null
@@ -204,14 +204,14 @@ export default function ControlBar() {
             </div>
             <div className="actions flex flex-row justify-between">
               <div className="actions-left flex items-center gap-2">
-                {/* Lock/Unlock */}
+                {/* LockSimple/Unlock */}
                 {allLocked ? (
                   <Button variant="ghost" size="icon" onClick={handleUnlock}>
-                    <Lock className="h-5 w-5" />
+                    <LockSimple className="h-5 w-5" />
                   </Button>
                 ) : (
                   <Button variant="ghost" size="icon" onClick={handleLock}>
-                    <LockOpen className="h-5 w-5" />
+                    <LockSimpleOpen className="h-5 w-5" />
                   </Button>
                 )}
 
@@ -222,13 +222,13 @@ export default function ControlBar() {
                   </Button>
                 ) : (
                   <Button variant="ghost" size="icon" onClick={handleVisible}>
-                    <EyeOff className="h-5 w-5" />
+                    <EyeSlash className="h-5 w-5" />
                   </Button>
                 )}
               </div>
               <div className="actions-right">
                 <Button variant="ghost" size="icon" onClick={handleDelete}>
-                  <Trash2 className="h-5 w-5" />
+                  <Trash className="h-5 w-5" />
                 </Button>
               </div>
             </div>
@@ -258,7 +258,7 @@ export default function ControlBar() {
               className="w-full h-10 mb-2"
               onClick={handleUngroup}
             >
-              <Unlink className="h-4 w-4 mr-2" />
+              <LinkBreak className="h-4 w-4 mr-2" />
               그룹해제
             </Button>
           )}

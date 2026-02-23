@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Upload, Trash2 } from 'lucide-react'
+import { UploadSimple, Trash } from '@phosphor-icons/react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useImageStore } from '@/stores/useImageStore'
 import { useIsCustomer } from '@/stores/useAuthStore'
@@ -264,7 +264,7 @@ export default function AppBackground() {
           onClick={handleUpload}
           disabled={isLoading}
         >
-          <Upload className="h-4 w-4 mr-2" />
+          <UploadSimple className="h-4 w-4 mr-2" />
           {isLoading ? '업로드 중...' : '업로드'}
         </Button>
       </div>
@@ -303,7 +303,7 @@ export default function AppBackground() {
                 className="w-full mt-2 text-red-500 hover:text-red-600 hover:bg-red-50"
                 onClick={deleteBg}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash className="h-4 w-4 mr-2" />
                 배경 삭제
               </Button>
             </div>

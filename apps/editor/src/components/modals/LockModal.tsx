@@ -1,5 +1,10 @@
 import { memo } from 'react'
-import { Lock, Eye, X, RefreshCw } from 'lucide-react'
+import {
+  LockSimple,
+  Eye,
+  X,
+  ArrowsClockwise,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { formatLockInfo } from '@/hooks/useEditLock'
 
@@ -36,7 +41,7 @@ export const LockModal = memo(function LockModal({
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-6 py-4 bg-yellow-50 border-b border-yellow-100">
           <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-yellow-600" />
+            <LockSimple className="w-5 h-5 text-yellow-600" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -93,7 +98,7 @@ export const LockModal = memo(function LockModal({
               isRetrying && 'opacity-50 cursor-not-allowed'
             )}
           >
-            <RefreshCw className={cn('w-4 h-4', isRetrying && 'animate-spin')} />
+            <ArrowsClockwise className={cn('w-4 h-4', isRetrying && 'animate-spin')} />
             {isRetrying ? '확인 중...' : '다시 시도'}
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Wand2 } from 'lucide-react';
+import { Sparkle, MagicWand } from '@phosphor-icons/react';
 import { RecommendationPanel } from './RecommendationPanel';
 import { GenerationPanel } from './GenerationPanel';
 
@@ -35,7 +35,7 @@ export function AiPanel({
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Sparkles className="w-4 h-4" />
+          <Sparkle className="w-4 h-4" />
           추천
         </button>
         <button
@@ -46,7 +46,7 @@ export function AiPanel({
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Wand2 className="w-4 h-4" />
+          <MagicWand className="w-4 h-4" />
           생성
         </button>
       </div>

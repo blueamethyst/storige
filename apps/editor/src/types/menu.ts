@@ -1,9 +1,9 @@
-import type { LucideIcon } from 'lucide-react'
+import type { Icon } from '@phosphor-icons/react'
 
 export interface AppMenu {
   type: string
   label: string
-  icon?: LucideIcon
+  icon?: Icon
   onTap?: () => void
   component?: React.ComponentType
 }

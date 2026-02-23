@@ -4,17 +4,17 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useImageStore } from '@/stores/useImageStore'
 import { SelectionType, ImageProcessingPlugin } from '@storige/canvas-core'
 import {
-  Upload,
-  LayoutTemplate,
+  UploadSimple,
+  Layout,
   Image,
-  Type,
-  Shapes,
+  TextT,
+  SquaresFour,
   PaintBucket,
-  Frame,
+  FrameCorners,
   QrCode,
-  Pencil,
+  PencilSimple,
   Scissors,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import type { AppMenu } from '@/types/menu'
 
@@ -33,15 +33,15 @@ const ENABLE_SMART_CODE_MENU = import.meta.env.VITE_ENABLE_SMART_CODE_MENU !== '
 const ALL_MENUS: AppMenu[] = [
   // CLIPPING menu is only shown when image processing is enabled
   ...(ENABLE_IMAGE_PROCESSING ? [{ type: 'CLIPPING' as const, label: '모양컷', icon: Scissors }] : []),
-  ...(ENABLE_TEMPLATE_MENU ? [{ type: 'TEMPLATE' as const, label: '템플릿', icon: LayoutTemplate }] : []),
+  ...(ENABLE_TEMPLATE_MENU ? [{ type: 'TEMPLATE' as const, label: '템플릿', icon: Layout }] : []),
   { type: 'IMAGE', label: '이미지', icon: Image },
-  { type: 'TEXT', label: '텍스트', icon: Type },
-  { type: 'SHAPE', label: '요소', icon: Shapes },
+  { type: 'TEXT', label: '텍스트', icon: TextT },
+  { type: 'SHAPE', label: '요소', icon: SquaresFour },
   { type: 'BACKGROUND', label: '배경', icon: PaintBucket },
-  ...(ENABLE_FRAME_MENU ? [{ type: 'FRAME' as const, label: '프레임', icon: Frame }] : []),
+  ...(ENABLE_FRAME_MENU ? [{ type: 'FRAME' as const, label: '프레임', icon: FrameCorners }] : []),
   ...(ENABLE_SMART_CODE_MENU ? [{ type: 'SMART_CODE' as const, label: 'QR/바코드', icon: QrCode }] : []),
   // EDIT menu uses ImageProcessingPlugin for some features
-  ...(ENABLE_IMAGE_PROCESSING ? [{ type: 'EDIT' as const, label: '편집도구', icon: Pencil }] : []),
+  ...(ENABLE_IMAGE_PROCESSING ? [{ type: 'EDIT' as const, label: '편집도구', icon: PencilSimple }] : []),
 ]
 
 interface ToolBarProps {
@@ -68,7 +68,7 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
     const uploadMenu: AppMenu = {
       type: 'upload',
       label: '업로드',
-      icon: Upload,
+      icon: UploadSimple,
       onTap: async () => {
         if (!ready || !canvas) return
 
@@ -92,7 +92,7 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
             await uploadSimple(canvas, 'image/*')
           }
         } catch (error) {
-          console.error('Upload error:', error)
+          console.error('UploadSimple error:', error)
         }
       },
     }
@@ -122,7 +122,7 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
         'toolbar bg-editor-panel border-editor-border flex gap-1 z-[101]',
         horizontal
           ? 'flex-row h-auto max-w-full overflow-x-auto border-t px-2 scrollbar-hide'
-          : 'flex-col overflow-y-auto max-h-full border-r py-2 min-w-[90px] items-center gap-5'
+          : 'flex-col overflow-y-auto max-h-full border-r py-2 min-w-[72px] items-center gap-3'
       )}
     >
       {menus.map((menu) => {
@@ -133,8 +133,8 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
           <button
             key={menu.type}
             className={cn(
-              'menu-item flex flex-col items-center justify-center gap-1 rounded-lg transition-colors',
-              horizontal ? 'h-10 w-10 min-w-[40px]' : 'h-16 w-16',
+              'menu-item relative flex flex-col items-center justify-center gap-0.5 rounded-xl transition-colors',
+              horizontal ? 'h-10 w-10 min-w-[40px]' : 'h-14 w-14',
               isSelected
                 ? 'bg-editor-accent/10 text-editor-accent'
                 : 'text-editor-text-muted hover:bg-editor-hover hover:text-editor-text'
@@ -142,9 +142,13 @@ export default function ToolBar({ horizontal = false }: ToolBarProps) {
             onClick={() => handleMenuClick(menu)}
             title={menu.label}
           >
+            {/* 선택 시 좌측 그린 바 인디케이터 */}
+            {!horizontal && isSelected && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-editor-accent rounded-r" />
+            )}
             {Icon && <Icon className={cn(horizontal ? 'h-5 w-5' : 'h-6 w-6')} />}
             {!horizontal && (
-              <span className="menu-text text-xs font-medium">{menu.label}</span>
+              <span className="menu-text text-[11px] font-medium">{menu.label}</span>
             )}
           </button>
         )

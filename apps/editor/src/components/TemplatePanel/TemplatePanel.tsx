@@ -1,5 +1,12 @@
 import { memo, useState, useEffect, useCallback } from 'react'
-import { Layers, FileText, X, RefreshCw, ChevronRight, ChevronLeft } from 'lucide-react'
+import {
+  Stack,
+  FileText,
+  X,
+  ArrowsClockwise,
+  CaretRight,
+  CaretLeft,
+} from '@phosphor-icons/react'
 import { TemplateCard } from './TemplateCard'
 import { TemplateSetCard } from './TemplateSetCard'
 import { TemplateReplaceModal } from './TemplateReplaceModal'
@@ -195,7 +202,7 @@ export const TemplatePanel = memo(function TemplatePanel({
           className="p-2 hover:bg-gray-100 rounded"
           title="템플릿 패널 열기"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <CaretLeft className="w-4 h-4" />
         </button>
         <div className="mt-4 text-xs text-gray-500 writing-vertical">
           템플릿
@@ -221,7 +228,7 @@ export const TemplatePanel = memo(function TemplatePanel({
               className="p-1 hover:bg-gray-100 rounded"
               title="템플릿 패널 접기"
             >
-              <ChevronRight className="w-4 h-4" />
+              <CaretRight className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -252,7 +259,7 @@ export const TemplatePanel = memo(function TemplatePanel({
             )}
           >
             <div className="flex items-center justify-center gap-1.5">
-              <Layers className="w-4 h-4" />
+              <Stack className="w-4 h-4" />
               템플릿셋
             </div>
           </button>
@@ -275,7 +282,7 @@ export const TemplatePanel = memo(function TemplatePanel({
         <div className="flex-1 overflow-y-auto p-3">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
+              <ArrowsClockwise className="w-5 h-5 animate-spin text-gray-400" />
             </div>
           ) : error ? (
             <div className="text-center text-sm text-red-500 py-4">

@@ -21,11 +21,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  Layers,
-  Save,
+  Stack,
+  FloppyDisk,
   X,
   Check,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 
 // PostMessage 이벤트 타입
 interface TemplateEditorMessage {
@@ -440,7 +440,7 @@ export default function TemplateEditorView() {
               {saving ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-editor-text mr-2" />
               ) : (
-                <Save className="h-4 w-4 mr-2" />
+                <FloppyDisk className="h-4 w-4 mr-2" />
               )}
               저장
             </Button>
@@ -469,7 +469,7 @@ export default function TemplateEditorView() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={() => setShowSidePanel(!showSidePanel)}>
-                  <Layers className="h-5 w-5" />
+                  <Stack className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>레이어 패널</TooltipContent>

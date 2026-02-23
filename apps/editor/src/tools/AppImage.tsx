@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
-import { Upload, ChevronLeft, ChevronRight } from 'lucide-react'
+import { UploadSimple, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useImageStore, useUploaded } from '@/stores/useImageStore'
 import { useIsCustomer } from '@/stores/useAuthStore'
@@ -176,7 +176,7 @@ export default function AppImage() {
           onClick={handleUpload}
           disabled={isLoading}
         >
-          <Upload className="h-4 w-4 mr-2" />
+          <UploadSimple className="h-4 w-4 mr-2" />
           {isLoading ? '업로드 중...' : '업로드'}
         </Button>
       </div>
@@ -193,7 +193,7 @@ export default function AppImage() {
                 className="carousel-arrow absolute left-0 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-white/80 shadow hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={scrollLeft}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <CaretLeft className="h-4 w-4" />
               </button>
 
               <div
@@ -221,7 +221,7 @@ export default function AppImage() {
                 className="carousel-arrow absolute right-0 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-white/80 shadow hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={scrollRight}
               >
-                <ChevronRight className="h-4 w-4" />
+                <CaretRight className="h-4 w-4" />
               </button>
             </div>
           </AppSection>

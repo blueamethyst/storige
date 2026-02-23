@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { AlertTriangle, Info } from 'lucide-react'
+import { Warning, Info } from '@phosphor-icons/react'
 import {
   PaperType,
   BindingType,
@@ -47,7 +47,7 @@ export const SpineCalculator = memo(function SpineCalculator({
           </div>
         </div>
         {hasWarnings && (
-          <AlertTriangle className="w-6 h-6 text-yellow-500" />
+          <Warning className="w-6 h-6 text-yellow-500" />
         )}
       </div>
 
@@ -103,7 +103,7 @@ const WarningItem = memo(function WarningItem({ warning }: WarningItemProps) {
   return (
     <div className={cn('p-3 rounded-lg border', bgColor)}>
       <div className={cn('flex items-start gap-2', textColor)}>
-        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <Warning className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <span className="text-sm">{warning.message}</span>
       </div>
     </div>

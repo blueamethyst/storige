@@ -265,6 +265,9 @@ importers:
 
   apps/editor:
     dependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-dialog':
         specifier: ^1.1.4
         version: 1.1.15(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -316,9 +319,6 @@ importers:
       lodash-es:
         specifier: ^4.17.21
         version: 4.17.21
-      lucide-react:
-        specifier: ^0.468.0
-        version: 0.468.0(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -406,7 +406,7 @@ importers:
         version: 6.4.1(@types/node@22.19.8)(jiti@1.21.7)(terser@5.44.1)
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.8)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0)(terser@5.44.1)
+        version: 2.1.9(@types/node@22.19.8)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1)
 
   apps/worker:
     dependencies:
@@ -664,7 +664,7 @@ importers:
         version: 10.0.0
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1)
+        version: 2.1.9(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0)(terser@5.44.1)
 
   packages/types:
     devDependencies:
@@ -2026,6 +2026,13 @@ packages:
 
   '@pdf-lib/upng@1.0.1':
     resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
+
+  '@phosphor-icons/react@2.1.10':
+    resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>= 16.8'
+      react-dom: '>= 16.8'
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -5407,11 +5414,6 @@ packages:
     resolution: {integrity: sha512-rpp7pFHh3Xd93KHixNgB0SqThMHpYNzsGUu69UaQbSZ75Q/J3m5t6EhKyMT3m4w2WOxmJ2mY0tD3vebnXqQryQ==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  lucide-react@0.468.0:
-    resolution: {integrity: sha512-6koYRhnM2N0GGZIdXzSeiNwguv1gt/FAjZOiPl76roBi3xKEXa4WmfpxgQwTTL4KipXjefrnf3oV4IsYhi4JFA==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
 
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
@@ -9053,6 +9055,11 @@ snapshots:
     dependencies:
       pako: 1.0.11
 
+  '@phosphor-icons/react@2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -10210,7 +10217,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1)
+      vitest: 2.1.9(@types/node@22.19.8)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1)
 
   '@vitest/utils@2.1.9':
     dependencies:
@@ -13210,10 +13217,6 @@ snapshots:
     dependencies:
       react: 18.3.1
 
-  lucide-react@0.468.0(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-
   luxon@3.7.2: {}
 
   lz-string@1.5.0: {}
@@ -15552,7 +15555,7 @@ snapshots:
       jiti: 1.21.7
       terser: 5.44.1
 
-  vitest@2.1.9(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1):
+  vitest@2.1.9(@types/node@22.19.1)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0)(terser@5.44.1):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.1)(terser@5.44.1))
@@ -15590,7 +15593,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@22.19.8)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0)(terser@5.44.1):
+  vitest@2.1.9(@types/node@22.19.8)(@vitest/ui@2.1.9)(happy-dom@15.11.7)(jsdom@27.2.0(canvas@2.11.2))(terser@5.44.1):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.8)(terser@5.44.1))

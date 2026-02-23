@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { CircleNotch } from '@phosphor-icons/react'
 
 interface LoadingOverlayProps {
   visible: boolean
@@ -27,7 +27,7 @@ export default function LoadingOverlay({ visible, message }: LoadingOverlayProps
         </svg>
         {/* Spinner */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-16 h-16 text-white animate-spin" strokeWidth={2} />
+          <CircleNotch className="w-16 h-16 text-white animate-spin" strokeWidth={2} />
         </div>
       </div>
       {message && (

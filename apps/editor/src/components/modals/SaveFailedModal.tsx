@@ -1,5 +1,10 @@
 import { memo, useCallback } from 'react'
-import { AlertTriangle, RefreshCw, X, Download } from 'lucide-react'
+import {
+  Warning,
+  ArrowsClockwise,
+  X,
+  DownloadSimple,
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 interface SaveFailedModalProps {
@@ -30,7 +35,7 @@ export const SaveFailedModal = memo(function SaveFailedModal({
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-6 py-4 bg-red-50 border-b border-red-100">
           <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <Warning className="w-5 h-5 text-red-600" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
@@ -66,7 +71,7 @@ export const SaveFailedModal = memo(function SaveFailedModal({
               isRetrying && 'opacity-50 cursor-not-allowed'
             )}
           >
-            <RefreshCw className={cn('w-4 h-4', isRetrying && 'animate-spin')} />
+            <ArrowsClockwise className={cn('w-4 h-4', isRetrying && 'animate-spin')} />
             {isRetrying ? '저장 중...' : '다시 시도'}
           </button>
 
@@ -78,7 +83,7 @@ export const SaveFailedModal = memo(function SaveFailedModal({
                 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
               )}
             >
-              <Download className="w-4 h-4" />
+              <DownloadSimple className="w-4 h-4" />
               로컬에 임시 저장
             </button>
           )}

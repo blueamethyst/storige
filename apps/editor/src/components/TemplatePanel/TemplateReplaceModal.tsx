@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react'
-import { X, AlertTriangle, RefreshCw } from 'lucide-react'
+import { X, Warning, ArrowsClockwise } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 type ReplaceMode = 'template' | 'templateSet'
@@ -35,7 +35,7 @@ export const TemplateReplaceModal = memo(function TemplateReplaceModal({
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <RefreshCw className="w-5 h-5 text-blue-600" />
+              <ArrowsClockwise className="w-5 h-5 text-blue-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900">
               {itemType} 교체
@@ -53,7 +53,7 @@ export const TemplateReplaceModal = memo(function TemplateReplaceModal({
         {/* 본문 */}
         <div className="px-6 py-4">
           <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-100 mb-4">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <Warning className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-yellow-800">
               <p className="font-medium">사용자 요소는 보존됩니다</p>
               <p className="mt-1 text-yellow-700">
@@ -100,7 +100,7 @@ export const TemplateReplaceModal = memo(function TemplateReplaceModal({
           >
             {isReplacing ? (
               <span className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <ArrowsClockwise className="w-4 h-4 animate-spin" />
                 교체 중...
               </span>
             ) : (

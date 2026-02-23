@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { AlertCircle, X } from 'lucide-react'
+import { WarningCircle, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 interface PageLimitModalProps {
@@ -34,7 +34,7 @@ export const PageLimitModal = memo(function PageLimitModal({
               'w-10 h-10 rounded-full flex items-center justify-center',
               isMin ? 'bg-yellow-100' : 'bg-orange-100'
             )}>
-              <AlertCircle className={cn(
+              <WarningCircle className={cn(
                 'w-5 h-5',
                 isMin ? 'text-yellow-600' : 'text-orange-600'
               )} />

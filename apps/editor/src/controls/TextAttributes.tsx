@@ -6,15 +6,15 @@ import ControlInput from '@/components/ControlInput'
 import FontPreviewDropdown from '@/components/FontPreviewDropdown'
 import { Button } from '@/components/ui/button'
 import {
-  Bold,
-  Underline,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  ALargeSmall,
-  MoveVertical,
-  MoveHorizontal,
-} from 'lucide-react'
+  TextB,
+  TextUnderline,
+  TextAlignLeft,
+  TextAlignCenter,
+  TextAlignRight,
+  TextAa,
+  ArrowsVertical,
+  ArrowsHorizontal,
+} from '@phosphor-icons/react'
 import { FontPlugin, ptToPx, pxToPt } from '@storige/canvas-core'
 import { getFontListAsSource, findFontByName, type FontSource } from '@/utils/fontManager'
 
@@ -149,7 +149,7 @@ export default function TextAttributes() {
 
   const isFontSizeMixed = currentFontSize === 'mixed'
 
-  // Bold selected
+  // TextB selected
   const isBoldSelected = useMemo(() => {
     void selectionTick
     const obj = activeSelection?.[0] as FabricIText | undefined
@@ -158,7 +158,7 @@ export default function TextAttributes() {
     return !mixed && value === 'bold'
   }, [activeSelection, selectionTick, computeCurrentValue])
 
-  // Underline selected
+  // TextUnderline selected
   const isUnderlineSelected = useMemo(() => {
     void selectionTick
     const obj = activeSelection?.[0] as FabricIText | undefined
@@ -238,7 +238,7 @@ export default function TextAttributes() {
     [activeSelection, canvas, getPlugin, bumpSelectionTick]
   )
 
-  // Bold toggle
+  // TextB toggle
   const handleBold = useCallback(() => {
     const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return
@@ -263,7 +263,7 @@ export default function TextAttributes() {
     bumpSelectionTick()
   }, [activeSelection, canvas, computeCurrentValue, bumpSelectionTick])
 
-  // Underline toggle
+  // TextUnderline toggle
   const handleUnderline = useCallback(() => {
     const obj = activeSelection?.[0] as FabricIText | undefined
     if (!obj) return
@@ -413,10 +413,10 @@ export default function TextAttributes() {
             min={1}
             step={1}
           >
-            <ALargeSmall className="h-5 w-5" />
+            <TextAa className="h-5 w-5" />
           </ControlInput>
 
-          {/* Bold & Underline */}
+          {/* TextB & TextUnderline */}
           <div className="flex items-center h-10 bg-editor-surface-lowest rounded overflow-hidden">
             <Button
               variant="ghost"
@@ -424,7 +424,7 @@ export default function TextAttributes() {
               className={`flex-1 h-full rounded-none border-r border-editor-border ${isBoldSelected ? 'bg-editor-surface-high text-primary' : ''}`}
               onClick={handleBold}
             >
-              <Bold className="h-5 w-5" />
+              <TextB className="h-5 w-5" />
             </Button>
             <Button
               variant="ghost"
@@ -432,7 +432,7 @@ export default function TextAttributes() {
               className={`flex-1 h-full rounded-none ${isUnderlineSelected ? 'bg-editor-surface-high text-primary' : ''}`}
               onClick={handleUnderline}
             >
-              <Underline className="h-5 w-5" />
+              <TextUnderline className="h-5 w-5" />
             </Button>
           </div>
 
@@ -445,7 +445,7 @@ export default function TextAttributes() {
             min={0.1}
             step={0.1}
           >
-            <MoveVertical className="h-4 w-4" />
+            <ArrowsVertical className="h-4 w-4" />
           </ControlInput>
 
           {/* Char spacing */}
@@ -456,7 +456,7 @@ export default function TextAttributes() {
             type="number"
             step={10}
           >
-            <MoveHorizontal className="h-4 w-4" />
+            <ArrowsHorizontal className="h-4 w-4" />
           </ControlInput>
 
           {/* Text align */}
@@ -467,7 +467,7 @@ export default function TextAttributes() {
               className={`flex-1 h-full rounded-none border-r border-editor-border ${currentTextAlign === 'left' ? 'bg-editor-surface-high text-primary' : ''}`}
               onClick={() => handleAlign('left')}
             >
-              <AlignLeft className="h-5 w-5" />
+              <TextAlignLeft className="h-5 w-5" />
             </Button>
             <Button
               variant="ghost"
@@ -475,7 +475,7 @@ export default function TextAttributes() {
               className={`flex-1 h-full rounded-none border-r border-editor-border ${currentTextAlign === 'center' ? 'bg-editor-surface-high text-primary' : ''}`}
               onClick={() => handleAlign('center')}
             >
-              <AlignCenter className="h-5 w-5" />
+              <TextAlignCenter className="h-5 w-5" />
             </Button>
             <Button
               variant="ghost"
@@ -483,7 +483,7 @@ export default function TextAttributes() {
               className={`flex-1 h-full rounded-none ${currentTextAlign === 'right' ? 'bg-editor-surface-high text-primary' : ''}`}
               onClick={() => handleAlign('right')}
             >
-              <AlignRight className="h-5 w-5" />
+              <TextAlignRight className="h-5 w-5" />
             </Button>
           </div>
           <div className="flex-1" />

@@ -1,5 +1,11 @@
 import { memo, useMemo } from 'react'
-import { Cloud, CloudOff, Check, AlertCircle, Loader2 } from 'lucide-react'
+import {
+  Cloud,
+  CloudSlash,
+  Check,
+  WarningCircle,
+  CircleNotch,
+} from '@phosphor-icons/react'
 import {
   useSaveStore,
   useSaveStatus,
@@ -19,10 +25,10 @@ interface SaveStatusProps {
 
 const statusIcons: Record<SaveStatusType, React.ElementType> = {
   saved: Check,
-  saving: Loader2,
-  failed: AlertCircle,
+  saving: CircleNotch,
+  failed: WarningCircle,
   unsaved: Cloud,
-  offline: CloudOff,
+  offline: CloudSlash,
 }
 
 const statusColors: Record<SaveStatusType, string> = {
@@ -157,7 +163,7 @@ export const SaveButton = memo(function SaveButton({
       )}
     >
       {status === 'saving' ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <CircleNotch className="w-4 h-4 animate-spin" />
       ) : (
         <Cloud className="w-4 h-4" />
       )}

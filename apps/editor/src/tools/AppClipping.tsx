@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo, useEffect } from 'react'
-import { Upload, HelpCircle } from 'lucide-react'
+import { UploadSimple, Question } from '@phosphor-icons/react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useImageStore } from '@/stores/useImageStore'
 import { useSettingsStore, useSettingsSize, useSettingsUnit } from '@/stores/useSettingsStore'
@@ -140,7 +140,7 @@ export default function AppClipping() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentImage, canvas, setSize, updateSettings])
 
-  // Upload and set workspace
+  // UploadSimple and set workspace
   const handleSetWorkspace = useCallback(async () => {
     if (!canvas) return
 
@@ -400,7 +400,7 @@ export default function AppClipping() {
           onClick={handleSetWorkspace}
           disabled={isLoading}
         >
-          <Upload className="h-4 w-4 mr-2" />
+          <UploadSimple className="h-4 w-4 mr-2" />
           {isLoading ? '처리 중...' : '업로드'}
         </Button>
       </div>
@@ -455,7 +455,7 @@ export default function AppClipping() {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-5 w-5">
-                    <HelpCircle className="h-4 w-4 text-editor-text-muted" />
+                    <Question className="h-4 w-4 text-editor-text-muted" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="text-sm">

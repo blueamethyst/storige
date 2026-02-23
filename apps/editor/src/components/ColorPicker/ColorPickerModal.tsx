@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Pipette, Plus } from 'lucide-react'
+import { Eyedropper, Plus } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -449,10 +449,10 @@ export default function ColorPickerModal({
         <div className="flex items-center gap-2">
           {isEyeDropperSupported ? (
             <Button variant="ghost" size="icon" onClick={handleEyeDropper} title="스포이드로 색상 선택">
-              <Pipette className="h-5 w-5" />
+              <Eyedropper className="h-5 w-5" />
             </Button>
           ) : (
-            <Pipette className="h-5 w-5 text-gray-400" />
+            <Eyedropper className="h-5 w-5 text-gray-400" />
           )}
           <input
             type="range"

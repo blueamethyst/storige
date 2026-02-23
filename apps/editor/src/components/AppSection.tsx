@@ -1,5 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight, ArrowRight, X } from 'lucide-react'
+import {
+  CaretDown,
+  CaretRight,
+  ArrowRight,
+  X,
+} from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 
 interface AppSectionProps {
@@ -44,9 +49,9 @@ export default function AppSection({
       >
         <div className="flex items-center gap-2">
           {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-editor-text-muted" />
+            <CaretDown className="h-4 w-4 text-editor-text-muted" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-editor-text-muted" />
+            <CaretRight className="h-4 w-4 text-editor-text-muted" />
           )}
           <span className="text-sm font-medium text-editor-text">{title}</span>
         </div>

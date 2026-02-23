@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Upload } from 'lucide-react'
+import { UploadSimple } from '@phosphor-icons/react'
 import { useAppStore } from '@/stores/useAppStore'
 import { useImageStore } from '@/stores/useImageStore'
 import { useIsCustomer } from '@/stores/useAuthStore'
@@ -69,7 +69,7 @@ export default function AppFrame() {
     fetchFrames()
   }, [isCustomer, debouncedKeyword])
 
-  // Upload handler
+  // UploadSimple handler
   const handleUpload = useCallback(async () => {
     if (!ready || !canvas) return
 
@@ -118,7 +118,7 @@ export default function AppFrame() {
           onClick={handleUpload}
           disabled={isLoading || !ready}
         >
-          <Upload className="h-4 w-4 mr-2" />
+          <UploadSimple className="h-4 w-4 mr-2" />
           {isLoading ? '업로드 중...' : '모양틀 SVG (테스트용)'}
         </Button>
       </div>

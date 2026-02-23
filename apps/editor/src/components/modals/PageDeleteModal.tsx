@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Trash2, AlertTriangle, X } from 'lucide-react'
+import { Trash, Warning, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 interface PageDeleteModalProps {
@@ -31,7 +31,7 @@ export const PageDeleteModal = memo(function PageDeleteModal({
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-              <Trash2 className="w-5 h-5 text-red-600" />
+              <Trash className="w-5 h-5 text-red-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900">
               페이지 삭제
@@ -48,7 +48,7 @@ export const PageDeleteModal = memo(function PageDeleteModal({
         {/* 본문 */}
         <div className="px-6 py-4">
           <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-100 mb-4">
-            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <Warning className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-yellow-800">
               이 작업은 취소할 수 없습니다.
             </p>

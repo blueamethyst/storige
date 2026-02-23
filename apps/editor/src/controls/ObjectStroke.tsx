@@ -4,7 +4,7 @@ import AppSection from '@/components/AppSection'
 import ControlInput from '@/components/ControlInput'
 import { Button } from '@/components/ui/button'
 import { parseColorValue, rgbaToHex8 } from '@storige/canvas-core'
-import { Minus } from 'lucide-react'
+import { Minus } from '@phosphor-icons/react'
 
 export default function ObjectStroke() {
   const [expanded, setExpanded] = useState(true)

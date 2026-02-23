@@ -4,20 +4,20 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { type CanvasObject, ObjectPlugin, SelectionType } from '@storige/canvas-core'
 import {
   Image,
-  Type,
+  TextT,
   Hexagon,
-  Frame,
+  FrameCorners,
   QrCode,
-  Layers,
+  Stack,
   X,
-  Trash2,
-  Lock,
-  LockOpen,
+  Trash,
+  LockSimple,
+  LockSimpleOpen,
   Eye,
-  EyeOff,
-  GripVertical,
+  EyeSlash,
+  DotsSixVertical,
   Plus,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -27,15 +27,15 @@ const getIconByType = (type: SelectionType) => {
     case SelectionType.background:
       return Image
     case SelectionType.frame:
-      return Frame
+      return FrameCorners
     case SelectionType.group:
-      return Layers
+      return Stack
     case SelectionType.image:
       return Image
     case SelectionType.shape:
       return Hexagon
     case SelectionType.text:
-      return Type
+      return TextT
     case SelectionType.smartCode:
       return QrCode
     default:
@@ -190,8 +190,8 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
   return (
     <div
       className={cn(
-        'sidePanel w-[240px] h-[calc(100%-80px)] flex flex-col gap-2 bg-editor-panel',
-        'fixed right-[-240px] transition-all duration-300 ease-in-out z-[99]',
+        'sidePanel w-[220px] h-[calc(100%-80px)] flex flex-col gap-2 bg-editor-panel',
+        'fixed right-[-220px] transition-all duration-300 ease-in-out z-[99]',
         'shadow-[-2.2px_0_3.2px_0_rgba(0,0,0,0.02)] overflow-hidden',
         show && 'right-0'
       )}
@@ -223,7 +223,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                 onClick={() => handleSetPage(index)}
               >
                 <div className="page-drag-handle absolute top-1 left-1 cursor-move opacity-0 hover:opacity-100">
-                  <GripVertical className="h-4 w-4 text-editor-text-muted" />
+                  <DotsSixVertical className="h-4 w-4 text-editor-text-muted" />
                 </div>
                 <div
                   className={cn(
@@ -239,7 +239,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                       className="delete-btn absolute top-1 right-1 opacity-0 hover:opacity-100 h-8 w-8"
                       onClick={(e) => handleDeletePage(e, c.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash className="h-4 w-4" />
                     </Button>
                   )}
                   {screenshots[index] ? (
@@ -292,7 +292,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                   >
                     <div className="left flex flex-row gap-2 flex-1 items-center overflow-hidden">
                       <div className="drag-handle flex items-center cursor-move opacity-50">
-                        <GripVertical className="h-4 w-4 text-editor-text-muted" />
+                        <DotsSixVertical className="h-4 w-4 text-editor-text-muted" />
                       </div>
                       <Icon className="h-5 w-5 text-editor-text flex-shrink-0" />
                       <div className="flex-1 overflow-hidden">
@@ -326,7 +326,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                               className="h-7 w-7"
                               onClick={(e) => handleUnlock(e, obj.id)}
                             >
-                              <Lock className="h-4 w-4" />
+                              <LockSimple className="h-4 w-4" />
                             </Button>
                           ) : (
                             <Button
@@ -335,7 +335,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                               className="h-7 w-7"
                               onClick={(e) => handleLock(e, obj.id)}
                             >
-                              <LockOpen className="h-4 w-4" />
+                              <LockSimpleOpen className="h-4 w-4" />
                             </Button>
                           )}
                           {obj.visible ? (
@@ -354,7 +354,7 @@ export default function SidePanel({ show, onClose }: SidePanelProps) {
                               className="h-7 w-7"
                               onClick={(e) => handleVisible(e, obj.id)}
                             >
-                              <EyeOff className="h-4 w-4" />
+                              <EyeSlash className="h-4 w-4" />
                             </Button>
                           )}
                         </div>

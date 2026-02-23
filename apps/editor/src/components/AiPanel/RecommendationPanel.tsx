@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown, Sparkles, RefreshCw } from 'lucide-react';
+import {
+  ThumbsUp,
+  ThumbsDown,
+  Sparkle,
+  ArrowsClockwise,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import {
   aiApi,
@@ -102,7 +107,7 @@ export function RecommendationPanel({
       {/* 헤더 */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-blue-500" />
+          <Sparkle className="w-5 h-5 text-blue-500" />
           <h3 className="font-medium">AI 추천</h3>
         </div>
         <div className="flex gap-2">
@@ -119,7 +124,7 @@ export function RecommendationPanel({
             onClick={() => loadRecommendations()}
             disabled={loading}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <ArrowsClockwise className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
@@ -195,7 +200,7 @@ export function RecommendationPanel({
       <div className="flex-1 overflow-y-auto p-4">
         {loading && (
           <div className="flex items-center justify-center h-32">
-            <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+            <ArrowsClockwise className="w-6 h-6 animate-spin text-gray-400" />
           </div>
         )}
 
