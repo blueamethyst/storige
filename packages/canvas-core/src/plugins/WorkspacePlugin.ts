@@ -972,7 +972,7 @@ class WorkspacePlugin extends PluginBase {
     this.cutBorder = new fabric.Path(pathDataForBorder as any, {
       ...borderProps, // 위치, 크기, 각도 등 적용
       fill: 'transparent',
-      stroke: '#cd3f3f',
+      stroke: '#e8943a',
       strokeWidth: 0.5,
       opacity: 0.8,
       strokeDashArray: [12, 12],
@@ -1106,7 +1106,7 @@ class WorkspacePlugin extends PluginBase {
     this.safeSizeBorder = new fabric.Path(pathDataForBorder as any, {
       ...borderProps,
       fill: 'transparent',
-      stroke: '#3fcd84',
+      stroke: '#4a90d9',
       strokeWidth: 0.5,
       opacity: 0.8,
       strokeDashArray: [10, 10],
