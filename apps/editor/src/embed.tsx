@@ -314,6 +314,20 @@ function EmbeddedEditor({
             }
           }
 
+          // sessionId 없거나 조회 실패 → orderSeqno로 기존 세션 검색
+          if (!editSession) {
+            try {
+              const { sessions } = await editSessionsApi.findByOrder(orderSeqno)
+              // 가장 최근 세션 사용 (canvasData가 있는 것 우선)
+              editSession = sessions.find(s => s.canvasData) || sessions[0] || null
+              if (editSession) {
+                console.log('[EmbeddedEditor] Found existing session for order:', editSession.id)
+              }
+            } catch (err) {
+              console.warn('[EmbeddedEditor] Failed to find sessions by order:', err)
+            }
+          }
+
           // 기존 세션이 없으면 새로 생성
           if (!editSession) {
             editSession = await editSessionsApi.create({
@@ -415,6 +429,15 @@ function EmbeddedEditor({
           paperType: options?.paperType,
           bindingType: options?.bindingType,
         })
+
+        if (!isMounted) return
+
+        // 기존 세션의 canvasData가 있으면 복원 (재편집)
+        if (editSession?.canvasData && fabricCanvas) {
+          setLoadingMessage('저장된 작업을 복원하는 중...')
+          await core.loadFromJSON(fabricCanvas, editSession.canvasData)
+          console.log('[EmbeddedEditor] Session canvasData restored:', editSession.id)
+        }
 
         if (!isMounted) return
 
