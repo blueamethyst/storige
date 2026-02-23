@@ -16,6 +16,17 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { PayloadTooLargeResponseDto } from './common/dto/error-response.dto';
 
+// Prevent unhandled rejections from crashing the process
+process.on('unhandledRejection', (reason: any) => {
+  // NotFoundException from requests to non-existent routes (e.g. /, /health, bot scans)
+  // should not crash the server
+  if (reason?.name === 'NotFoundException') {
+    console.warn(`Unhandled NotFoundException: ${reason.message}`);
+    return;
+  }
+  console.error('Unhandled Rejection:', reason);
+});
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
