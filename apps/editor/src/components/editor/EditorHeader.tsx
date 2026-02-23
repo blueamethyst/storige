@@ -352,8 +352,8 @@ export default function EditorHeader({
         <div className="ml-auto flex items-center gap-2 md:gap-4">
           {/* 데스크톱/태블릿 버튼들 */}
           <div className="hidden md:flex items-center gap-2">
-            {/* 인쇄 미리보기 */}
-            <Tooltip>
+            {/* 인쇄 미리보기 - 숨김 처리 */}
+            {/* <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant={previewMode ? 'default' : 'ghost'}
@@ -365,7 +365,7 @@ export default function EditorHeader({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>인쇄 미리보기</TooltipContent>
-            </Tooltip>
+            </Tooltip> */}
 
             {/* 3D 미리보기 (스프레드 모드 전용) */}
             {isSpreadMode && (
@@ -384,8 +384,8 @@ export default function EditorHeader({
               </Tooltip>
             )}
 
-            {/* PDF 저장 */}
-            <Tooltip>
+            {/* PDF 저장 - 숨김 처리 */}
+            {/* <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
@@ -397,10 +397,10 @@ export default function EditorHeader({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>PDF 저장</TooltipContent>
-            </Tooltip>
+            </Tooltip> */}
 
-            {/* 내 작업에 저장 */}
-            <Tooltip>
+            {/* 내 작업에 저장 - 숨김 처리 */}
+            {/* <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
@@ -416,7 +416,7 @@ export default function EditorHeader({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>내 작업에 저장</TooltipContent>
-            </Tooltip>
+            </Tooltip> */}
           </div>
 
           {/* 구분선 */}
