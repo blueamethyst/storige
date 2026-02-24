@@ -2,6 +2,19 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
+/**
+ * /storage/... 형태의 상대 URL을 API base URL 기반 절대 URL로 변환
+ * 개발: /storage/files/... → http://localhost:4000/api/storage/files/...
+ * 운영: /storage/files/... → /storige-api/storage/files/...
+ */
+export function resolveStorageUrl(url: string | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('/storage/')) {
+    return `${API_BASE_URL}${url}`;
+  }
+  return url;
+}
+
 export const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {

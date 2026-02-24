@@ -16,6 +16,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { WorkerJob, WorkerJobStatus, WorkerJobType } from '@storige/types';
 import { workerJobsApi } from '../../api/worker-jobs';
+import { resolveStorageUrl } from '../../lib/axios';
 
 const { Title } = Typography;
 
@@ -87,7 +88,7 @@ export const WorkerJobList = () => {
       ellipsis: true,
       render: (url: string) =>
         url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer">
+          <a href={resolveStorageUrl(url)} target="_blank" rel="noopener noreferrer">
             파일 보기
           </a>
         ) : (
@@ -101,7 +102,7 @@ export const WorkerJobList = () => {
       ellipsis: true,
       render: (url: string) =>
         url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer">
+          <a href={resolveStorageUrl(url)} target="_blank" rel="noopener noreferrer">
             파일 보기
           </a>
         ) : (

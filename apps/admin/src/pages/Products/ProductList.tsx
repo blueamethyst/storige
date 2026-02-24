@@ -30,6 +30,7 @@ import { TemplateSetType, Category } from '@storige/types';
 import { productsApi, Product, CreateProductDto, UpdateProductDto } from '../../api/products';
 import { templateSetsApi } from '../../api/template-sets';
 import { categoriesApi } from '../../api/categories';
+import { resolveStorageUrl } from '../../lib/axios';
 
 const { Title, Text } = Typography;
 
@@ -497,7 +498,7 @@ export const ProductList = () => {
                 <List.Item.Meta
                   avatar={
                     <img
-                      src={templateSet.thumbnailUrl || '/placeholder.png'}
+                      src={resolveStorageUrl(templateSet.thumbnailUrl) || '/placeholder.png'}
                       alt={templateSet.name}
                       style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }}
                     />

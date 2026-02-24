@@ -21,6 +21,7 @@ import {
   FileImageOutlined,
 } from '@ant-design/icons';
 import { editSessionsApi, EditSessionResponse, SessionStatus, SessionMode } from '../../api/edit-sessions';
+import { resolveStorageUrl } from '../../lib/axios';
 
 const { Title, Text } = Typography;
 
@@ -116,7 +117,7 @@ export const EditSessionList = () => {
       render: (_, record) => (
         record.coverFile?.thumbnailUrl ? (
           <Image
-            src={record.coverFile.thumbnailUrl}
+            src={resolveStorageUrl(record.coverFile.thumbnailUrl)}
             alt="표지"
             width={50}
             height={50}
@@ -134,7 +135,7 @@ export const EditSessionList = () => {
       render: (_, record) => (
         record.contentFile?.thumbnailUrl ? (
           <Image
-            src={record.contentFile.thumbnailUrl}
+            src={resolveStorageUrl(record.contentFile.thumbnailUrl)}
             alt="내지"
             width={50}
             height={50}

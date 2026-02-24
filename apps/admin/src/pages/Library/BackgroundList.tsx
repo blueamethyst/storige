@@ -22,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { LibraryBackground } from '@storige/types';
 import { libraryApi } from '../../api/library';
+import { resolveStorageUrl } from '../../lib/axios';
 
 const { Title } = Typography;
 
@@ -118,7 +119,7 @@ export const BackgroundList = () => {
       width: 100,
       render: (url: string, record) => (
         <Image
-          src={url || record.fileUrl}
+          src={resolveStorageUrl(url || record.fileUrl)}
           alt={record.name}
           width={60}
           height={60}
