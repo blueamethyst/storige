@@ -12,6 +12,9 @@ export function resolveStorageUrl(url: string | undefined): string {
   if (url.startsWith('/storage/')) {
     return `${API_BASE_URL}${url}`;
   }
+  if (url.startsWith('storage/')) {
+    return `${API_BASE_URL}/${url}`;
+  }
   return url;
 }
 
