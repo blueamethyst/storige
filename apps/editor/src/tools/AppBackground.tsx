@@ -276,7 +276,7 @@ export default function AppBackground() {
         {bgObject && (
           <AppSection
             title="배경이미지"
-            onDetail={deleteBg}
+            onDelete={deleteBg}
           >
             <div className="px-3">
               <div

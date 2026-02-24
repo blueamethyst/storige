@@ -450,7 +450,6 @@ export default function EditorView() {
       {/* Top Navigation Bar */}
       <EditorHeader
         screenMode={screenMode}
-        onToggleSidePanel={toggleSidePanel}
         onLoadingChange={handleLoadingChange}
       />
 
@@ -487,8 +486,7 @@ export default function EditorView() {
               </div>
             </main>
 
-            {/* Side Panel (스프레드 모드에서는 숨김) */}
-            {!isSpreadMode && <SidePanel show={showSidePanel} onClose={() => setShowSidePanel(false)} />}
+            {/* Side Panel 숨김 처리 */}
           </div>
 
           {/* 스프레드 모드 전용 하단 페이지 패널 */}
