@@ -36,6 +36,14 @@ class CopyPlugin extends PluginBase {
   // 핫키로 붙여넣기 실행 중 플래그
   private isHotkeyPasting: boolean = false
 
+  private getTargetCanvas(): fabric.Canvas {
+    if (this._options?.getActiveCanvas) {
+      const activeCanvas = this._options.getActiveCanvas()
+      if (activeCanvas) return activeCanvas
+    }
+    return this._canvas
+  }
+
   constructor(canvas: fabric.Canvas, editor: any, options: PluginOption) {
     super(canvas, editor, options)
     this.cache = null
@@ -118,7 +126,12 @@ class CopyPlugin extends PluginBase {
       return
     }
 
-    const canvas = this._canvas
+    const canvas = this.getTargetCanvas()
+
+    // 멀티페이지 중복 처리 방지 (cache 없고 비활성 캔버스이면 skip)
+    if (this._options?.getActiveCanvas && this._canvas !== canvas && !this.cache) {
+      return
+    }
 
     // 포커스가 document.body가 아닌 경우 리턴
     if (document.activeElement !== document.body) {
@@ -283,7 +296,7 @@ class CopyPlugin extends PluginBase {
 
   private copyActiveSelection(activeObject: fabric.Object) {
     const grid = 10
-    const canvas = this._canvas
+    const canvas = this.getTargetCanvas()
 
     // 복사 전 히스토리 비활성화
     canvas.offHistory()
@@ -318,7 +331,7 @@ class CopyPlugin extends PluginBase {
 
   private copyObject(activeObject: fabric.Object) {
     const grid = 10
-    const canvas = this._canvas
+    const canvas = this.getTargetCanvas()
 
     // 복사 전 히스토리 비활성화
     canvas.offHistory()

@@ -208,7 +208,9 @@ function initPlugins(
   const object = new ObjectPlugin(canvas, editor, mergedOptions)
   const group = new GroupPlugin(canvas, editor)
   const history = new HistoryPlugin(canvas, editor)
-  const copy = new CopyPlugin(canvas, editor, {})
+  const copy = new CopyPlugin(canvas, editor, {
+    getActiveCanvas: () => useAppStore.getState().canvas
+  })
   const align = new AlignPlugin(canvas, editor)
   // ImageProcessingPlugin은 이미지 처리 기능이 활성화된 경우에만 생성
   const image = ENABLE_IMAGE_PROCESSING ? new ImageProcessingPlugin(canvas, editor) : null
