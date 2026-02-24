@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
         '/storage': {
           target: 'http://localhost:4000',
           changeOrigin: true,
+          rewrite: (path) => `/api${path}`,
         },
       },
     },
